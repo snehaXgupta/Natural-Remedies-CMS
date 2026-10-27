@@ -22,82 +22,50 @@ export function complaintLink(complaintId) {
   return `${env.APP_BASE_URL.replace(/\/$/, '')}/complaints/${complaintId}`;
 }
 
-/** Shared HTML frame: Natural Remedies branded header. */
+/** Clean, left-aligned HTML frame (matching standard Salesforce/Corporate email format without header banners) */
 function layout({ title, bodyHtml, footnote }) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title></head>
-<body style="margin:0;padding:0;background:#f4f5f7;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">
-<tr><td align="center">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #dcdfe4;border-radius:6px;">
-<tr><td style="border-top:4px solid #1a7a3c;background:#1a7a3c;border-radius:6px 6px 0 0;padding:14px 28px;">
-  <span style="font:700 18px/1.2 Arial,Helvetica,sans-serif;color:#ffffff;letter-spacing:0.5px;">natural remedies</span>
-  <span style="display:block;font:11px/1.4 Arial,Helvetica,sans-serif;color:#c8e6c9;margin-top:2px;">Quality Assurance Department &bull; Complaint Management System</span>
-</td></tr>
-<tr><td style="padding:6px 28px 4px;border-bottom:1px solid #e8f5e9;background:#f9fef9;">
-  <span style="font:600 14px/1.4 Arial,Helvetica,sans-serif;color:#1a7a3c;">${escapeHtml(title)}</span>
-</td></tr>
-<tr><td style="padding:18px 28px 24px;font:14px/1.6 Arial,Helvetica,sans-serif;color:#1f2328;">${bodyHtml}</td></tr>
-${footnote ? `<tr><td style="padding:14px 28px;border-top:1px solid #dcdfe4;font:12px/1.5 Arial,Helvetica,sans-serif;color:#5b6470;">${footnote}</td></tr>` : ''}
-<tr><td style="padding:12px 28px;background:#f4f5f7;border-top:1px solid #e0e0e0;border-radius:0 0 6px 6px;font:11px/1.5 Arial,Helvetica,sans-serif;color:#8a929c;text-align:center;">Natural Remedies Pvt. Ltd. &bull; QAD &bull; This email is sent from an unmonitored address.</td></tr>
-</table>
-</td></tr></table>
+<body style="margin:0;padding:20px;background:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#1e293b;">
+  <div style="max-width:800px;text-align:left;">
+    ${bodyHtml}
+    ${footnote ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:28px 0 12px 0;" /><p style="font-size:12px;font-style:italic;color:#64748b;margin:0;">${footnote}</p>` : ''}
+  </div>
 </body></html>`;
 }
 
 /** Brief & EQMS format: sent to requester and coordinator when D1 acknowledgement is approved. */
-export function d1Acknowledgement(complaint) {
+export function d1Acknowledgement(complaint, { recipientName } = {}) {
   const number = complaint.complaintNumber;
   const subject = `Complaint Acknowledgement for D1 Stage- ${number}`;
-  const pName = complaint.reportedProduct?.name || complaint.d2?.verifiedProduct?.productName || '';
-  const bNumber = complaint.reportedProduct?.batchNumber || complaint.d2?.verifiedProduct?.batchNumber || '';
-  const customerName = complaint.customer?.name || '';
+  const name = recipientName || complaint.requester?.name || 'Sir/Madam';
 
   const textLines = [
-    'Dear Sir/Madam,',
+    `Dear ${name},`,
     '',
     'Thank you for bringing this matter to our attention.',
     '',
     `We have received your complaint ${number} and our team is reviewing it.`,
     '',
-  ];
-
-  if (pName || bNumber || customerName) {
-    textLines.push('Complaint Details:');
-    if (pName) textLines.push(`- Product Name: ${pName}`);
-    if (bNumber) textLines.push(`- Batch Number: ${bNumber}`);
-    if (customerName) textLines.push(`- Distributor / Retailer: ${customerName}`);
-    textLines.push('');
-  }
-
-  textLines.push(
     'We will update you on the progress shortly.',
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
     '',
     'Note: This is an auto-generated email. Please do not reply to this email.',
-  );
+  ];
 
   const text = textLines.join('\n');
   const n = escapeHtml(number);
 
-  const detailsHtml = (pName || bNumber || customerName)
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #dcdfe4;border-radius:4px;overflow:hidden;background:#ffffff;">
-        ${pName ? `<tr style="border-bottom:1px solid #dcdfe4;"><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Product Name</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(pName)}</td></tr>` : ''}
-        ${bNumber ? `<tr style="border-bottom:1px solid #dcdfe4;"><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Batch Number</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(bNumber)}</td></tr>` : ''}
-        ${customerName ? `<tr><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Distributor / Retailer</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(customerName)}</td></tr>` : ''}
-      </table>`
-    : '';
-
   const html = layout({
-    title: `Complaint Acknowledgement for D1 Stage- ${number}`,
-    bodyHtml: `<p style="margin:0 0 14px;">Dear Sir/Madam,</p>
-<p style="margin:0 0 14px;">Thank you for bringing this matter to our attention.</p>
-<p style="margin:0 0 14px;">We have received your complaint <strong>${n}</strong> and our team is reviewing it.</p>
-${detailsHtml}
-<p style="margin:0 0 14px;">We will update you on the progress shortly.</p>
-<p style="margin:0;">Best Regards,<br><strong>Customer Relationship Management Team</strong></p>`,
+    title: subject,
+    bodyHtml: `<p style="margin:0 0 16px;">Dear ${escapeHtml(name)},</p>
+<p style="margin:0 0 16px;">Thank you for bringing this matter to our attention.</p>
+<p style="margin:0 0 16px;">We have received your complaint <strong>${n}</strong> and our team is reviewing it.</p>
+<p style="margin:0 0 16px;">We will update you on the progress shortly.</p>
+<p style="margin:0 0 4px;">Best Regards,</p>
+<p style="margin:0;font-weight:600;">Customer Relationship Management Team</p>`,
     footnote: 'Note: This is an auto-generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
