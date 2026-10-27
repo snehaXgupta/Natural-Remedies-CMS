@@ -1,12 +1,4 @@
-/**
- * Proposed internal workflow model.
- *
- * These are NOT the company's confirmed status names. They are the states
- * listed in the brief, used internally so the data model is stable. Each one
- * will be mapped to the company's confirmed labels once those are known
- * (docs/OPEN_QUESTIONS.md, Q3). The transition service that enforces these
- * arrives in Phase 3/4; Phase 2 only fixes the vocabulary.
- */
+
 export const STAGES = Object.freeze({
   D1: 'D1',
   D2: 'D2',

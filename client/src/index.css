@@ -35,4 +35,20 @@
   .panel {
     @apply rounded-md border border-line bg-surface shadow-panel;
   }
+  .sf-chevron {
+    position: relative;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    transition: all 0.15s ease-in-out;
+  }
+  .sf-chevron-first {
+    clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
+  }
+  .sf-chevron-inner {
+    clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
+  }
 }
