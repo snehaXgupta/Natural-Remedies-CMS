@@ -11,30 +11,41 @@
     @apply bg-page text-ink antialiased;
     font-size: 16px;
   }
+
   body {
     @apply text-base;
-    font-feature-settings: 'tnum' 1; /* aligned numbers in tables and IDs */
+    font-feature-settings: 'tnum' 1;
+    /* aligned numbers in tables and IDs */
   }
+
   :focus-visible {
     @apply outline-none ring-2 ring-brand-ring ring-offset-1;
   }
+
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation: none !important; transition: none !important; }
+
+    *,
+    *::before,
+    *::after {
+      animation: none !important;
+      transition: none !important;
+    }
   }
 }
 
 @layer components {
   .field-input {
-    @apply block w-full rounded border border-line-strong bg-surface px-2.5 py-1.5 text-base text-ink
-      placeholder:text-ink-faint hover:border-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand-ring
-      disabled:cursor-not-allowed disabled:bg-page disabled:text-ink-muted;
+    @apply block w-full rounded border border-line-strong bg-surface px-2.5 py-1.5 text-base text-ink placeholder:text-ink-faint hover:border-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand-ring disabled:cursor-not-allowed disabled:bg-page disabled:text-ink-muted;
   }
+
   .field-input[aria-invalid='true'] {
     @apply border-bad focus:ring-bad/30;
   }
+
   .panel {
     @apply rounded-md border border-line bg-surface shadow-panel;
   }
+
   .sf-chevron {
     position: relative;
     height: 36px;
@@ -45,9 +56,11 @@
     font-weight: 700;
     transition: all 0.15s ease-in-out;
   }
+
   .sf-chevron-first {
     clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%);
   }
+
   .sf-chevron-inner {
     clip-path: polygon(0% 0%, calc(100% - 14px) 0%, 100% 50%, calc(100% - 14px) 100%, 0% 100%, 14px 50%);
   }

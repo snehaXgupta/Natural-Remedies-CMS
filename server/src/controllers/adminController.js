@@ -50,3 +50,43 @@ export async function meta(_req, res) {
     fishboneCategories: FISHBONE_CATEGORIES,
   });
 }
+
+/** Get system-wide eQMS settings (SLA, Risk Matrix, Notification templates). */
+export async function getSystemSettings(_req, res) {
+  const { SystemSetting, DEFAULT_SETTINGS } = await import('../models/index.js');
+  const docs = await SystemSetting.find({}).lean();
+  const settings = { ...DEFAULT_SETTINGS };
+  for (const doc of docs) {
+    settings[doc.key] = { ...(DEFAULT_SETTINGS[doc.key] || {}), ...doc.value };
+  }
+  return ok(res, settings);
+}
+
+/** Update a category of system settings with audit logging. */
+export async function updateSystemSettings(req, res) {
+  const { SystemSetting, DEFAULT_SETTINGS } = await import('../models/index.js');
+  const audit = await import('../services/auditService.js');
+  const { key } = req.params;
+  if (!['sla', 'riskMatrix', 'emailTemplates'].includes(key)) {
+    return res.status(400).json({ error: { message: `Unknown settings category: ${key}` } });
+  }
+  const existing = await SystemSetting.findOne({ key });
+  const before = existing ? existing.value : DEFAULT_SETTINGS[key];
+  const next = { ...(DEFAULT_SETTINGS[key] || {}), ...(existing?.value || {}), ...req.body };
+  const updated = await SystemSetting.findOneAndUpdate(
+    { key },
+    { key, value: next, updatedBy: req.user?._id },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  const changes = audit.diff(before, next);
+  await audit.record({
+    actor: req.user,
+    action: 'settings.update',
+    entityType: 'SystemSetting',
+    entityId: updated._id,
+    summary: `Updated ${key} settings`,
+    ...changes,
+    context: requestContext(req),
+  });
+  return ok(res, updated.value);
+}

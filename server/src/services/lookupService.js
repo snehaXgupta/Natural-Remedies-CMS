@@ -19,9 +19,11 @@ function duplicate(err) {
 async function checkParent(list, parent) {
   const def = LOOKUP_LISTS[list];
   if (!def.parentList) return undefined;
-  if (!parent) throw AppError.validation([{ field: 'parent', message: 'Choose the manufacturing location this detail belongs to.' }]);
+  const parentDef = LOOKUP_LISTS[def.parentList];
+  const parentName = parentDef ? parentDef.label.toLowerCase() : 'parent item';
+  if (!parent) throw AppError.validation([{ field: 'parent', message: `Choose the ${parentName} this detail belongs to.` }]);
   const ok = await LookupValue.exists({ list: def.parentList, value: parent });
-  if (!ok) throw AppError.validation([{ field: 'parent', message: 'Unknown manufacturing location.' }]);
+  if (!ok) throw AppError.validation([{ field: 'parent', message: `Unknown ${parentName}.` }]);
   return parent;
 }
 
@@ -38,8 +40,8 @@ export async function create({ list, value, parent, order }, actor, context) {
 }
 
 /**
- * Rename, reorder or (de)activate. Renaming a manufacturing location also
- * renames the parent of its details, so they stay attached.
+ * Rename, reorder or (de)activate. Renaming a parent item also
+ * renames the parent of its child details, so they stay attached.
  */
 export async function update(id, input, actor, context) {
   const row = await LookupValue.findById(id);
@@ -52,8 +54,10 @@ export async function update(id, input, actor, context) {
   } catch (err) {
     throw duplicate(err);
   }
-  if (row.list === 'manufacturingLocation' && before.value !== row.value) {
-    await LookupValue.updateMany({ list: 'locationDetail', parent: before.value }, { $set: { parent: row.value } });
+  for (const [childKey, childDef] of Object.entries(LOOKUP_LISTS)) {
+    if (childDef.parentList === row.list && before.value !== row.value) {
+      await LookupValue.updateMany({ list: childKey, parent: before.value }, { $set: { parent: row.value } });
+    }
   }
   const changes = audit.diff(before, { value: row.value, active: row.active, order: row.order, parent: row.parent });
   await audit.record({ actor, action: 'lookup.update', entityType: 'LookupValue', entityId: row._id, summary: `Edited "${row.value}" in ${LOOKUP_LISTS[row.list].label}`, ...changes, context });

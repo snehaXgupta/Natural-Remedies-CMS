@@ -9,6 +9,10 @@ import mongoose from 'mongoose';
  * detail dropdown depends on the location chosen.
  */
 export const LOOKUP_LISTS = Object.freeze({
+  sbu: { label: 'Strategic Business Units (SBUs)' },
+  category: { label: 'Complaint Categories' },
+  subCategory: { label: 'Sub-Categories', parentList: 'category' },
+  defectType: { label: 'Defect Classifications / Defect Types' },
   manufacturingLocation: { label: 'Manufacturing locations' },
   locationDetail: { label: 'Location details', parentList: 'manufacturingLocation' },
   typeOfFailure: { label: 'Types of failure' },

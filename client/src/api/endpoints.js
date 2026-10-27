@@ -91,6 +91,11 @@ export const lookupApi = {
   update: (id, body) => data(api.patch(`/lookups/${id}`, body)),
 };
 
+export const settingsApi = {
+  get: () => data(api.get('/settings')),
+  update: (key, body) => data(api.put(`/settings/${key}`, body)),
+};
+
 export const notificationApi = {
   list: (params) => data(api.get('/notifications', { params })),
   get: (id) => data(api.get(`/notifications/${id}`)),

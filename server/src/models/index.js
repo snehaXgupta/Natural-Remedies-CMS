@@ -17,3 +17,4 @@ export { default as WhatsappMessage } from './WhatsappMessage.js';
 export { default as WhatsappSession } from './WhatsappSession.js';
 export { default as LookupValue, LOOKUP_LISTS } from './LookupValue.js';
 export { default as InAppNotification } from './InAppNotification.js';
+export { default as SystemSetting, DEFAULT_SETTINGS } from './SystemSetting.js';
