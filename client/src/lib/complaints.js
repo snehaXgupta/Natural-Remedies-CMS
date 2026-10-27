@@ -24,7 +24,7 @@ export const STATUS_TONE = {
   CLOSED: 'ok',
 };
 
-export const ORIGINS = ['Phone', 'Email', 'Web'];
+export const ORIGINS = ['Call', 'Phone', 'Email', 'Web'];
 export const REPORTER_TYPES = ['Customer', 'Retailer', 'Distributor'];
 
 export function formatBytes(n) {

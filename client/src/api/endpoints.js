@@ -12,6 +12,7 @@ export const authApi = {
 
 export const userApi = {
   list: (params) => data(api.get('/users', { params })),
+  directory: (params) => data(api.get('/users/directory', { params })).then((r) => (Array.isArray(r) ? r : r?.data || [])),
   create: (body) => data(api.post('/users', body)),
   update: (id, body) => data(api.patch(`/users/${id}`, body)),
   resetPassword: (id) => data(api.post(`/users/${id}/reset-password`)),

@@ -22,7 +22,7 @@ export function complaintLink(complaintId) {
   return `${env.APP_BASE_URL.replace(/\/$/, '')}/complaints/${complaintId}`;
 }
 
-/** Shared HTML frame: plain, readable in every mail client, no images. */
+/** Shared HTML frame: Natural Remedies branded header. */
 function layout({ title, bodyHtml, footnote }) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title></head>
@@ -30,42 +30,75 @@ function layout({ title, bodyHtml, footnote }) {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 12px;">
 <tr><td align="center">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #dcdfe4;border-radius:6px;">
-<tr><td style="border-top:4px solid #1d5bb8;border-radius:6px 6px 0 0;padding:24px 28px 8px;font:600 16px/1.4 Arial,Helvetica,sans-serif;color:#1f2328;">${escapeHtml(title)}</td></tr>
-<tr><td style="padding:8px 28px 24px;font:14px/1.6 Arial,Helvetica,sans-serif;color:#1f2328;">${bodyHtml}</td></tr>
+<tr><td style="border-top:4px solid #1a7a3c;background:#1a7a3c;border-radius:6px 6px 0 0;padding:14px 28px;">
+  <span style="font:700 18px/1.2 Arial,Helvetica,sans-serif;color:#ffffff;letter-spacing:0.5px;">natural remedies</span>
+  <span style="display:block;font:11px/1.4 Arial,Helvetica,sans-serif;color:#c8e6c9;margin-top:2px;">Quality Assurance Department &bull; Complaint Management System</span>
+</td></tr>
+<tr><td style="padding:6px 28px 4px;border-bottom:1px solid #e8f5e9;background:#f9fef9;">
+  <span style="font:600 14px/1.4 Arial,Helvetica,sans-serif;color:#1a7a3c;">${escapeHtml(title)}</span>
+</td></tr>
+<tr><td style="padding:18px 28px 24px;font:14px/1.6 Arial,Helvetica,sans-serif;color:#1f2328;">${bodyHtml}</td></tr>
 ${footnote ? `<tr><td style="padding:14px 28px;border-top:1px solid #dcdfe4;font:12px/1.5 Arial,Helvetica,sans-serif;color:#5b6470;">${footnote}</td></tr>` : ''}
+<tr><td style="padding:12px 28px;background:#f4f5f7;border-top:1px solid #e0e0e0;border-radius:0 0 6px 6px;font:11px/1.5 Arial,Helvetica,sans-serif;color:#8a929c;text-align:center;">Natural Remedies Pvt. Ltd. &bull; QAD &bull; This email is sent from an unmonitored address.</td></tr>
 </table>
 </td></tr></table>
 </body></html>`;
 }
 
-/** Brief, section 8: sent to the requester when D1 acknowledgement is approved. */
+/** Brief & EQMS format: sent to requester and coordinator when D1 acknowledgement is approved. */
 export function d1Acknowledgement(complaint) {
   const number = complaint.complaintNumber;
-  const subject = `Complaint Acknowledgement for D1 Stage – ${number}`;
-  const text = [
+  const subject = `Complaint Acknowledgement for D1 Stage- ${number}`;
+  const pName = complaint.reportedProduct?.name || complaint.d2?.verifiedProduct?.productName || '';
+  const bNumber = complaint.reportedProduct?.batchNumber || complaint.d2?.verifiedProduct?.batchNumber || '';
+  const customerName = complaint.customer?.name || '';
+
+  const textLines = [
     'Dear Sir/Madam,',
     '',
     'Thank you for bringing this matter to our attention.',
     '',
-    `We have received your complaint ${number}, and our team is reviewing it.`,
+    `We have received your complaint ${number} and our team is reviewing it.`,
     '',
+  ];
+
+  if (pName || bNumber || customerName) {
+    textLines.push('Complaint Details:');
+    if (pName) textLines.push(`- Product Name: ${pName}`);
+    if (bNumber) textLines.push(`- Batch Number: ${bNumber}`);
+    if (customerName) textLines.push(`- Distributor / Retailer: ${customerName}`);
+    textLines.push('');
+  }
+
+  textLines.push(
     'We will update you on the progress shortly.',
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
     '',
-    'Note: This is an automatically generated email. Please do not reply to this email.',
-  ].join('\n');
+    'Note: This is an auto-generated email. Please do not reply to this email.',
+  );
 
+  const text = textLines.join('\n');
   const n = escapeHtml(number);
+
+  const detailsHtml = (pName || bNumber || customerName)
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #dcdfe4;border-radius:4px;overflow:hidden;background:#ffffff;">
+        ${pName ? `<tr style="border-bottom:1px solid #dcdfe4;"><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Product Name</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(pName)}</td></tr>` : ''}
+        ${bNumber ? `<tr style="border-bottom:1px solid #dcdfe4;"><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Batch Number</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(bNumber)}</td></tr>` : ''}
+        ${customerName ? `<tr><td style="padding:9px 12px;width:38%;color:#5b6470;font-weight:600;background:#f7f8fa;">Distributor / Retailer</td><td style="padding:9px 12px;color:#1f2328;">${escapeHtml(customerName)}</td></tr>` : ''}
+      </table>`
+    : '';
+
   const html = layout({
-    title: `Complaint acknowledgement: ${number}`,
+    title: `Complaint Acknowledgement for D1 Stage- ${number}`,
     bodyHtml: `<p style="margin:0 0 14px;">Dear Sir/Madam,</p>
 <p style="margin:0 0 14px;">Thank you for bringing this matter to our attention.</p>
-<p style="margin:0 0 14px;">We have received your complaint <strong>${n}</strong>, and our team is reviewing it.</p>
+<p style="margin:0 0 14px;">We have received your complaint <strong>${n}</strong> and our team is reviewing it.</p>
+${detailsHtml}
 <p style="margin:0 0 14px;">We will update you on the progress shortly.</p>
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
-    footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
+<p style="margin:0;">Best Regards,<br><strong>Customer Relationship Management Team</strong></p>`,
+    footnote: 'Note: This is an auto-generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
 }
@@ -134,20 +167,20 @@ export function d2FrpAssigned(complaint, frp) {
     `View Complaint Record: ${link}`,
     '',
     'Best Regards,',
-    'Quality Management Team',
+    'Natural Remedies – Quality Assurance Department',
     '',
     'Note: This is an automatically generated email. Please do not reply to this email.',
   ].join('\n');
 
   const html = layout({
-    title: `FRP assigned: ${number}`,
+    title: `FRP Assigned – ${number}`,
     bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(frp.name)},</p>
-<p style="margin:0 0 14px;">You have been assigned as the First Responsible Person (FRP) for the following complaint. Please review the details and take the necessary action.</p>
+<p style="margin:0 0 14px;">You have been assigned as the <strong>First Responsible Person (FRP)</strong> for the following complaint. Please review the complaint details and initiate the investigation process promptly.</p>
 ${urgent ? `<p style="margin:0 0 14px;padding:10px 12px;background:#fbeae9;border-left:3px solid #b3261e;color:#7a1a14;">${escapeHtml(urgency)}</p>` : ''}
 <p style="margin:0 0 6px;font-weight:600;">Complaint Details</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Quality Management Team</p>`,
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies – Quality Assurance Department</strong></p>`,
     footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
@@ -178,17 +211,17 @@ export function d2Completed(complaint, { recipientName, frpName }) {
     `View Complaint Record: ${link}`,
     '',
     'Best Regards,',
-    'Quality Management Team',
+    'Natural Remedies – Quality Assurance Department',
     '',
     'Note: This is an automatically generated email. Please do not reply to this email.',
   ].join('\n');
   const html = layout({
-    title: `D2 completed: ${number}`,
+    title: `D2 Completed – ${number}`,
     bodyHtml: `<p style="margin:0 0 14px;">${escapeHtml(greeting)}</p>
-<p style="margin:0 0 14px;">Stage D2 – Process Mapping &amp; Assignment has been completed for complaint <strong>${escapeHtml(number)}</strong>. The complaint now moves to D3 – Root Cause Analysis and CAPA.</p>
+<p style="margin:0 0 14px;">Stage <strong>D2 – Process Mapping &amp; Assignment</strong> has been completed for complaint <strong>${escapeHtml(number)}</strong>. The complaint now moves to <strong>D3 – Root Cause Analysis and CAPA</strong>.</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Quality Management Team</p>`,
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies – Quality Assurance Department</strong></p>`,
     footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
@@ -219,17 +252,17 @@ export function d3ApprovalRequest(complaint, { reviewerName, submitterName, vers
     `Review the analysis: ${link}`,
     '',
     'Best Regards,',
-    'Quality Management Team',
+    'Natural Remedies – Quality Assurance Department',
     '',
     'Note: This is an automatically generated email. Please do not reply to this email.',
   ].join('\n');
   const html = layout({
-    title: `D3 approval requested: ${number}`,
+    title: `D3 Approval Requested – ${number}`,
     bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(reviewerName)},</p>
-<p style="margin:0 0 14px;">The root cause analysis and CAPA for complaint <strong>${escapeHtml(number)}</strong> have been submitted for your approval. Please review them and approve, or reject with remarks.</p>
+<p style="margin:0 0 14px;">The root cause analysis and CAPA plan for complaint <strong>${escapeHtml(number)}</strong> have been submitted for your approval. Please review the analysis and either approve it or reject it with your remarks.</p>
 ${details.html}
-${button(link, 'Review the analysis')}
-<p style="margin:0;">Best Regards,<br>Quality Management Team</p>`,
+${button(link, 'Review the Analysis')}
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies – Quality Assurance Department</strong></p>`,
     footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
@@ -269,18 +302,18 @@ export function d3CapaRejected(complaint, capa, rootCause, { recipientName, reje
     `View Complaint Record: ${link}`,
     '',
     'Best Regards,',
-    'Quality Management Team',
+    'Natural Remedies – Quality Assurance Department',
     '',
     'Note: This is an automatically generated email. Please do not reply to this email.',
   ].join('\n');
   const html = layout({
-    title: `CAPA rejected: ${capa.capaNumber}`,
+    title: `CAPA Rejected – Action Required – ${capa.capaNumber}`,
     bodyHtml: `<p style="margin:0 0 14px;">${escapeHtml(greeting)}</p>
 <p style="margin:0 0 14px;padding:10px 12px;background:#fbeae9;border-left:3px solid #b3261e;color:#7a1a14;">The submission for <strong>${escapeHtml(capa.capaNumber)}</strong> has been <strong>rejected</strong> and requires correction and resubmission.</p>
-<p style="margin:0 0 14px;">Please review the remarks, update the root cause analysis and CAPA, and submit again.</p>
+<p style="margin:0 0 14px;">Please review the rejection remarks carefully, update the root cause analysis and CAPA records, and resubmit for approval.</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Quality Management Team</p>`,
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies – Quality Assurance Department</strong></p>`,
     footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
   });
   return { subject, text, html };
@@ -307,7 +340,7 @@ export function d2SlaExtensionRequest(complaint, { managerName, frpName, hours, 
     `Please review and approve/reject this extension request: ${link}`,
     '',
     'Best Regards,',
-    'Customer Relationship Management Team',
+    'Natural Remedies – Quality Assurance Department',
   ].join('\n');
   const html = layout({
     title: `D2 SLA Extension Request`,
@@ -315,7 +348,7 @@ export function d2SlaExtensionRequest(complaint, { managerName, frpName, hours, 
 <p style="margin:0 0 14px;">A request has been submitted to extend the D2 stage SLA for the following complaint:</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
+<p style="margin:0;">Best Regards,<br>Natural Remedies – Quality Assurance Department</p>`,
     footnote: 'Note: This is an automatically generated email.',
   });
   return { subject, text, html };
@@ -336,7 +369,7 @@ export function rootCauseApprovalRequest(complaint, { managerName, frpName, coun
     'Please review and approve the identified root causes.',
     '',
     'Best Regards,',
-    'Customer Relationship Management Team',
+    'Natural Remedies – Quality Assurance Department',
   ].join('\n');
   const html = layout({
     title: `Root Cause Approval Request`,
@@ -345,7 +378,7 @@ export function rootCauseApprovalRequest(complaint, { managerName, frpName, coun
 <p style="margin:0 0 14px;"><strong>Total Root Causes Submitted:</strong> ${count || 1}</p>
 ${button(link, 'View Complaint Record')}
 <p style="margin:0 0 14px;">Please review and approve the identified root causes.</p>
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
+<p style="margin:0;">Best Regards,<br>Natural Remedies – Quality Assurance Department</p>`,
     footnote: 'Note: This is an automatically generated email.',
   });
   return { subject, text, html };
@@ -375,7 +408,7 @@ export function capaImplementationAssignment(complaint, capa, { rpName }) {
     'Action Required: Please implement the CAPA and update the implementation details in the system once completed.',
     '',
     'Best Regards,',
-    'Customer Relationship Management Team',
+    'Natural Remedies – Quality Assurance Department',
   ].join('\n');
   const html = layout({
     title: `CAPA Implementation Assignment`,
@@ -384,7 +417,7 @@ export function capaImplementationAssignment(complaint, capa, { rpName }) {
 ${details.html}
 ${button(link, 'View CAPA Record')}
 <p style="margin:0 0 14px;color:#b3261e;font-weight:600;">Action Required: Please implement the CAPA and update the implementation details in the system once completed.</p>
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
+<p style="margin:0;">Best Regards,<br>Natural Remedies – Quality Assurance Department</p>`,
     footnote: 'Note: This is an automatically generated email.',
   });
   return { subject, text, html };
@@ -410,7 +443,7 @@ export function movedToD4Stage(complaint, { recipientName }) {
     `View Complaint Record: ${link}`,
     '',
     'Best Regards,',
-    'Customer Relationship Management Team',
+    'Natural Remedies – Quality Assurance Department',
   ].join('\n');
   const html = layout({
     title: `✓ Complaint Moved to D4 Stage`,
@@ -418,7 +451,7 @@ export function movedToD4Stage(complaint, { recipientName }) {
 <p style="margin:0 0 14px;color:#137333;font-weight:600;">The complaint ${escapeHtml(number)} has moved to the D4 (Effectiveness Review &amp; Closure) stage.</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
+<p style="margin:0;">Best Regards,<br>Natural Remedies – Quality Assurance Department</p>`,
     footnote: 'Note: This is an automatically generated email.',
   });
   return { subject, text, html };
@@ -436,20 +469,107 @@ export function complaintSuccessfullyClosed(complaint, { recipientName, isReques
     `View Complaint: ${link}`,
     '',
     'Best Regards,',
-    'Customer Relationship Management Team',
+    'Natural Remedies – Quality Assurance Department',
   ].join('\n');
   const html = layout({
     title: `✓ Complaint Successfully Closed`,
     bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(recipientName || 'Customer')},</p>
 <p style="margin:0 0 14px;color:#137333;font-weight:600;">We are pleased to inform you that complaint <strong>${escapeHtml(number)}</strong> has been successfully completed and closed upon completion of the D4 stage.</p>
 ${button(link, 'View Complaint Record')}
-<p style="margin:0;">Best Regards,<br>Customer Relationship Management Team</p>`,
+<p style="margin:0;">Best Regards,<br>Natural Remedies – Quality Assurance Department</p>`,
     footnote: 'Note: This is an automatically generated email.',
   });
   return { subject, text, html };
 }
 
+/** Format date as DD/MM/YYYY, hh:mm A matching the Salesforce screenshot */
+function formatHandlerDateTime(date) {
+  if (!date) return '—';
+  const d = new Date(date);
+  const pad = (n) => String(n).padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutes = pad(d.getMinutes());
+  return `${day}/${month}/${year}, ${pad(hours)}:${minutes} ${ampm}`;
+}
+
+/** Sent to Complaint Handler upon successful complaint registration (PDF Section 2.2 & User Screenshot) */
+export function newComplaintHandler(complaint, handler = {}) {
+  const number = complaint.complaintNumber;
+  const subject = `New Complaint Created: ${number}`;
+  const link = complaintLink(complaint._id);
+  const handlerName = handler.name || 'Jensy Josephine';
+
+  const rows = [
+    ['Complaint Number', number],
+    ['Complaint Date', formatHandlerDateTime(complaint.complaintDate || complaint.createdAt)],
+    ['Requested By', complaint.requester?.name || '—'],
+    ['Requestor Email', complaint.requester?.email || '—'],
+    ['Requestor Mobile', complaint.requester?.mobile || '—'],
+    ['Origin', complaint.origin || 'Call'],
+    ['Short Description', complaint.shortDescription || '—'],
+    ['SBU', complaint.sbu || '—'],
+    ['Country', complaint.country || '—'],
+    ['Distributor/Retailer', complaint.customer?.name || '—'],
+    ['Product Name', complaint.reportedProduct?.name || '—'],
+    ['Batch Number', complaint.reportedProduct?.batchNumber || '—'],
+  ];
+
+  const textLines = [
+    'New Complaint Notification',
+    '',
+    `Dear ${handlerName},`,
+    '',
+    'A new complaint has been assigned to you. Please find the details below:',
+    '',
+    ...rows.map(([k, v]) => `${k}: ${v}`),
+    '',
+    `View Complaint Record: ${link}`,
+    '',
+    'Please take necessary action on this complaint.',
+    '',
+    'Best Regards,',
+    'Customer Relationship Management Team',
+    '',
+    'Note: This is an auto-generated email. Please do not reply to this email.',
+  ];
+
+  const tableHtml = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:16px 0 20px;border:1px solid #dcdfe4;font-size:13px;font-family:Arial,Helvetica,sans-serif;">
+${rows
+  .map(
+    ([k, v]) => `<tr><td style="padding:7px 12px;width:34%;background:#f2f2f2;font-weight:700;color:#222222;border:1px solid #dcdfe4;vertical-align:middle;">${escapeHtml(k)}</td><td style="padding:7px 12px;background:#ffffff;color:#333333;border:1px solid #dcdfe4;vertical-align:middle;">${escapeHtml(v)}</td></tr>`,
+  )
+  .join('\n')}
+</table>`;
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(subject)}</title></head>
+<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#333333;">
+<div style="max-width:650px;margin:0 auto;padding:15px 20px;">
+  <h2 style="font-size:18px;font-weight:700;color:#1e3a8a;margin:0 0 16px;">New Complaint Notification</h2>
+  <p style="margin:0 0 10px;font-size:13px;">Dear ${escapeHtml(handlerName)},</p>
+  <p style="margin:0 0 16px;font-size:13px;">A new complaint has been assigned to you. Please find the details below:</p>
+  ${tableHtml}
+  <div style="margin:18px 0;">
+    <a href="${escapeHtml(link)}" style="display:inline-block;background:#0176d3;color:#ffffff;text-decoration:none;font-weight:600;font-size:13px;padding:9px 18px;border-radius:4px;">View Complaint Record</a>
+  </div>
+  <p style="margin:16px 0 6px;font-size:13px;">Please take necessary action on this complaint.</p>
+  <p style="margin:0 0 20px;font-size:13px;">Best Regards,<br><strong>Customer Relationship Management Team</strong></p>
+  <hr style="border:none;border-top:1px solid #e0e0e0;margin:20px 0 12px;" />
+  <p style="font-size:11px;color:#888888;font-style:italic;margin:0;">Note: This is an auto-generated email. Please do not reply to this email.</p>
+</div>
+</body></html>`;
+
+  return { subject, text: textLines.join('\n'), html };
+}
+
 export const TEMPLATES = Object.freeze({
+  NEW_COMPLAINT_HANDLER: newComplaintHandler,
   D1_ACKNOWLEDGEMENT: d1Acknowledgement,
   D2_FRP_ASSIGNED: d2FrpAssigned,
   D2_COMPLETED: d2Completed,

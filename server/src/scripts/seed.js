@@ -16,6 +16,9 @@ import { password as passwordRule } from '../validation/common.js';
 
 const DEMO_DEPARTMENTS = [
   { name: 'Quality Assurance', code: 'QA' },
+  { name: 'QA - AHB Omnicare', code: 'QA-OMNI' },
+  { name: 'QA - AHB Remicare', code: 'QA-REMI' },
+  { name: 'QA - Packaging & Phytocare', code: 'QA-PHYTO' },
   { name: 'Production', code: 'PROD' },
   { name: 'Customer Relationship Management', code: 'CRM' },
 ];
@@ -36,6 +39,9 @@ const DEMO_LOOKUPS = [
 
 const DEMO_USERS = [
   { name: 'Demo Quality Coordinator', email: 'qc@example.test', roles: ['quality_coordinator'], dept: 'QA' },
+  { name: 'Sneha', email: 'sneha@naturalremedies.com', designation: 'Quality Coordinator (Omnicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-OMNI' },
+  { name: 'Unnati', email: 'unnati@naturalremedies.com', designation: 'Quality Coordinator (Remicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-REMI' },
+  { name: 'Shweta', email: 'shweta@naturalremedies.com', designation: 'Quality Coordinator (Packaging & Phytocare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-PHYTO' },
   { name: 'Demo FRP', email: 'frp@example.test', roles: ['frp'], dept: 'PROD' },
   { name: 'Demo Reviewer', email: 'reviewer@example.test', roles: ['reviewer'], dept: 'QA' },
   { name: 'Demo Employee', email: 'employee@example.test', roles: ['employee'], dept: 'CRM' },

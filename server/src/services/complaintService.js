@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, ComplaintAssignment, ComplaintAttachment, AuditLog, RootCauseAnalysis } from '../models/index.js';
+import { Complaint, ComplaintAssignment, ComplaintAttachment, AuditLog, RootCauseAnalysis, User } from '../models/index.js';
 import { STATUSES as S, STATUS_LABELS } from '../config/workflow.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
@@ -7,6 +7,9 @@ import { escapeRegex, pageMeta } from '../utils/http.js';
 import { nextComplaintNumber } from './sequenceService.js';
 import * as workflow from './workflowService.js';
 import * as audit from './auditService.js';
+import * as notifications from './notificationService.js';
+import * as inApp from './inAppNotificationService.js';
+import { newComplaintHandler } from '../mail/templates.js';
 
 /* ------------------------------------------------------------------ */
 /* Visibility                                                          */
@@ -54,6 +57,7 @@ const D1_FIELDS = [
   'category',
   'customer',
   'reportedProduct',
+  'coordinator',
 ];
 
 function pickD1(input) {
@@ -71,7 +75,7 @@ function pickD1(input) {
  * `actor` is null for complaints arriving from WhatsApp (Phase 9).
  */
 export async function createComplaint(input, { actor, origin, context } = {}) {
-  return mongoose.connection.transaction(async (session) => {
+  const result = await mongoose.connection.transaction(async (session) => {
     const complaintDate = input.complaintDate || new Date();
     const complaintNumber = await nextComplaintNumber(complaintDate, session);
     const [complaint] = await Complaint.create(
@@ -100,8 +104,70 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
       session,
     });
     const { complaint: registered } = await workflow.perform(complaint._id, 'register', { actor, context, session });
+
+    // Notify Complaint Handler (Assigned Coordinator or Sneha admin@naturalremedies.com)
+    let handler = null;
+    const adminUser = await User.findOne({ email: 'admin@naturalremedies.com', isActive: true }).session(session).lean();
+    if (complaint.coordinator) {
+      handler = await User.findById(complaint.coordinator).session(session).lean();
+    }
+    if (!handler) {
+      handler = adminUser;
+    }
+    if (!handler) {
+      handler = await User.findOne({ roles: 'quality_coordinator', isActive: true }).session(session).lean();
+    }
+
+    if (handler?.email) {
+      const handlerEmail = newComplaintHandler(complaint, handler);
+      await notifications.enqueue({
+        type: 'NEW_COMPLAINT_HANDLER',
+        channel: 'email',
+        complaint: complaint._id,
+        recipient: handler.email,
+        recipientUser: handler._id,
+        dedupeKey: `NEW_COMPLAINT_HANDLER:${complaint._id}:${handler.email}`,
+        message: handlerEmail,
+        session,
+      });
+
+      inApp.createNotification({
+        recipient: handler._id,
+        complaint: complaint._id,
+        title: 'New Complaint Received',
+        message: `A new complaint has been logged and requires your attention: ${complaint.complaintNumber}. Please review and take necessary action.`,
+        link: `/complaints/${complaint._id}`,
+      }).catch(() => {});
+    }
+
+    // Always ensure admin@naturalremedies.com (Sneha) also receives the handler notification
+    if (adminUser && String(adminUser._id) !== String(handler?._id)) {
+      const adminEmail = newComplaintHandler(complaint, adminUser);
+      await notifications.enqueue({
+        type: 'NEW_COMPLAINT_HANDLER',
+        channel: 'email',
+        complaint: complaint._id,
+        recipient: adminUser.email,
+        recipientUser: adminUser._id,
+        dedupeKey: `NEW_COMPLAINT_HANDLER_ADMIN:${complaint._id}`,
+        message: adminEmail,
+        session,
+      });
+
+      inApp.createNotification({
+        recipient: adminUser._id,
+        complaint: complaint._id,
+        title: 'New Complaint Received',
+        message: `A new complaint has been logged and requires your attention: ${complaint.complaintNumber}. Please review and take necessary action.`,
+        link: `/complaints/${complaint._id}`,
+      }).catch(() => {});
+    }
+
     return registered;
   });
+
+  notifications.nudge();
+  return result;
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,6 +178,7 @@ const SORTS = {
   number: 'complaintNumber',
   date: 'complaintDate',
   updated: 'lastActivityAt',
+  created: 'createdAt',
   status: 'status',
   sbu: 'sbu',
   country: 'country',
@@ -165,15 +232,20 @@ export async function listComplaints(query, user, permissions, page) {
       .skip(page.skip)
       .limit(page.limit)
       .select(
-        'complaintNumber complaintDate requester.name sbu country reportedProduct.name d2.verifiedProduct.productName shortDescription stage status priority frp origin lastActivityAt stageDueAt',
+        'complaintNumber complaintDate requester.name sbu country reportedProduct.name d2.verifiedProduct.productName shortDescription stage status priority frp origin lastActivityAt stageDueAt createdAt updatedAt createdBy',
       )
       .populate('frp', 'name')
+      .populate('createdBy', 'name email')
       .lean(),
     Complaint.countDocuments(filter),
   ]);
 
   return {
-    items: items.map((c) => ({ ...c, statusLabel: STATUS_LABELS[c.status] })),
+    items: items.map((c) => ({
+      ...c,
+      statusLabel: STATUS_LABELS[c.status],
+      creatorName: c.origin === 'WhatsApp' || !c.createdBy ? 'Bot User' : c.createdBy?.name || 'Staff User',
+    })),
     meta: pageMeta(page, total),
   };
 }
@@ -193,6 +265,7 @@ export async function getDetail(id, user, permissions) {
   const complaint = await findVisible(id, user, permissions);
   await complaint.populate([
     { path: 'frp', select: 'name email designation' },
+    { path: 'coordinator', select: 'name email designation' },
     { path: 'd2.completedBy', select: 'name' },
     { path: 'createdBy', select: 'name' },
     { path: 'acknowledgement.approvedBy', select: 'name' },

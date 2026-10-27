@@ -16,6 +16,7 @@ import { PendingReviewsPage } from './pages/reviews/PendingReviewsPage.jsx';
 import { SettingsPage } from './pages/settings/SettingsPage.jsx';
 import { ReportsPage } from './pages/reports/ReportsPage.jsx';
 import { SimulatorPage } from './pages/whatsapp/SimulatorPage.jsx';
+import { EmailDetailPage } from './pages/complaints/EmailDetailPage.jsx';
 
 /** Render children only if the user has one of the permissions. */
 function Guard({ any, children }) {
@@ -63,6 +64,8 @@ export default function App() {
         />
         <Route path="complaints" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintsPage key="all" /></Guard>} />
         <Route path="complaints/:id" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintDetailPage /></Guard>} />
+        <Route path="complaints/:complaintId/emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><EmailDetailPage /></Guard>} />
+        <Route path="emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned', 'notifications.view']}><EmailDetailPage /></Guard>} />
         <Route path="my-complaints" element={<Guard any={navFor('/my-complaints').any}><ComplaintsPage key="mine" mine /></Guard>} />
         <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
         <Route path="reports" element={<Guard any={navFor('/reports').any}><ReportsPage /></Guard>} />

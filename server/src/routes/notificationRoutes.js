@@ -47,6 +47,6 @@ r.post('/in-app/:id/read', validate({ params: idParams }), async (req, res, next
 });
 
 r.get('/', requirePermission(P.NOTIFICATIONS_VIEW), validate({ query: listQuery }), c.list);
-r.get('/:id', requirePermission(P.NOTIFICATIONS_VIEW), validate({ params: idParams }), c.get);
+r.get('/:id', validate({ params: idParams }), c.get);
 r.post('/:id/retry', requirePermission(P.NOTIFICATIONS_RETRY), validate({ params: idParams }), c.retry);
 export default r;

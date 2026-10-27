@@ -51,6 +51,9 @@ const complaintSchema = new Schema(
       remarks: { type: String, trim: true, maxlength: 2000 },
     },
 
+    // Manually selected coordinator in D1
+    coordinator: { type: Schema.Types.ObjectId, ref: 'User' },
+
     // ---- D2 ----
     d2: {
       verifiedProduct: {
@@ -129,6 +132,7 @@ const complaintSchema = new Schema(
 complaintSchema.index({ complaintNumber: 1 }, { unique: true });
 complaintSchema.index({ status: 1, stage: 1, lastActivityAt: -1 });
 complaintSchema.index({ frp: 1, status: 1 });
+complaintSchema.index({ coordinator: 1 });
 // Match the list's sort orders (with _id as tie-breaker) so a page of 20 reads
 // 20 index entries instead of sorting the whole collection.
 complaintSchema.index({ lastActivityAt: -1, _id: -1 });

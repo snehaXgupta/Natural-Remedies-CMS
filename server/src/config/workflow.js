@@ -58,5 +58,5 @@ export const STATUS_LABELS = Object.freeze({
   CLOSED: 'Closed',
 });
 
-export const ORIGINS = Object.freeze(['WhatsApp', 'Web', 'Email', 'Phone']);
+export const ORIGINS = Object.freeze(['WhatsApp', 'Web', 'Email', 'Phone', 'Call']);
 export const REPORTER_TYPES = Object.freeze(['Customer', 'Retailer', 'Distributor']);

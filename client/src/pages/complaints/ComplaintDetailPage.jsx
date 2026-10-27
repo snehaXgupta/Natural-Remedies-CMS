@@ -14,6 +14,7 @@ import { useToast } from '../../components/Toast.jsx';
 import { D1Form, toForm, toBody } from './D1Form.jsx';
 import { FilesTab } from './FilesTab.jsx';
 import { HistoryPanel } from './HistoryPanel.jsx';
+import { EmailHistoryPanel } from './EmailHistoryPanel.jsx';
 import { AcknowledgeModal } from './AcknowledgeModal.jsx';
 import { D2Tab } from './D2Tab.jsx';
 import { D3Tab } from './D3Tab.jsx';
@@ -214,55 +215,104 @@ function D1Tab({ detail, onSaved, refreshKey }) {
         {can.editD1 && <Button size="sm" icon={Pencil} onClick={start}>Edit D1</Button>}
       </div>
 
+      {/* Section 1: Requester Information */}
       <section>
-        <h3 className="mb-3 font-semibold">Complaint</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-800 uppercase tracking-wider">Requester Information</h3>
         <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           <Item label="Complaint date">{formatDate(c.complaintDate)}</Item>
+          <Item label="Requested By">{c.requester?.name}</Item>
+          <Item label="Requester E-mail">
+            {c.requester?.email ? (
+              <a className="text-brand hover:underline font-medium" href={`mailto:${c.requester.email}`}>{c.requester.email}</a>
+            ) : <span className="text-ink-muted">—</span>}
+          </Item>
+          <Item label="Requester Mobile Number">{c.requester?.mobile || '—'}</Item>
           <Item label="Origin">{c.origin}</Item>
-          <Item label="Category">{c.category}</Item>
           <Item label="SBU">{c.sbu}</Item>
           <Item label="Country">{c.country}</Item>
-          <Item label="Complaint head quarter">{c.headQuarter}</Item>
+          <Item label="Complaint Head Quarter">{c.headQuarter || '—'}</Item>
+          <Item label="Coordinator">
+            {c.coordinator ? (
+              <span className="font-medium text-slate-800">
+                {c.coordinator.name || c.coordinator.email}
+                {c.coordinator.email && <span className="ml-1 text-xs text-ink-muted">({c.coordinator.email})</span>}
+              </span>
+            ) : (
+              <span className="text-amber-600 font-medium">Not assigned</span>
+            )}
+          </Item>
+          <Item label="Reporter Type">{c.requester?.type || '—'}</Item>
+          <Item label="Category">{c.category || '—'}</Item>
         </dl>
         <dl className="mt-4 space-y-4">
-          <Item label="Short description">{c.shortDescription}</Item>
-          <Item label="Additional remarks">{c.additionalRemarks && <span className="whitespace-pre-line">{c.additionalRemarks}</span>}</Item>
+          <Item label="Short Description of the Complaint">{c.shortDescription}</Item>
+          <Item label="Additional remarks">{c.additionalRemarks ? <span className="whitespace-pre-line">{c.additionalRemarks}</span> : '—'}</Item>
         </dl>
       </section>
 
+      {/* Section 2: Customer Information */}
       <section className="border-t border-line pt-5">
-        <h3 className="mb-3 font-semibold">Requester</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-800 uppercase tracking-wider">Customer Information</h3>
         <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Item label="Requested by">{c.requester?.name}</Item>
-          <Item label="Reporter type">{c.requester?.type}</Item>
-          <Item label="Email">{c.requester?.email && <a className="text-brand hover:underline" href={`mailto:${c.requester.email}`}>{c.requester.email}</a>}</Item>
-          <Item label="Mobile">{c.requester?.mobile}</Item>
+          <Item label="Distributor / Retailer Name">{c.customer?.name || '—'}</Item>
+          <Item label="Customer Code">{c.customer?.code || '—'}</Item>
         </dl>
       </section>
 
+      {/* Section 3: Acknowledgement */}
       <section className="border-t border-line pt-5">
-        <h3 className="mb-3 font-semibold">Customer and product</h3>
-        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Item label="Distributor / retailer">{c.customer?.name}</Item>
-          <Item label="Customer code">{c.customer?.code}</Item>
-          <Item label="Product (as reported)">{c.reportedProduct?.name}</Item>
-          <Item label="Batch (as reported)">{c.reportedProduct?.batchNumber}</Item>
-        </dl>
-      </section>
-
-      <section className="border-t border-line pt-5">
-        <h3 className="mb-3 font-semibold">Acknowledgement</h3>
+        <h3 className="mb-3 text-sm font-semibold text-slate-800 uppercase tracking-wider">Acknowledgement</h3>
         {c.acknowledgement?.approvedAt ? (
-          <>
-            <p>
-              Approved by {c.acknowledgement.approvedBy?.name} on {formatDateTime(c.acknowledgement.approvedAt)}.
+          <div className="space-y-1.5 text-sm">
+            <p className="flex items-center gap-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                ✓ Acknowledged
+              </span>
+              <span>by <strong>{c.acknowledgement.approvedBy?.name || 'Quality Team'}</strong> on {formatDateTime(c.acknowledgement.approvedAt)}</span>
             </p>
-            {c.acknowledgement.remarks && <p className="mt-1 text-ink-muted">Remarks: {c.acknowledgement.remarks}</p>}
-          </>
+            {c.acknowledgement.remarks && <p className="text-slate-600"><strong>Acknowledgement Comments:</strong> {c.acknowledgement.remarks}</p>}
+          </div>
         ) : (
-          <p className="text-ink-muted">Not acknowledged yet.</p>
+          <p className="text-sm text-ink-muted">Pending acknowledgement. In this stage, only the Acknowledgement field is editable by Quality Coordinator.</p>
         )}
         <EmailStatus complaintId={c._id} refreshKey={refreshKey} />
+      </section>
+
+      {/* Section 4: Product Information */}
+      <section className="border-t border-line pt-5">
+        <h3 className="mb-3 text-sm font-semibold text-slate-800 uppercase tracking-wider">Product Information</h3>
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Item label="Product Name">{c.reportedProduct?.name || '—'}</Item>
+          <Item label="Batch Number">{c.reportedProduct?.batchNumber || '—'}</Item>
+        </dl>
+      </section>
+
+      {/* Section 5: System Information */}
+      <section className="border-t border-line pt-5">
+        <h3 className="mb-3 text-sm font-semibold text-slate-800 uppercase tracking-wider">System Information</h3>
+        <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Item label="Created By">
+            <div className="flex flex-col">
+              <span className="font-medium text-slate-800">
+                {c.origin === 'WhatsApp' ? 'Bot User' : c.createdBy?.name || 'Staff User'}
+              </span>
+              <span className="text-xs text-slate-500">
+                {c.origin === 'WhatsApp' ? '🟢 via bot user' : `🔵 manually (${c.origin || 'Web'})`}
+                {c.createdAt && ` • ${formatDateTime(c.createdAt)}`}
+              </span>
+            </div>
+          </Item>
+          <Item label="Last Modified By">
+            <div className="flex flex-col">
+              <span className="font-medium text-slate-800">
+                {c.updatedBy?.name || c.createdBy?.name || (c.origin === 'WhatsApp' ? 'WhatsApp Bot' : 'System')}
+              </span>
+              <span className="text-xs text-slate-500">
+                {formatDateTime(c.lastActivityAt || c.updatedAt)}
+              </span>
+            </div>
+          </Item>
+        </dl>
       </section>
     </div>
   );
@@ -538,6 +588,7 @@ export function ComplaintDetailPage() {
             </dl>
           </section>
           <HistoryPanel complaintId={c._id} refreshKey={historyKey} />
+          <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />
         </aside>
       </div>
 
@@ -596,11 +647,11 @@ export function ComplaintDetailPage() {
         open={acking}
         complaint={c}
         onClose={() => setAcking(false)}
-        onDone={(next, to) => {
+        onDone={(next, to, coordTo) => {
           setAcking(false);
           refreshed(next);
           setParams({ tab: 'D1' }, { replace: true });
-          notify(`Acknowledged. The acknowledgement email to ${to} is being sent.`);
+          notify(`Acknowledged. Acknowledgement email dispatched${to ? ` to ${to}` : ''}${coordTo ? ` and coordinator (${coordTo})` : ''}.`);
           // Pick up the "Sent" status once the worker has delivered it.
           setTimeout(() => setHistoryKey((k) => k + 1), 2500);
         }}

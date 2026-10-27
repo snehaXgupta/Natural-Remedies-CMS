@@ -12,7 +12,7 @@ const r = Router();
 // people or manage users may read names and emails.
 r.get(
   '/directory',
-  requireAnyPermission(P.USERS_MANAGE, P.COMPLAINT_ASSIGN, P.COMPLAINT_D3_EDIT),
+  requireAnyPermission(P.USERS_MANAGE, P.COMPLAINT_ASSIGN, P.COMPLAINT_D3_EDIT, P.COMPLAINT_D1_ACKNOWLEDGE, P.COMPLAINT_CREATE_MANUAL),
   validate({ query: directoryQuery }),
   c.directory,
 );

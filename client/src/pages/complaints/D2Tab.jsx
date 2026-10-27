@@ -94,7 +94,7 @@ function D2View({ c }) {
         </dl>
       </section>
       <section className="border-t border-line pt-5">
-        <h3 className="mb-3 font-semibold">Preliminary investigation</h3>
+        <h3 className="mb-3 font-semibold">RPN Guide (Preliminary Risk Investigation)</h3>
         <div className="mb-4 overflow-x-auto">
           <table className="w-full max-w-xl text-left">
             <thead className="text-sm text-ink-muted">
@@ -191,7 +191,7 @@ function D2Form({ form, setForm, errors, lists }) {
       </fieldset>
 
       <fieldset className="border-t border-line pt-5">
-        <legend className="mb-3 bg-surface pr-2 font-semibold">Preliminary investigation</legend>
+        <legend className="mb-3 bg-surface pr-2 font-semibold">RPN Guide (Preliminary Risk Investigation)</legend>
         <div className="space-y-3">
           {[
             ['occurrences', 'A', 'Number of occurrences of the event'],

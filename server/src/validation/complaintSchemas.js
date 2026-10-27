@@ -28,12 +28,24 @@ const d1Fields = (empty) => ({
   complaintDate: notInFuture.optional(),
   requester: z.object({
     name: text(120).min(2, 'Enter the requester’s name.'),
-    email: z.preprocess(
-      blankTo(empty),
-      z.email('Enter a valid email address.').max(254).transform((v) => v.toLowerCase()).nullable().optional(),
-    ),
-    mobile: mobile(empty),
-    type: z.enum(REPORTER_TYPES, 'Choose Customer, Retailer or Distributor.').optional(),
+    email: empty === null
+      ? z.preprocess(
+          blankTo(null),
+          z.string().email('Enter a valid email address.').max(254).transform((v) => v.toLowerCase()).nullable().optional(),
+        )
+      : z.preprocess(
+          blankTo(undefined),
+          z.string().email('Enter a valid email address.').max(254).transform((v) => v.toLowerCase()),
+        ),
+    mobile: empty === null
+      ? mobile(null)
+      : z.preprocess(
+          blankTo(undefined),
+          z.string().trim().regex(/^\+?[0-9 ()-]{7,20}$/, 'Enter a valid mobile number.'),
+        ),
+    type: empty === null
+      ? z.enum(REPORTER_TYPES, 'Choose Customer, Retailer or Distributor.').nullable().optional()
+      : z.enum(REPORTER_TYPES, 'Choose Customer, Retailer or Distributor.'),
   }),
   sbu: text(80).min(1, 'Enter the SBU.'),
   country: text(80).min(1, 'Enter the country.'),
@@ -41,14 +53,19 @@ const d1Fields = (empty) => ({
   shortDescription: text(500).min(5, 'Describe the complaint in at least 5 characters.'),
   additionalRemarks: optional(4000, empty),
   category: optional(120, empty),
-  customer: z.object({ name: optional(200, empty), code: optional(60, empty) }).optional(),
-  reportedProduct: z.object({ name: optional(200, empty), batchNumber: optional(60, empty) }).optional(),
+  customer: empty === null
+    ? z.object({ name: optional(200, null), code: optional(60, null) }).optional()
+    : z.object({ name: text(200).min(1, 'Enter the Distributor / Retailer Name.'), code: optional(60, empty) }),
+  reportedProduct: empty === null
+    ? z.object({ name: optional(200, null), batchNumber: optional(60, null) }).optional()
+    : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: text(60).min(1, 'Enter the Batch Number.') }),
+  coordinator: z.preprocess((v) => (v === '' ? null : v), z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid coordinator ID.').nullable().optional()),
 });
 
 // Staff-entered complaints. WhatsApp complaints are created by the webhook.
 export const createComplaintBody = z.object({
   ...d1Fields(undefined),
-  origin: z.enum(['Web', 'Email', 'Phone'], 'Choose how the complaint was received.'),
+  origin: z.enum(['Web', 'Email', 'Phone', 'Call'], 'Choose how the complaint was received.'),
 });
 
 export const updateD1Body = z
@@ -82,7 +99,7 @@ export const listComplaintsQuery = z.object({
   mine: flag,
   open: flag,
   overdue: flag,
-  sort: z.enum(['number', 'date', 'updated', 'status', 'sbu', 'country']).optional(),
+  sort: z.enum(['number', 'date', 'updated', 'created', 'status', 'sbu', 'country']).optional(),
   order: z.enum(['asc', 'desc']).optional(),
 });
 
@@ -91,6 +108,7 @@ export const uploadBody = z.object({ stage: z.enum(['SYNCED', 'D1', 'D2', 'D3', 
 
 export const acknowledgeBody = z.object({
   remarks: z.string().trim().max(2000).optional(),
+  coordinator: z.preprocess((v) => (v === '' ? null : v), z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid coordinator ID.').nullable().optional()),
   // Sent by the client so a retried request (e.g. after a timeout) is harmless.
   idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
 });

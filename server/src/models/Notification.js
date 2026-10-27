@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 export const NOTIFICATION_TYPES = Object.freeze([
+  'NEW_COMPLAINT_HANDLER',
   'D1_ACKNOWLEDGEMENT',
   'D2_FRP_ASSIGNED',
   'D2_COMPLETED',

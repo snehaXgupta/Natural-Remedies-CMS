@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, ComplaintStageRecord } from '../models/index.js';
+import { Complaint, ComplaintStageRecord, User } from '../models/index.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
 import { d1Acknowledgement } from '../mail/templates.js';
@@ -9,14 +9,25 @@ import * as notifications from './notificationService.js';
 import * as audit from './auditService.js';
 
 const SNAPSHOT_FIELDS =
-  'complaintNumber complaintDate origin requester sbu country headQuarter shortDescription additionalRemarks category customer reportedProduct';
+  'complaintNumber complaintDate origin requester sbu country headQuarter shortDescription additionalRemarks category customer reportedProduct coordinator';
 
-/** What the requester will receive; shown in the confirmation dialog. */
+/** What the requester and coordinator will receive; shown in the confirmation dialog. */
 export async function acknowledgementPreview(id, user, permissions) {
   const complaint = await findVisible(id, user, permissions, { lean: true });
   if (!permissions.has(P.COMPLAINT_D1_ACKNOWLEDGE)) throw AppError.forbidden();
+  let coordinator = null;
+  if (complaint.coordinator) {
+    coordinator = await User.findById(complaint.coordinator).select('name email').lean();
+  }
   const { subject, text } = d1Acknowledgement(complaint);
-  return { to: complaint.requester?.email || null, subject, text };
+  return {
+    to: complaint.requester?.email || null,
+    coordinatorTo: coordinator?.email || null,
+    coordinatorName: coordinator?.name || null,
+    coordinatorId: coordinator?._id ? String(coordinator._id) : null,
+    subject,
+    text,
+  };
 }
 
 /**
@@ -26,15 +37,12 @@ export async function acknowledgementPreview(id, user, permissions) {
  *   - status D1_ACK_PENDING → D1_ACKNOWLEDGED (checked by the workflow service:
  *     permission, current status, requester email present)
  *   - acknowledgement.approvedBy / approvedAt / remarks
+ *   - manually selected coordinator saved to complaint (if provided)
  *   - a stage record with a snapshot of the D1 data that was acknowledged
- *   - the acknowledgement email, queued with dedupeKey D1_ACK:<id>
+ *   - the acknowledgement email queued for requester and coordinator
  *   - an audit entry
- *
- * Safe against repeats: a second click gets 409 from the workflow; a retried
- * request with the same idempotencyKey returns the result without writing;
- * and the dedupeKey makes a second email impossible either way.
  */
-export async function acknowledge(id, { remarks, idempotencyKey }, { user, permissions, context }) {
+export async function acknowledge(id, { remarks, coordinator: coordinatorId, idempotencyKey }, { user, permissions, context }) {
   await findVisible(id, user, permissions, { lean: true });
   let queued = null;
 
@@ -52,9 +60,17 @@ export async function acknowledge(id, { remarks, idempotencyKey }, { user, permi
 
     const now = new Date();
     const note = remarks?.trim() || undefined;
+    const updateDoc = {
+      acknowledgement: { approvedBy: user._id, approvedAt: now, remarks: note },
+    };
+    const effectiveCoordinator = coordinatorId !== undefined ? (coordinatorId || null) : complaint.coordinator;
+    if (effectiveCoordinator !== undefined) {
+      updateDoc.coordinator = effectiveCoordinator;
+    }
+
     await Complaint.updateOne(
       { _id: complaint._id },
-      { $set: { acknowledgement: { approvedBy: user._id, approvedAt: now, remarks: note } } },
+      { $set: updateDoc },
       { session },
     );
 
@@ -64,15 +80,34 @@ export async function acknowledge(id, { remarks, idempotencyKey }, { user, permi
       { session },
     );
 
+    const emailTemplate = d1Acknowledgement(complaint);
+
+    // 1. Acknowledgement email to requester / originator
     const { notification, created } = await notifications.enqueue({
       type: 'D1_ACKNOWLEDGEMENT',
       complaint: complaint._id,
       recipient: complaint.requester.email,
       dedupeKey: `D1_ACK:${complaint._id}`,
-      message: d1Acknowledgement(complaint),
+      message: emailTemplate,
       session,
     });
     queued = created ? notification : null;
+
+    // 2. Acknowledgement email to coordinator (if assigned)
+    if (effectiveCoordinator) {
+      const coordUser = await User.findById(effectiveCoordinator).session(session).lean();
+      if (coordUser?.email && coordUser.email.toLowerCase() !== complaint.requester?.email?.toLowerCase()) {
+        await notifications.enqueue({
+          type: 'D1_ACKNOWLEDGEMENT',
+          complaint: complaint._id,
+          recipient: coordUser.email,
+          recipientUser: coordUser._id,
+          dedupeKey: `D1_ACK_COORD:${complaint._id}`,
+          message: emailTemplate,
+          session,
+        });
+      }
+    }
 
     // WhatsApp complaints also get a short status message on WhatsApp.
     // Outside WhatsApp's 24-hour reply window Meta requires an approved

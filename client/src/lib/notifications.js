@@ -6,6 +6,7 @@ export const NOTIFICATION_STATUS = {
 };
 
 export const NOTIFICATION_TYPES = {
+  NEW_COMPLAINT_HANDLER: 'New Complaint Notification',
   D1_ACKNOWLEDGEMENT: 'D1 acknowledgement',
   D2_FRP_ASSIGNED: 'FRP assigned',
   D2_COMPLETED: 'D2 completed',
