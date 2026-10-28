@@ -90,14 +90,34 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone }) {
 
 /* ---------------- Status banner ---------------- */
 
-export function ReviewBanner({ complaint, review, latestRejection }) {
+export function ReviewBanner({ complaint, review, latestRejection, onApprove, onReject, canReview, onStartD4 }) {
   if (!review || complaint.stage !== 'D3' && complaint.status !== 'D3_APPROVED') return null;
   const s = complaint.status;
   if (s === 'D3_PENDING_APPROVAL') {
     return (
-      <div className="rounded border border-warn/30 bg-warn-soft px-4 py-3">
-        <p className="font-medium text-warn">Waiting for approval{review.version > 1 ? ` (version ${review.version})` : ''}</p>
-        <p className="text-sm text-ink">Submitted by {review.submittedBy?.name} on {formatDateTime(review.submittedAt)} to {review.reviewer?.name || 'the reviewer'}. The analysis is locked until a decision is made.</p>
+      <div className="rounded border border-amber-300 bg-amber-50/70 p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="font-bold text-amber-800 text-xs sm:text-sm">Waiting for approval{review.version > 1 ? ` (version ${review.version})` : ''}</p>
+          <p className="text-xs text-slate-700 mt-0.5">Submitted by <strong>{review.submittedBy?.name}</strong> on {formatDateTime(review.submittedAt)} to <strong>{review.reviewer?.name || 'the reviewer'}</strong>. The analysis is locked until a decision is made.</p>
+        </div>
+        {(canReview || onApprove) && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onApprove}
+              className="px-3.5 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1"
+            >
+              ✓ Approve Analysis
+            </button>
+            <button
+              type="button"
+              onClick={onReject}
+              className="px-3.5 py-1.5 rounded bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-xs transition-colors flex items-center gap-1"
+            >
+              ✕ Reject & Rework
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -117,9 +137,20 @@ export function ReviewBanner({ complaint, review, latestRejection }) {
   }
   if (s === 'D3_APPROVED') {
     return (
-      <div className="rounded border border-ok/25 bg-ok-soft px-4 py-3">
-        <p className="font-medium text-ok">Analysis approved{review.version > 1 ? ` (version ${review.version})` : ''}</p>
-        <p className="text-sm text-ink">The root causes and CAPA are approved. CAPA actions still need to be carried out and verified.</p>
+      <div className="rounded border border-emerald-300 bg-emerald-50/70 p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="font-bold text-emerald-800 text-xs sm:text-sm">Analysis approved{review.version > 1 ? ` (version ${review.version})` : ''}</p>
+          <p className="text-xs text-slate-700 mt-0.5">The root causes and CAPA plan are officially approved. You can now proceed to D4 Effectiveness Review.</p>
+        </div>
+        {onStartD4 && (
+          <button
+            type="button"
+            onClick={onStartD4}
+            className="px-3.5 py-1.5 rounded bg-[#0176d3] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors shrink-0 flex items-center gap-1"
+          >
+            Proceed to D4 Stage &rarr;
+          </button>
+        )}
       </div>
     );
   }

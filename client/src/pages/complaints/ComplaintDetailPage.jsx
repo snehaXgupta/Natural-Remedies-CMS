@@ -11,6 +11,8 @@ import {
   Info,
   SlidersHorizontal,
   X,
+  Clock,
+  Mail,
 } from 'lucide-react';
 import { complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -477,15 +479,16 @@ function D1Tab({ detail, onSaved, refreshKey, onStartAcknowledge, startEditTrigg
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 italic">Pending acknowledgement</span>
-                    {can.acknowledge && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-slate-400 italic text-xs">Pending acknowledgement</span>
+                    {(can.acknowledge || !isAck) && (
                       <button
                         type="button"
                         onClick={onStartAcknowledge}
-                        className="text-xs text-blue-600 font-semibold hover:underline"
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-[#0176d3] text-white font-semibold hover:bg-[#014486] transition-colors shadow-2xs"
                       >
-                        Acknowledge
+                        <Check className="h-3 w-3" />
+                        <span>Acknowledge</span>
                       </button>
                     )}
                   </div>
@@ -587,6 +590,140 @@ function SlaTab({ complaint: c }) {
   );
 }
 
+/* ---------------- Salesforce Right Organizer Sidebar ---------------- */
+
+function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknowledge, onStartD2 }) {
+  const isAck = Boolean(c.acknowledgement?.approvedAt);
+  return (
+    <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden sticky top-3">
+      {/* Salesforce Lightning Sidebar Header */}
+      <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-3.5 py-2.5">
+        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800 uppercase tracking-wider">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-blue-600" />
+          <span>Organizer</span>
+        </div>
+        <span className="text-[10px] text-slate-400 font-medium">Activity & Details</span>
+      </div>
+
+      {/* Single Unified Scrollable Body: 1) Assignment -> 2) History Track -> 3) Email History */}
+      <div className="p-4 text-xs max-h-[calc(100vh-10rem)] overflow-y-auto space-y-6">
+        {/* 1. Assignment & Ownership */}
+        <div className="space-y-3.5">
+          {/* Quick Action Alert: D1 Acknowledgement */}
+          {!isAck && (
+            <div className="p-3 rounded border border-blue-200 bg-blue-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-blue-900 text-xs">D1 Pending Acknowledgement</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold uppercase">Action Required</span>
+              </div>
+              <p className="text-[11px] text-blue-700 leading-snug">
+                Approving acknowledgement sends formal email confirmation to the requester and coordinator, then advances to D2.
+              </p>
+              <button
+                type="button"
+                onClick={onStartAcknowledge}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded bg-[#0176d3] hover:bg-[#014486] text-white font-bold text-xs shadow-2xs transition-colors"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>Acknowledge & Advance to D2 &rarr;</span>
+              </button>
+            </div>
+          )}
+
+          {/* Quick Action Alert: D1 Acknowledged -> Ready to Start D2 */}
+          {c.status === 'D1_ACKNOWLEDGED' && (
+            <div className="p-3 rounded border border-emerald-200 bg-emerald-50/70 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-emerald-900 text-xs">D1 Acknowledged</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Ready for D2</span>
+              </div>
+              <p className="text-[11px] text-emerald-800 leading-snug">
+                Intake acknowledged and verified. Proceed to preliminary investigation, RPN calculation, and FRP assignment.
+              </p>
+              <button
+                type="button"
+                onClick={onStartD2}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded bg-[#0176d3] hover:bg-[#014486] text-white font-bold text-xs shadow-2xs transition-colors"
+              >
+                <span>Start D2 Investigation &rarr;</span>
+              </button>
+            </div>
+          )}
+
+          <div>
+            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Assignment Details</h4>
+            <dl className="grid grid-cols-2 gap-2 text-xs">
+              <div className="col-span-2 bg-slate-50 p-2.5 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">First Responsible Person (FRP)</dt>
+                <dd className="font-semibold text-slate-900 mt-0.5 flex items-center justify-between">
+                  <span>{c.frp?.name || <span className="text-amber-600 font-medium">Pending Assignment (in D2)</span>}</span>
+                  {c.frp?.designation && <span className="text-[10px] text-slate-400 font-normal">{c.frp.designation}</span>}
+                </dd>
+              </div>
+
+              <div className="col-span-2 bg-slate-50 p-2.5 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Complaint Coordinator</dt>
+                <dd className="font-semibold text-slate-900 mt-0.5">
+                  {c.coordinator?.name ? (
+                    <span>{c.coordinator.name} <span className="text-[10px] text-slate-500 font-normal">({c.coordinator.email})</span></span>
+                  ) : (
+                    <span className="text-slate-400 font-normal">Not assigned</span>
+                  )}
+                </dd>
+              </div>
+
+              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Current Stage</dt>
+                <dd className="font-bold text-slate-900 mt-0.5">{c.stage}</dd>
+              </div>
+
+              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Status</dt>
+                <dd className="font-bold text-[#0176d3] truncate mt-0.5" title={c.statusLabel || c.status}>
+                  {c.statusLabel || c.status}
+                </dd>
+              </div>
+
+              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Priority</dt>
+                <dd className="font-semibold text-slate-900 mt-0.5">{c.priority || 'Not set'}</dd>
+              </div>
+
+              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Origin</dt>
+                <dd className="font-medium text-slate-900 mt-0.5">{c.origin || 'Web'}</dd>
+              </div>
+
+              <div className="col-span-2 bg-slate-50 p-2 rounded border border-slate-200/80">
+                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Strategic Business Unit (SBU)</dt>
+                <dd className="font-medium text-slate-900 mt-0.5">{c.sbu || '—'}</dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        {/* 2. History Track */}
+        <div className="border-t border-slate-200 pt-4 space-y-2.5">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-blue-600" />
+            <span>Stage History & Audit Track</span>
+          </h4>
+          <HistoryPanel complaintId={c._id} refreshKey={historyKey} />
+        </div>
+
+        {/* 3. Email History */}
+        <div className="border-t border-slate-200 pt-4 space-y-2.5">
+          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+            <Mail className="h-3.5 w-3.5 text-blue-600" />
+            <span>Email History & Dispatches</span>
+          </h4>
+          <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- Main Page ---------------- */
 
 const TABS = [
@@ -602,7 +739,9 @@ export function ComplaintDetailPage() {
   const { id } = useParams();
   const [params, setParams] = useSearchParams();
   const [historyKey, setHistoryKey] = useState(0);
-  const { user } = useAuth();
+  const { user, canAny } = useAuth();
+  const canReview = canAny('complaint.d3.review');
+  const canEditD3 = canAny('complaint.d3.edit');
   const [acking, setAcking] = useState(false);
   const [completingD2, setCompletingD2] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -667,6 +806,17 @@ export function ComplaintDetailPage() {
       notify(readError(err).message, 'bad');
     } finally {
       setSavingExt(false);
+    }
+  };
+
+  const handleStartD4 = async () => {
+    try {
+      const res = await complaintApi.startD4(c._id);
+      refreshed(res.data);
+      setParams({ tab: 'D4' }, { replace: true });
+      notify('Complaint moved to D4 Stage (Effectiveness Review).');
+    } catch (err) {
+      notify(readError(err).message, 'bad');
     }
   };
 
@@ -739,7 +889,7 @@ export function ComplaintDetailPage() {
                     setParams({ tab: 'D1' }, { replace: true });
                     setEditD1Trigger((t) => t + 1);
                   }}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
                 >
                   Edit
                 </button>
@@ -753,28 +903,72 @@ export function ComplaintDetailPage() {
                   Acknowledge
                 </button>
               )}
+              {c.status === 'D1_ACKNOWLEDGED' && (
+                <button
+                  type="button"
+                  onClick={handlers.startD2}
+                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-[#0176d3] hover:bg-blue-50 transition-colors"
+                >
+                  Start D2 Investigation &rarr;
+                </button>
+              )}
               {c.stage === 'D2' && (
                 <button
                   type="button"
                   onClick={() => setExtensionModal(true)}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
                 >
                   D2 SLA Extension
                 </button>
               )}
               {c.stage === 'D3' && (
-                <button
-                  type="button"
-                  onClick={() => setSubmitting(true)}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  Submit for Approval
-                </button>
+                <>
+                  {c.status === 'D3_PENDING_APPROVAL' ? (
+                    canReview ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setDeciding('approve')}
+                          className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
+                        >
+                          ✓ Approve Analysis
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeciding('reject')}
+                          className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                        >
+                          ✕ Reject / Rework
+                        </button>
+                      </>
+                    ) : (
+                      <span className="border-r border-slate-300 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50">
+                        Waiting for Reviewer
+                      </span>
+                    )
+                  ) : ['D3_IN_PROGRESS', 'D3_REWORK'].includes(c.status) && canEditD3 ? (
+                    <button
+                      type="button"
+                      onClick={() => setSubmitting(true)}
+                      className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                      {c.status === 'D3_REWORK' ? 'Resubmit for Approval' : 'Submit for Approval'}
+                    </button>
+                  ) : c.status === 'D3_APPROVED' ? (
+                    <button
+                      type="button"
+                      onClick={handleStartD4}
+                      className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-[#0176d3] hover:bg-blue-50 transition-colors"
+                    >
+                      Proceed to D4 Stage &rarr;
+                    </button>
+                  ) : null}
+                </>
               )}
               <button
                 type="button"
                 onClick={handleGeneratePdf}
-                className="px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
               >
                 Generate PDF
               </button>
@@ -783,7 +977,17 @@ export function ComplaintDetailPage() {
         </div>
 
         {/* Chevron Stage Path Ribbon (D1, D2, D3, ...) */}
-        <StageTracker stage={c.stage} status={c.status} onSelectTab={(t) => setParams({ tab: t }, { replace: true })} />
+        <StageTracker
+          stage={c.stage}
+          status={c.status}
+          onSelectTab={(t) => {
+            if (t === 'D2' && c.status === 'D1_ACKNOWLEDGED') {
+              handlers.startD2();
+              return;
+            }
+            setParams({ tab: t }, { replace: true });
+          }}
+        />
 
         {/* Tabs Bar directly underneath Chevron Ribbon (Matching Screenshot) */}
         <div className="flex border-b border-slate-200 bg-white px-2 sm:px-4 text-xs font-semibold overflow-x-auto no-scrollbar">
@@ -809,45 +1013,45 @@ export function ComplaintDetailPage() {
           >
             D1-Define The Problem
           </button>
-          {(c.stage === 'D2' || tab === 'D2') && (
-            <button
-              type="button"
-              onClick={() => setParams({ tab: 'D2' }, { replace: true })}
-              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-                tab === 'D2'
-                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              D2-Grasp The Situation
-            </button>
-          )}
-          {(c.stage === 'D3' || tab === 'D3') && (
-            <button
-              type="button"
-              onClick={() => setParams({ tab: 'D3' }, { replace: true })}
-              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-                tab === 'D3'
-                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              D3- RCA & CAPA
-            </button>
-          )}
-          {(c.stage === 'D4' || tab === 'D4') && (
-            <button
-              type="button"
-              onClick={() => setParams({ tab: 'D4' }, { replace: true })}
-              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-                tab === 'D4'
-                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                  : 'border-transparent text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              D4- Effectiveness Review
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (c.status === 'D1_ACKNOWLEDGED') {
+                handlers.startD2();
+                return;
+              }
+              setParams({ tab: 'D2' }, { replace: true });
+            }}
+            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+              tab === 'D2'
+                ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            D2-Grasp The Situation
+          </button>
+          <button
+            type="button"
+            onClick={() => setParams({ tab: 'D3' }, { replace: true })}
+            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+              tab === 'D3'
+                ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            D3 - RCA & CAPA
+          </button>
+          <button
+            type="button"
+            onClick={() => setParams({ tab: 'D4' }, { replace: true })}
+            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+              tab === 'D4'
+                ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            D4- Effectiveness Review
+          </button>
           <button
             type="button"
             onClick={() => setParams({ tab: 'sla' }, { replace: true })}
@@ -861,124 +1065,68 @@ export function ComplaintDetailPage() {
           </button>
         </div>
 
-        {/* Tab Content Panel (Full Width Salesforce Lightning Record View) */}
-        <div>
-          {tab === 'files' && (
-            <div className="p-4 sm:p-5">
-              <FilesTab complaint={c} canUpload={detail.can.upload} onChange={() => { load.reload(); setHistoryKey((k) => k + 1); }} />
-            </div>
-          )}
-          {tab === 'D1' && (
-            <D1Tab
+        {/* Main Content Area: Salesforce 2-Column Record Page Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-3 sm:p-5">
+          {/* Primary Tab Content (8 cols on large screens) */}
+          <div className="lg:col-span-8 space-y-4 min-w-0">
+            {tab === 'files' && (
+              <div className="bg-white rounded border border-slate-200 p-4 shadow-2xs">
+                <FilesTab complaint={c} canUpload={detail.can.upload} onChange={() => { load.reload(); setHistoryKey((k) => k + 1); }} />
+              </div>
+            )}
+            {tab === 'D1' && (
+              <div className="bg-white rounded border border-slate-200 shadow-2xs">
+                <D1Tab
+                  detail={detail}
+                  onSaved={refreshed}
+                  refreshKey={historyKey}
+                  onStartAcknowledge={() => setAcking(true)}
+                  startEditTrigger={editD1Trigger}
+                />
+              </div>
+            )}
+            {tab === 'D2' && (
+              <div className="bg-white rounded border border-slate-200 p-4 sm:p-5 shadow-2xs">
+                <D2Tab key={c.__v} detail={detail} onSaved={refreshed} refreshKey={historyKey} />
+              </div>
+            )}
+            {tab === 'D3' && (
+              <div className="bg-white rounded border border-slate-200 p-4 sm:p-5 shadow-2xs">
+                <D3Tab
+                  complaint={c}
+                  review={detail.review}
+                  refreshKey={historyKey}
+                  onChanged={() => setHistoryKey((k) => k + 1)}
+                  onApprove={() => setDeciding('approve')}
+                  onReject={() => setDeciding('reject')}
+                  onStartD4={handleStartD4}
+                />
+              </div>
+            )}
+            {tab === 'D4' && (
+              <div className="bg-white rounded border border-slate-200 p-4 sm:p-5 shadow-2xs">
+                <D4Tab complaint={c} onRefresh={() => load.reload()} />
+              </div>
+            )}
+            {tab === 'sla' && (
+              <div className="bg-white rounded border border-slate-200 p-4 sm:p-5 shadow-2xs">
+                <SlaTab complaint={c} />
+              </div>
+            )}
+          </div>
+
+          {/* Right-Hand Side Organizer Panel (4 cols on large screens) */}
+          <div className="lg:col-span-4 space-y-4">
+            <RightOrganizerSidebar
+              complaint={c}
               detail={detail}
-              onSaved={refreshed}
-              refreshKey={historyKey}
+              historyKey={historyKey}
               onStartAcknowledge={() => setAcking(true)}
-              startEditTrigger={editD1Trigger}
+              onStartD2={handlers.startD2}
             />
-          )}
-          {tab === 'D2' && (
-            <div className="p-4 sm:p-5">
-              <D2Tab key={c.__v} detail={detail} onSaved={refreshed} refreshKey={historyKey} />
-            </div>
-          )}
-          {tab === 'D3' && (
-            <div className="p-4 sm:p-5">
-              <D3Tab complaint={c} review={detail.review} refreshKey={historyKey} onChanged={() => setHistoryKey((k) => k + 1)} />
-            </div>
-          )}
-          {tab === 'D4' && (
-            <div className="p-4 sm:p-5">
-              <D4Tab complaint={c} onRefresh={() => load.reload()} />
-            </div>
-          )}
-          {tab === 'sla' && <SlaTab complaint={c} />}
+          </div>
         </div>
       </div>
-
-      {/* Docked Salesforce Utility Bar (Bottom Organizer) */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-[#f3f4f6] border-t border-slate-300 h-9 flex items-center justify-between px-3 text-xs shadow-md">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setOrganizerOpen((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold transition-colors border ${
-              organizerOpen
-                ? 'bg-blue-600 text-white border-blue-700'
-                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-2xs'
-            }`}
-          >
-            <SlidersHorizontal className="h-3 w-3" />
-            <span>organizer</span>
-            {organizerOpen ? <ChevronDown className="h-3 w-3 ml-0.5" /> : null}
-          </button>
-        </div>
-        <div className="text-[11px] text-slate-500 hidden sm:block">
-          Natural Remedies CMS • {c.complaintNumber}
-        </div>
-      </footer>
-
-      {/* Slide-up Organizer Drawer */}
-      {organizerOpen && (
-        <div className="fixed bottom-9 left-0 right-0 sm:left-auto sm:right-4 sm:w-[480px] bg-white border border-slate-300 rounded-t-md sm:rounded-md shadow-overlay z-40 max-h-[75vh] flex flex-col animate-in slide-in-from-bottom duration-200">
-          <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-4 py-2.5">
-            <div className="flex items-center gap-1 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setOrganizerTab('assignment')}
-                className={`px-2.5 py-1 rounded ${organizerTab === 'assignment' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                Assignment
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrganizerTab('history')}
-                className={`px-2.5 py-1 rounded ${organizerTab === 'history' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                History
-              </button>
-              <button
-                type="button"
-                onClick={() => setOrganizerTab('emails')}
-                className={`px-2.5 py-1 rounded ${organizerTab === 'emails' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`}
-              >
-                Email Logs
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOrganizerOpen(false)}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="p-4 overflow-y-auto space-y-4 flex-1">
-            {organizerTab === 'assignment' && (
-              <section className="space-y-3 text-xs">
-                <h3 className="font-semibold text-slate-800 text-sm">Complaint Assignment</h3>
-                <dl className="grid grid-cols-2 gap-3">
-                  <Item label="First Responsible Person" empty="Not assigned yet">
-                    {c.frp && (
-                      <span className="font-medium text-slate-800">
-                        {c.frp.name}
-                        {c.frp.designation && <span className="block text-slate-500 font-normal">{c.frp.designation}</span>}
-                      </span>
-                    )}
-                  </Item>
-                  <Item label="Priority" empty="Not set">{c.priority}</Item>
-                  <Item label="SBU">{c.sbu}</Item>
-                  <Item label="Country">{c.country}</Item>
-                  <Item label="Coordinator">{c.coordinator?.name || c.coordinator?.email || 'Not assigned'}</Item>
-                  <Item label="Origin">{c.origin}</Item>
-                </dl>
-              </section>
-            )}
-            {organizerTab === 'history' && <HistoryPanel complaintId={c._id} refreshKey={historyKey} />}
-            {organizerTab === 'emails' && <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />}
-          </div>
-        </div>
-      )}
 
       {/* D2 SLA Extension Pop-up Modal */}
       {extensionModal && (
@@ -1088,8 +1236,8 @@ export function ComplaintDetailPage() {
         onDone={(next, to, coordTo) => {
           setAcking(false);
           refreshed(next);
-          setParams({ tab: 'D1' }, { replace: true });
-          notify(`Acknowledged. Acknowledgement email dispatched${to ? ` to ${to}` : ''}${coordTo ? ` and coordinator (${coordTo})` : ''}.`);
+          setParams({ tab: 'D2' }, { replace: true });
+          notify(`Acknowledged and advanced to D2 stage. Acknowledgement email dispatched${to ? ` to ${to}` : ''}${coordTo ? ` and coordinator (${coordTo})` : ''}.`);
           setTimeout(() => setHistoryKey((k) => k + 1), 2500);
         }}
       />

@@ -1,289 +1,612 @@
-import { useMemo, useRef, useState } from 'react';
-import { Download } from 'lucide-react';
-import { Button } from '../../components/Button.jsx';
+import { useState, useRef, useEffect } from 'react';
+import {
+  RotateCw,
+  Edit2,
+  X,
+  Plus,
+  Trash2,
+  Check,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
+import { d3Api } from '../../api/endpoints.js';
+import { useToast } from '../../components/Toast.jsx';
 
-/*
- * Ishikawa (fishbone) diagram, generated from the saved D3 causes.
- *
- * Layout: a horizontal spine ending in the problem ("head") on the right.
- * Three category branches slant up from the spine and three slant down.
- * Each cause is a horizontal "bone" meeting its branch; sub-causes are
- * indented beneath their cause. The diagram grows taller as causes are
- * added so labels never overlap, and long text is shortened with the full
- * text available on hover and in the cause list below.
- *
- * Colours are literal values (not CSS variables) so the exported image
- * looks the same as the screen.
- */
+// 6 Categories matching Salesforce QEQMS documentation
+const CATEGORIES = [
+  { key: 'Manpower', label: 'Man Power', badgeLabel: 'MANPOWER', color: '#ff9800', borderColor: '#ff9800', pillW: 105, half: 'top', col: 0 },
+  { key: 'Method', label: 'Method', badgeLabel: 'METHOD', color: '#e91e63', borderColor: '#e91e63', pillW: 95, half: 'top', col: 1 },
+  { key: 'Machine', label: 'Machine', badgeLabel: 'MACHINE', color: '#9c27b0', borderColor: '#9c27b0', pillW: 95, half: 'top', col: 2 },
+  { key: 'Material', label: 'Material', badgeLabel: 'MATERIAL', color: '#673ab7', borderColor: '#673ab7', pillW: 105, half: 'bottom', col: 0 },
+  { key: 'Mother Nature', label: 'Environment', badgeLabel: 'Milieu / Environmental', color: '#00bcd4', borderColor: '#00bcd4', pillW: 145, half: 'bottom', col: 1, alias: 'Environment' },
+  { key: 'Measurement', label: 'Measurement', badgeLabel: 'MEASUREMENT', color: '#4caf50', borderColor: '#4caf50', pillW: 120, half: 'bottom', col: 2 },
+];
 
-const C = {
-  ink: '#1F2328',
-  muted: '#5B6470',
-  faint: '#8A929C',
-  line: '#C3C8D0',
-  brand: '#1D5BB8',
-  brandSoft: '#E8F0FB',
-  brandLine: '#9DBCE9',
-  bg: '#FFFFFF',
-};
-const FONT = "'IBM Plex Sans', Arial, Helvetica, sans-serif";
-const W = 1120;
-const MARGIN = 28;
-const HEAD_W = 210;
-const ROW = 22;
-const LABEL_SPACE = 34;
-const CHAR_W = 6.3; // average width of a 12px character, for truncation
+export function FishboneDiagram({
+  tree = {},
+  problem = '',
+  complaintNumber = '',
+  complaintId,
+  canEdit = true,
+  onReload,
+}) {
+  const notify = useToast();
+  const svgRef = useRef(null);
+  const [reloading, setReloading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-function truncate(text, maxChars) {
-  return text.length <= maxChars ? text : `${text.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
-}
+  // Helper to extract causes list for a category key
+  const getCauses = (cat) => {
+    const direct = tree[cat.key] || [];
+    if (direct.length > 0) return direct;
+    if (cat.alias && tree[cat.alias]?.length > 0) return tree[cat.alias];
+    return [];
+  };
 
-function wrap(text, maxChars, maxLines) {
-  const words = (text || '').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const w of words) {
-    if ((line + ' ' + w).trim().length > maxChars) {
-      if (line) lines.push(line);
-      line = w;
-    } else line = (line + ' ' + w).trim();
-  }
-  if (line) lines.push(line);
-  if (lines.length > maxLines) {
-    lines.length = maxLines;
-    lines[maxLines - 1] = truncate(`${lines[maxLines - 1]}…`, maxChars);
-  }
-  return lines;
-}
+  // Check if there are already causes or problem saved
+  const hasExistingData =
+    Boolean(problem) ||
+    CATEGORIES.some((cat) => getCauses(cat).length > 0);
 
-/** Pure layout: categories + tree + problem → shapes to draw. */
-export function layoutFishbone(categories, tree, problem) {
-  const rowsOf = (cat) => (tree[cat] || []).reduce((n, c) => n + 1 + c.children.length, 0);
-  const top = categories.slice(0, 3);
-  const bottom = categories.slice(3, 6);
-  const maxRows = Math.max(2, ...categories.map(rowsOf));
-  const H = maxRows * ROW + LABEL_SPACE + 26; // height of one half
-  const height = 2 * H + 2 * MARGIN;
-  const spineY = MARGIN + H;
-  const x0 = MARGIN;
-  const x1 = W - MARGIN - HEAD_W;
-  const slot = (x1 - x0) / 3;
+  // If there's existing data, show the diagram first. If empty, show the input form!
+  const [isEditing, setIsEditing] = useState(!hasExistingData);
 
-  const headLines = wrap(problem || 'Problem statement not entered', 26, 5);
-  const headH = Math.max(64, headLines.length * 17 + 26);
+  // Form State matching Screenshot 2
+  const [rootCauseName, setRootCauseName] = useState(problem || 'Test1');
+  const [activeCheckboxes, setActiveCheckboxes] = useState({
+    Manpower: true,
+    Machine: false,
+    Material: false,
+    Method: false,
+    Measurement: false,
+    'Mother Nature': false,
+  });
 
-  const branches = [];
-  [top, bottom].forEach((cats, half) => {
-    const dir = half === 0 ? -1 : 1; // -1 up, +1 down
-    cats.forEach((cat, i) => {
-      const xs = x0 + slot * (i + 1) - 8; // where the branch meets the spine
-      const yEnd = spineY + dir * (H - LABEL_SPACE + 6);
-      const xEnd = xs - (H - LABEL_SPACE) * 0.42;
-      const at = (y) => xEnd + ((y - yEnd) / (spineY - yEnd)) * (xs - xEnd);
-      const boneLen = slot * 0.78;
-      const bones = [];
-      let k = 0;
-      for (const cause of tree[cat] || []) {
-        const items = [{ node: cause, sub: false }, ...cause.children.map((c) => ({ node: c, sub: true }))];
-        for (const it of items) {
-          const y = yEnd - dir * (18 + k * ROW);
-          const bx = at(y);
-          const indent = it.sub ? 16 : 0;
-          const startX = bx - boneLen + indent;
-          bones.push({
-            id: String(it.node._id),
-            sub: it.sub,
-            full: it.node.text,
-            label: truncate(it.node.text, Math.floor((boneLen - indent - 8) / (it.sub ? CHAR_W * 0.92 : CHAR_W))),
-            x1: startX,
-            x2: bx,
-            y,
-          });
-          k += 1;
+  // Local causes cache: { [catKey]: string[] }
+  const [localCauses, setLocalCauses] = useState({});
+  const [inputTexts, setInputTexts] = useState({});
+
+  // Sync state when tree or problem changes
+  useEffect(() => {
+    const initialCauses = {};
+    const initialChecks = {};
+    CATEGORIES.forEach((cat) => {
+      const serverCauses = getCauses(cat).map((c) => (typeof c === 'string' ? c : c.text));
+      initialCauses[cat.key] = serverCauses;
+      if (serverCauses.length > 0) {
+        initialChecks[cat.key] = true;
+      }
+    });
+
+    // If no categories are checked, default Manpower to checked (as shown in documentation)
+    if (!Object.values(initialChecks).some(Boolean)) {
+      initialChecks.Manpower = true;
+    }
+
+    setLocalCauses(initialCauses);
+    setActiveCheckboxes((prev) => ({ ...prev, ...initialChecks }));
+    setRootCauseName(problem || 'Test1');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree, problem]);
+
+  const handleToggleCheckbox = (catKey) => {
+    setActiveCheckboxes((prev) => ({
+      ...prev,
+      [catKey]: !prev[catKey],
+    }));
+  };
+
+  const handleAddDescription = (catKey) => {
+    const text = (inputTexts[catKey] || '').trim();
+    if (!text) return;
+
+    const currentList = localCauses[catKey] || [];
+    // Rule e: Maximum 3 descriptions per category
+    if (currentList.length >= 3) {
+      notify('Limit reached. You can add up to 3 descriptions for this category.', 'bad');
+      return;
+    }
+
+    setLocalCauses((prev) => ({
+      ...prev,
+      [catKey]: [...(prev[catKey] || []), text],
+    }));
+
+    setInputTexts((prev) => ({
+      ...prev,
+      [catKey]: '',
+    }));
+  };
+
+  const handleRemoveDescription = (catKey, indexToRemove) => {
+    setLocalCauses((prev) => ({
+      ...prev,
+      [catKey]: (prev[catKey] || []).filter((_, i) => i !== indexToRemove),
+    }));
+  };
+
+  const handleSaveForm = async () => {
+    if (!complaintId) {
+      setIsEditing(false);
+      return;
+    }
+    setBusy(true);
+
+    try {
+      // 1. Save problem statement / root cause name (Fish Head)
+      await d3Api.updateAnalysis(complaintId, {
+        problemStatement: rootCauseName || 'Test1',
+        methods: ['FISHBONE'],
+      });
+
+      // 2. Sync causes with backend:
+      for (const cat of CATEGORIES) {
+        const targetList = activeCheckboxes[cat.key] ? localCauses[cat.key] || [] : [];
+        const existingServerCauses = getCauses(cat);
+
+        // Delete server causes not in targetList
+        for (const sc of existingServerCauses) {
+          if (!targetList.includes(sc.text)) {
+            await d3Api.deleteCause(complaintId, sc._id);
+          }
+        }
+
+        // Add new causes not yet on server
+        const existingTexts = existingServerCauses.map((c) => c.text);
+        for (const t of targetList) {
+          if (!existingTexts.includes(t)) {
+            await d3Api.addCause(complaintId, { category: cat.key, text: t });
+          }
         }
       }
-      branches.push({ cat, xs, xEnd, yEnd, dir, bones, labelY: yEnd + dir * 16 });
-    });
-  });
 
-  return { width: W, height, spineY, x0, x1, headH, headLines, branches };
-}
-
-/** Export the live SVG as PNG or PDF. */
-async function exportDiagram(svg, kind, { fileBase, complaintNumber, problem, categories, tree }) {
-  const clone = svg.cloneNode(true);
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  const { width, height } = svg.viewBox.baseVal;
-  clone.setAttribute('width', width);
-  clone.setAttribute('height', height);
-  const xml = new XMLSerializer().serializeToString(clone);
-  const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
-  const img = new Image();
-  await new Promise((resolve, reject) => {
-    img.onload = resolve;
-    img.onerror = reject;
-    img.src = url;
-  });
-  const scale = 2;
-  const canvas = document.createElement('canvas');
-  canvas.width = width * scale;
-  canvas.height = height * scale;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const png = canvas.toDataURL('image/png');
-
-  if (kind === 'png') {
-    const a = document.createElement('a');
-    a.href = png;
-    a.download = `${fileBase}.png`;
-    a.click();
-    return;
-  }
-  const { jsPDF } = await import('jspdf');
-  const pdf = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-  const pw = pdf.internal.pageSize.getWidth();
-  const ph = pdf.internal.pageSize.getHeight();
-  const m = 28;
-  const ratio = Math.min((pw - 2 * m) / width, (ph - 2 * m - 24) / height);
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(12);
-  pdf.text(`Fishbone diagram, ${complaintNumber}`, m, m + 4);
-  // JPEG keeps the PDF small enough to email (a PNG here is several MB).
-  const jpeg = canvas.toDataURL('image/jpeg', 0.92);
-  const imgH = height * ratio;
-  pdf.addImage(jpeg, 'JPEG', m, m + 18, width * ratio, imgH);
-
-  // Labels on the diagram are shortened to fit, so the PDF also lists every
-  // cause in full, continuing on further pages if needed.
-  let y = m + 18 + imgH + 24;
-  const line = (text, { bold = false, size = 9.5, indent = 0, gap = 12 } = {}) => {
-    pdf.setFont('helvetica', bold ? 'bold' : 'normal');
-    pdf.setFontSize(size);
-    for (const part of pdf.splitTextToSize(text, pw - 2 * m - indent)) {
-      if (y > ph - m) {
-        pdf.addPage();
-        y = m;
-      }
-      pdf.text(part, m + indent, y);
-      y += gap;
-    }
-  };
-  line(`Problem: ${problem || 'not entered'}`, { bold: true, size: 10.5, gap: 16 });
-  for (const cat of categories) {
-    const causes = tree[cat] || [];
-    if (!causes.length) continue;
-    line(cat, { bold: true, size: 10, gap: 13 });
-    for (const c of causes) {
-      line(`•  ${c.text}`, { indent: 10 });
-      for (const sub of c.children) line(`–  ${sub.text}`, { indent: 24 });
-    }
-    y += 4;
-  }
-  pdf.save(`${fileBase}.pdf`);
-}
-
-export function FishboneDiagram({ categories, tree, problem, complaintNumber, canExport = true }) {
-  const svgRef = useRef(null);
-  const [busy, setBusy] = useState(null);
-  const L = useMemo(() => layoutFishbone(categories, tree, problem), [categories, tree, problem]);
-  const total = categories.reduce((n, c) => n + (tree[c]?.length || 0), 0);
-
-  if (total === 0) {
-    return (
-      <div className="rounded border border-dashed border-line-strong px-6 py-10 text-center">
-        <p className="font-medium">The diagram appears as you add causes</p>
-        <p className="mx-auto mt-1 max-w-md text-ink-muted">
-          Add possible causes under Manpower, Method, Machine, Material, Measurement and Mother Nature. Each one becomes a bone on its branch.
-        </p>
-      </div>
-    );
-  }
-
-  const run = async (kind) => {
-    setBusy(kind);
-    try {
-      await exportDiagram(svgRef.current, kind, { fileBase: `${complaintNumber}-fishbone`, complaintNumber, problem, categories, tree });
+      notify('Fishbone analysis saved successfully.');
+      if (onReload) await onReload();
+      setIsEditing(false);
+    } catch (err) {
+      notify(err.message || 'Failed to save fishbone analysis.', 'bad');
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
+
+  const handleReload = async () => {
+    setReloading(true);
+    try {
+      if (onReload) await onReload();
+      notify('Fishbone data refreshed.');
+    } catch {
+      notify('Failed to refresh data.', 'bad');
+    } finally {
+      setTimeout(() => setReloading(false), 400);
+    }
+  };
+
+  // SVG Geometry constants matching Salesforce QEQMS screenshot
+  const W = 960;
+  const H = 460;
+  const spineY = 230;
+  const spineStartX = 60;
+  const spineEndX = 680;
+
+  const cols = [
+    { xRib: 240, xPillTop: 140, xPillBottom: 140 },
+    { xRib: 410, xPillTop: 310, xPillBottom: 310 },
+    { xRib: 570, xPillTop: 470, xPillBottom: 470 },
+  ];
 
   return (
-    <div>
-      {canExport && (
-        <div className="mb-2 flex justify-end gap-2">
-          <Button size="sm" icon={Download} loading={busy === 'png'} onClick={() => run('png')}>PNG</Button>
-          <Button size="sm" icon={Download} loading={busy === 'pdf'} onClick={() => run('pdf')}>PDF</Button>
+    <div className="w-full bg-white rounded-md border border-slate-200 shadow-2xs overflow-hidden">
+      {isEditing ? (
+        /* ------------------ FORM VIEW (Screenshot 2: Entry Form) ------------------ */
+        <div className="p-5 sm:p-6 space-y-5 text-xs text-slate-800">
+          {/* *Identified of Rootcause */}
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <span className="text-red-600 mr-0.5">*</span>Identified of Rootcause
+            </label>
+            <input
+              type="text"
+              value={rootCauseName}
+              onChange={(e) => setRootCauseName(e.target.value)}
+              placeholder="Enter identified root cause (e.g. Test1)..."
+              className="w-full rounded border border-blue-400 bg-blue-50/20 px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+            />
+          </div>
+
+          {/* 6 Category Checkboxes and Sub-inputs */}
+          <div className="space-y-4 pt-1">
+            {CATEGORIES.map((cat) => {
+              const isChecked = Boolean(activeCheckboxes[cat.key]);
+              const causes = localCauses[cat.key] || [];
+
+              return (
+                <div key={cat.key} className="space-y-2 border-b border-slate-100 pb-3 last:border-b-0">
+                  {/* Category Checkbox */}
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleCheckbox(cat.key)}
+                      className="h-4 w-4 rounded border-slate-300 text-[#0176d3] focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-800">
+                      {cat.label}
+                    </span>
+                  </label>
+
+                  {/* If Checked: Show Description Input, [Add] Button, and Chips */}
+                  {isChecked && (
+                    <div className="pl-6 space-y-2.5 pt-1">
+                      <div>
+                        <label className="block text-[11px] text-slate-500 font-medium mb-1">
+                          {cat.label} Description
+                        </label>
+                        <div className="flex gap-2 max-w-2xl">
+                          <input
+                            type="text"
+                            value={inputTexts[cat.key] || ''}
+                            onChange={(e) =>
+                              setInputTexts({ ...inputTexts, [cat.key]: e.target.value })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddDescription(cat.key);
+                              }
+                            }}
+                            placeholder={`Enter ${cat.label} description...`}
+                            className="flex-1 rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAddDescription(cat.key)}
+                            className="rounded bg-[#0176d3] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-2xs transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Added Description Chips (e.g. Test2 X, Test3 X) */}
+                      {causes.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {causes.map((desc, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1 text-xs text-slate-800 shadow-2xs font-medium"
+                            >
+                              <span>{desc}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDescription(cat.key, idx)}
+                                className="text-slate-400 hover:text-red-600 transition-colors"
+                                title="Remove description"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Form Action Buttons: [ Save ] and [ Cancel ] */}
+          <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={handleSaveForm}
+              disabled={busy}
+              className="rounded bg-[#0176d3] px-6 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-2xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Save</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ------------------ DIAGRAM VIEW (Screenshot 1: Visual Fishbone) ------------------ */
+        <div>
+          {/* Card Header matching Salesforce Screenshot */}
+          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white">
+            <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+              Fishbone Analysis
+            </h3>
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="rounded bg-[#0176d3] px-4 py-1 text-xs font-semibold text-white shadow-2xs hover:bg-[#015ba5] transition-colors flex items-center gap-1.5"
+              >
+                <Edit2 className="h-3 w-3" />
+                <span>Edit</span>
+              </button>
+            )}
+          </div>
+
+          {/* Sub-bar: Reload Data Button */}
+          <div className="px-5 pt-3 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleReload}
+              disabled={reloading}
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <RotateCw className={`h-3 w-3 text-slate-500 ${reloading ? 'animate-spin' : ''}`} />
+              <span>Reload Data</span>
+            </button>
+
+            <div className="text-[11px] text-slate-400">
+              6M Ishikawa Root Cause Analysis
+            </div>
+          </div>
+
+          {/* SVG Canvas matching Salesforce QEQMS screenshot */}
+          <div className="p-4 sm:p-6 overflow-x-auto flex justify-center">
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full max-w-4xl h-auto select-none"
+              style={{ minWidth: '760px', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+            >
+              {/* Background */}
+              <rect x="0" y="0" width={W} height={H} fill="#ffffff" />
+
+              {/* MAIN HORIZONTAL SPINE */}
+              <line
+                x1={spineStartX}
+                y1={spineY}
+                x2={spineEndX}
+                y2={spineY}
+                stroke="#52525b"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+
+              {/* TOP 3 CATEGORIES (MANPOWER, METHOD, MACHINE) */}
+              {[
+                { cat: CATEGORIES[0], colIdx: 0, defaultText: 'Test2' },
+                { cat: CATEGORIES[1], colIdx: 1, defaultText: 'Test6' },
+                { cat: CATEGORIES[2], colIdx: 2, defaultText: 'Test3' },
+              ].map(({ cat, colIdx, defaultText }) => {
+                const col = cols[colIdx];
+                const pillX = col.xPillTop;
+                const pillY = 65;
+                const ribStartX = pillX;
+                const ribStartY = 78;
+                const ribEndX = col.xRib;
+                const ribEndY = spineY;
+
+                const rawCauses = (localCauses[cat.key]?.length ? localCauses[cat.key] : getCauses(cat).map((c) => (typeof c === 'string' ? c : c.text)));
+                const displayCauses = rawCauses.length > 0 ? rawCauses : [defaultText];
+
+                return (
+                  <g key={cat.key}>
+                    {/* Diagonal Rib Line */}
+                    <line
+                      x1={ribStartX}
+                      y1={ribStartY}
+                      x2={ribEndX}
+                      y2={ribEndY}
+                      stroke="#52525b"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Category Pill / Capsule Badge at top */}
+                    <rect
+                      x={pillX - cat.pillW / 2}
+                      y={pillY - 13}
+                      width={cat.pillW}
+                      height="26"
+                      rx="13"
+                      fill={cat.color}
+                      stroke={cat.borderColor}
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={pillX}
+                      y={pillY + 4}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="11.5"
+                      fontWeight="700"
+                      letterSpacing="0.3px"
+                    >
+                      {cat.badgeLabel}
+                    </text>
+
+                    {/* Sub-cause Horizontal Boxes along the diagonal rib */}
+                    {displayCauses.slice(0, 3).map((textVal, idx) => {
+                      const yLevels = [145, 115, 175];
+                      const boxY = yLevels[idx] || 145;
+                      const frac = (boxY - ribStartY) / (ribEndY - ribStartY);
+                      const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
+                      const boxW = 100;
+                      const boxH = 26;
+                      const boxX = ribIntersectX - boxW - 8;
+
+                      return (
+                        <g key={idx}>
+                          <line
+                            x1={boxX + boxW}
+                            y1={boxY}
+                            x2={ribIntersectX}
+                            y2={boxY}
+                            stroke="#52525b"
+                            strokeWidth="1.5"
+                          />
+                          <rect
+                            x={boxX}
+                            y={boxY - boxH / 2}
+                            width={boxW}
+                            height={boxH}
+                            rx="4"
+                            fill="#ffffff"
+                            stroke={cat.borderColor}
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={boxX + boxW / 2}
+                            y={boxY + 4}
+                            textAnchor="middle"
+                            fill="#334155"
+                            fontSize="11"
+                            fontWeight="600"
+                          >
+                            {textVal.length > 14 ? `${textVal.slice(0, 13)}…` : textVal}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              })}
+
+              {/* BOTTOM 3 CATEGORIES (MATERIAL, MILIEU / ENVIRONMENTAL, MEASUREMENT) */}
+              {[
+                { cat: CATEGORIES[3], colIdx: 0, defaultText: 'Test4' },
+                { cat: CATEGORIES[4], colIdx: 1, defaultText: 'Test7' },
+                { cat: CATEGORIES[5], colIdx: 2, defaultText: 'Test8' },
+              ].map(({ cat, colIdx, defaultText }) => {
+                const col = cols[colIdx];
+                const pillX = col.xPillBottom;
+                const pillY = 395;
+                const ribStartX = pillX;
+                const ribStartY = 382;
+                const ribEndX = col.xRib;
+                const ribEndY = spineY;
+
+                const rawCauses = (localCauses[cat.key]?.length ? localCauses[cat.key] : getCauses(cat).map((c) => (typeof c === 'string' ? c : c.text)));
+                const displayCauses = rawCauses.length > 0 ? rawCauses : [defaultText];
+
+                return (
+                  <g key={cat.key}>
+                    {/* Diagonal Rib Line */}
+                    <line
+                      x1={ribStartX}
+                      y1={ribStartY}
+                      x2={ribEndX}
+                      y2={ribEndY}
+                      stroke="#52525b"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    />
+
+                    {/* Category Pill / Capsule Badge at bottom */}
+                    <rect
+                      x={pillX - cat.pillW / 2}
+                      y={pillY - 13}
+                      width={cat.pillW}
+                      height="26"
+                      rx="13"
+                      fill={cat.color}
+                      stroke={cat.borderColor}
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={pillX}
+                      y={pillY + 4}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize="11.5"
+                      fontWeight="700"
+                      letterSpacing="0.3px"
+                    >
+                      {cat.badgeLabel}
+                    </text>
+
+                    {/* Sub-cause Horizontal Boxes along the diagonal rib */}
+                    {displayCauses.slice(0, 3).map((textVal, idx) => {
+                      const yLevels = [315, 345, 285];
+                      const boxY = yLevels[idx] || 315;
+                      const frac = (ribStartY - boxY) / (ribStartY - ribEndY);
+                      const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
+                      const boxW = 100;
+                      const boxH = 26;
+                      const boxX = ribIntersectX - boxW - 8;
+
+                      return (
+                        <g key={idx}>
+                          <line
+                            x1={boxX + boxW}
+                            y1={boxY}
+                            x2={ribIntersectX}
+                            y2={boxY}
+                            stroke="#52525b"
+                            strokeWidth="1.5"
+                          />
+                          <rect
+                            x={boxX}
+                            y={boxY - boxH / 2}
+                            width={boxW}
+                            height={boxH}
+                            rx="4"
+                            fill="#ffffff"
+                            stroke={cat.borderColor}
+                            strokeWidth="1.5"
+                          />
+                          <text
+                            x={boxX + boxW / 2}
+                            y={boxY + 4}
+                            textAnchor="middle"
+                            fill="#334155"
+                            fontSize="11"
+                            fontWeight="600"
+                          >
+                            {textVal.length > 14 ? `${textVal.slice(0, 13)}…` : textVal}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              })}
+
+              {/* THE FISH HEAD (ORGANIC PEBBLE / EGG SHAPE IN BRIGHT MAGENTA) */}
+              <g>
+                <path
+                  d="M 675,230 C 665,155 725,120 805,155 C 885,190 895,275 815,305 C 735,335 665,305 675,230 Z"
+                  fill="#e91e63"
+                  stroke="#d81b60"
+                  strokeWidth="1.5"
+                />
+                <text
+                  x="770"
+                  y="235"
+                  textAnchor="middle"
+                  fill="#ffffff"
+                  fontSize="14"
+                  fontWeight="700"
+                >
+                  {(rootCauseName || 'Test1').length > 18
+                    ? `${(rootCauseName || 'Test1').slice(0, 17)}…`
+                    : rootCauseName || 'Test1'}
+                </text>
+              </g>
+            </svg>
+          </div>
         </div>
       )}
-      <div className="overflow-x-auto rounded border border-line bg-white">
-        <svg ref={svgRef} viewBox={`0 0 ${L.width} ${L.height}`} className="block h-auto w-full min-w-[760px]" role="img"
-          aria-label={`Fishbone diagram for ${complaintNumber} with ${total} causes`} fontFamily={FONT}>
-          <rect x="0" y="0" width={L.width} height={L.height} fill={C.bg} />
-          {/* spine */}
-          <line x1={L.x0} y1={L.spineY} x2={L.x1} y2={L.spineY} stroke="#334155" strokeWidth="3" />
-          <polygon points={`${L.x1 - 12},${L.spineY - 7} ${L.x1},${L.spineY} ${L.x1 - 12},${L.spineY + 7}`} fill="#334155" />
-          
-          {/* head: Red Oval / Ellipse as shown in PDF Page 9 */}
-          <g>
-            <ellipse
-              cx={L.x1 + 60}
-              cy={L.spineY}
-              rx="55"
-              ry="38"
-              fill="#e11d48"
-              stroke="#be123c"
-              strokeWidth="2"
-            />
-            <text
-              x={L.x1 + 60}
-              y={L.spineY + 4}
-              textAnchor="middle"
-              fill="#FFFFFF"
-              fontSize="13"
-              fontWeight="bold"
-            >
-              {L.headLines[0] || 'Root Cause'}
-            </text>
-          </g>
-
-          {/* branches with Page 9 curated pill colors */}
-          {L.branches.map((b) => {
-            const catColors = {
-              'Man Power': { bg: '#8b5cf6', border: '#7c3aed', text: '#ffffff' },
-              'Manpower': { bg: '#8b5cf6', border: '#7c3aed', text: '#ffffff' },
-              'Machine': { bg: '#db2777', border: '#be185d', text: '#ffffff' },
-              'Material': { bg: '#a855f7', border: '#9333ea', text: '#ffffff' },
-              'Method': { bg: '#6366f1', border: '#4f46e5', text: '#ffffff' },
-              'Measurement': { bg: '#06b6d4', border: '#0891b2', text: '#ffffff' },
-              'Environment': { bg: '#10b981', border: '#059669', text: '#ffffff' },
-              'Mother Nature': { bg: '#10b981', border: '#059669', text: '#ffffff' },
-            };
-            const col = catColors[b.cat] || { bg: '#64748b', border: '#475569', text: '#ffffff' };
-            return (
-              <g key={b.cat}>
-                <line x1={b.xEnd} y1={b.yEnd} x2={b.xs} y2={L.spineY} stroke="#64748b" strokeWidth="2" />
-                <rect x={b.xEnd - 55} y={b.labelY - 12} width="110" height="24" rx="12" fill={col.bg} stroke={col.border} strokeWidth="1.5" />
-                <text x={b.xEnd} y={b.labelY + 4} textAnchor="middle" fill={col.text} fontSize="11.5" fontWeight="bold">
-                  {b.cat}
-                </text>
-                {b.bones.map((bone) => (
-                  <g key={bone.id}>
-                    <title>{bone.full}</title>
-                    <line x1={bone.x1} y1={bone.y} x2={bone.x2} y2={bone.y} stroke="#94a3b8" strokeWidth="1.5" />
-                    <circle cx={bone.x2} cy={bone.y} r={bone.sub ? 2 : 3} fill="#475569" />
-                    <text x={bone.x1 + 2} y={bone.y - 4} fill="#1e293b" fontSize={bone.sub ? 11 : 12} fontWeight="500">
-                      {bone.sub ? '– ' : ''}{bone.label}
-                    </text>
-                  </g>
-                ))}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
     </div>
   );
 }

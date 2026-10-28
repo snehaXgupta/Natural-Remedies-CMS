@@ -101,5 +101,6 @@ r.patch('/:id/capa/:capaId/implementation', canView, d4.updateCapaImplementation
 r.post('/:id/capa/:capaId/implementation-decision', canView, d4.decideImplementationApproval);
 r.post('/:id/capa/:capaId/erp', canView, d4.assignErp);
 r.post('/:id/capa/:capaId/close', canView, d4.closeCapa);
+r.post('/:id/d4/start', canView, d4.startD4);
 
 export default r;

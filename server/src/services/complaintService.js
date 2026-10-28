@@ -309,6 +309,7 @@ export async function getDetail(id, user, permissions) {
     attachmentCount,
     can: {
       editD1: canEditD1,
+      acknowledge: [S.SUBMITTED, S.D1_ACK_PENDING].includes(complaint.status) && permissions.has(P.COMPLAINT_D1_ACKNOWLEDGE),
       upload: permissions.has(P.ATTACHMENT_UPLOAD),
       editD2: complaint.status === S.D2_IN_PROGRESS && permissions.has(P.COMPLAINT_D2_EDIT),
       assignFrp: assignable.includes(complaint.status) && permissions.has(P.COMPLAINT_ASSIGN),

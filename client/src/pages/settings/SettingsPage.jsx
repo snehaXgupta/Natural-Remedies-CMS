@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Settings,
   Plus,
@@ -96,7 +96,7 @@ function PicklistsTab({ data, reload }) {
           >
             {Object.entries(definitions).map(([k, d]) => (
               <option key={k} value={k}>
-                {d.label} ({(lists[k] || []).length})
+                {d?.label || k} ({(lists[k] || []).length})
               </option>
             ))}
           </select>
@@ -243,6 +243,10 @@ function SlaTab({ initialSla }) {
     businessHoursOnly: true,
     autoEscalateOverdue: true,
   });
+
+  useEffect(() => {
+    if (initialSla) setSla((prev) => ({ ...prev, ...initialSla }));
+  }, [initialSla]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -406,6 +410,10 @@ function RiskMatrixTab({ initialRisk }) {
     ],
   });
 
+  useEffect(() => {
+    if (initialRisk) setRisk((prev) => ({ ...prev, ...initialRisk }));
+  }, [initialRisk]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -532,6 +540,10 @@ function EmailTemplatesTab({ initialTemplates }) {
     footnote: 'Note: This is an auto-generated email. Please do not reply to this email.',
   });
 
+  useEffect(() => {
+    if (initialTemplates) setTmpl((prev) => ({ ...prev, ...initialTemplates }));
+  }, [initialTemplates]);
+
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -551,7 +563,7 @@ function EmailTemplatesTab({ initialTemplates }) {
         <label className="block font-medium text-slate-700 mb-1">Subject</label>
         <input
           type="text"
-          value={tmpl.d1Subject}
+          value={tmpl.d1Subject || ''}
           onChange={(e) => setTmpl({ ...tmpl, d1Subject: e.target.value })}
           className="w-full h-8 rounded border border-slate-300 px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
         />
@@ -561,7 +573,7 @@ function EmailTemplatesTab({ initialTemplates }) {
         <label className="block font-medium text-slate-700 mb-1">Salutation</label>
         <input
           type="text"
-          value={tmpl.d1Greeting}
+          value={tmpl.d1Greeting || ''}
           onChange={(e) => setTmpl({ ...tmpl, d1Greeting: e.target.value })}
           className="w-full h-8 rounded border border-slate-300 px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
         />
@@ -571,7 +583,7 @@ function EmailTemplatesTab({ initialTemplates }) {
         <label className="block font-medium text-slate-700 mb-1">Body Message</label>
         <textarea
           rows={3}
-          value={tmpl.d1Message}
+          value={tmpl.d1Message || ''}
           onChange={(e) => setTmpl({ ...tmpl, d1Message: e.target.value })}
           className="w-full rounded border border-slate-300 p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
         />
@@ -582,7 +594,7 @@ function EmailTemplatesTab({ initialTemplates }) {
           <label className="block font-medium text-slate-700 mb-1">Sign-off</label>
           <textarea
             rows={2}
-            value={tmpl.d1Signoff}
+            value={tmpl.d1Signoff || ''}
             onChange={(e) => setTmpl({ ...tmpl, d1Signoff: e.target.value })}
             className="w-full rounded border border-slate-300 p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
           />
@@ -591,7 +603,7 @@ function EmailTemplatesTab({ initialTemplates }) {
           <label className="block font-medium text-slate-700 mb-1">Footnote</label>
           <textarea
             rows={2}
-            value={tmpl.footnote}
+            value={tmpl.footnote || ''}
             onChange={(e) => setTmpl({ ...tmpl, footnote: e.target.value })}
             className="w-full rounded border border-slate-300 p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
           />
@@ -622,11 +634,11 @@ function EmailTemplatesTab({ initialTemplates }) {
       {showPreview && (
         <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded text-slate-800 space-y-2">
           <div className="text-[11px] text-slate-500 border-b border-slate-200 pb-2">
-            <div><strong>Subject:</strong> {tmpl.d1Subject.replace('{{complaintNumber}}', 'AHP-26-3-169')}</div>
+            <div><strong>Subject:</strong> {(tmpl.d1Subject || '').replace('{{complaintNumber}}', 'AHP-26-3-169')}</div>
           </div>
-          <p>{tmpl.d1Greeting.replace('{{recipientName}}', 'Naveen K S')}</p>
-          <p>{tmpl.d1Message.replace('{{complaintNumber}}', 'AHP-26-3-169')}</p>
-          <p className="whitespace-pre-line font-medium">{tmpl.d1Signoff}</p>
+          <p>{(tmpl.d1Greeting || '').replace('{{recipientName}}', 'Naveen K S')}</p>
+          <p>{(tmpl.d1Message || '').replace('{{complaintNumber}}', 'AHP-26-3-169')}</p>
+          <p className="whitespace-pre-line font-medium">{tmpl.d1Signoff || ''}</p>
           {tmpl.footnote && <p className="text-[10px] text-slate-400 italic pt-1">{tmpl.footnote}</p>}
         </div>
       )}
@@ -648,7 +660,7 @@ export function SettingsPage() {
   const lookupQuery = useAsync(() => lookupApi.all(true), []);
   const settingsQuery = useAsync(() => settingsApi.get(), []);
 
-  const loading = lookupQuery.loading && !lookupQuery.data;
+  const loading = (lookupQuery.loading && !lookupQuery.data) || (settingsQuery.loading && !settingsQuery.data);
   const error = lookupQuery.error || settingsQuery.error;
 
   return (

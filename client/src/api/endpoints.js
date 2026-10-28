@@ -62,6 +62,7 @@ export const complaintApi = {
   decideImplementationApproval: (id, capaId, body) => data(api.post(`/complaints/${id}/capa/${capaId}/implementation-decision`, body)),
   assignErp: (id, capaId, body) => data(api.post(`/complaints/${id}/capa/${capaId}/erp`, body)),
   closeCapa: (id, capaId, body) => data(api.post(`/complaints/${id}/capa/${capaId}/close`, body)),
+  startD4: (id) => data(api.post(`/complaints/${id}/d4/start`)),
 };
 
 export const d3Api = {

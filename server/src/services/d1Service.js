@@ -74,6 +74,18 @@ export async function acknowledge(id, { remarks, coordinator: coordinatorId, ide
       { session },
     );
 
+    // Automatically advance to D2_IN_PROGRESS so complaint immediately moves to D2
+    try {
+      await workflow.perform(id, 'startD2', {
+        actor: user,
+        permissions,
+        context,
+        session,
+      });
+    } catch {
+      // Continue if startD2 transition is already completed or replayed
+    }
+
     const snapshot = await Complaint.findById(complaint._id).select(SNAPSHOT_FIELDS).session(session).lean();
     await ComplaintStageRecord.create(
       [{ complaint: complaint._id, stage: 'D1', kind: 'ACKNOWLEDGEMENT', actor: user._id, at: now, remarks: note, snapshot }],

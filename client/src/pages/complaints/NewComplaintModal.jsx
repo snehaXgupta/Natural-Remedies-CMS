@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import {
+  Compass,
   X,
   Calendar,
   Clock,
@@ -7,7 +8,11 @@ import {
   Upload,
   FileText,
   ChevronDown,
+  ChevronRight,
   Check,
+  AlertCircle,
+  Loader2,
+  Paperclip,
 } from 'lucide-react';
 import { complaintApi, userApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
@@ -29,10 +34,6 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
   const { user } = useAuth();
   const notify = useToast();
   const fileInputRef = useRef(null);
-
-  // Step 1: Complaint Form, Step 2: D1 Proof Attachment
-  const [step, setStep] = useState(1);
-  const [createdComplaint, setCreatedComplaint] = useState(null);
 
   const [dateOnly, setDateOnly] = useState(toDateStr());
   const [timeOnly, setTimeOnly] = useState(toTimeStr());
@@ -83,8 +84,6 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
   // Initialize/reset form state on open
   useEffect(() => {
     if (open) {
-      setStep(1);
-      setCreatedComplaint(null);
       const now = new Date();
       setDateOnly(toDateStr(now));
       setTimeOnly(toTimeStr(now));
@@ -141,8 +140,8 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
     });
   };
 
-  // Step 1: Save & Next (registers the complaint and opens Step 2 popup)
-  const handleSaveAndNext = async () => {
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
     setBusy(true);
     setErrors({});
     setMessage(null);
@@ -183,45 +182,28 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
     try {
       const res = await complaintApi.create(payload);
       const created = res.data;
-      setCreatedComplaint(created);
-      notify(`Complaint ${created.complaintNumber} registered successfully.`);
-      // Advance to Step 2: D1 Proof Attachment
-      setStep(2);
+
+      // Upload proof files to D1 if any are selected
+      if (proofFiles.length > 0) {
+        try {
+          const rawFiles = proofFiles.map((x) => x.file);
+          await complaintApi.upload(created._id, rawFiles, 'D1');
+          notify(`Complaint ${created.complaintNumber} registered with ${proofFiles.length} proof document(s).`);
+        } catch (uploadErr) {
+          console.error('Evidence upload error:', uploadErr);
+          notify(`Complaint ${created.complaintNumber} created, but evidence upload had issues.`, 'bad');
+        }
+      } else {
+        notify(`Complaint ${created.complaintNumber} registered successfully.`);
+      }
+
+      onCreated(created);
     } catch (err) {
       const e = readError(err);
       setErrors(e.fields || {});
-      setMessage(Object.keys(e.fields || {}).length ? 'Some required fields need attention.' : e.message);
+      setMessage(Object.keys(e.fields || {}).length ? 'Please check the required fields highlighted below.' : e.message);
     } finally {
       setBusy(false);
-    }
-  };
-
-  // Step 2: Save attachments and complete registration
-  const handleSaveAttachments = async () => {
-    if (!createdComplaint) return;
-    setBusy(true);
-    try {
-      if (proofFiles.length > 0) {
-        const rawFiles = proofFiles.map((x) => x.file);
-        await complaintApi.upload(createdComplaint._id, rawFiles, 'D1');
-        notify(`Uploaded ${proofFiles.length} proof document(s) successfully.`);
-      }
-      onCreated(createdComplaint);
-    } catch (uploadErr) {
-      console.error('Evidence upload error:', uploadErr);
-      notify('Complaint registered, but some files could not be uploaded.', 'bad');
-      onCreated(createdComplaint);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleClose = () => {
-    if (step === 2 && createdComplaint) {
-      // If already created in Step 1, navigate to the complaint on close
-      onCreated(createdComplaint);
-    } else {
-      onClose();
     }
   };
 
@@ -229,128 +211,155 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150"
-      onClick={handleClose}
+      className="fixed inset-0 z-50 flex flex-col w-screen h-screen bg-[#f4f6f9] overflow-hidden animate-in fade-in duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-complaint-title"
     >
-      <div
-        className="relative w-full max-w-4xl rounded-md border border-slate-300 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-complaint-title"
-      >
-        {/* Top Header - Centered title matching Salesforce screenshot */}
-        <div className="relative border-b border-slate-200 bg-white px-6 py-3.5 text-center">
-          <h2 id="new-complaint-title" className="text-base font-bold text-slate-800">
-            New Complaint
-          </h2>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="absolute right-4 top-3.5 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Modal Body */}
-        {step === 1 ? (
-          /* STEP 1: Registration Form */
-          <div className="overflow-y-auto px-5 sm:px-8 py-5 space-y-5 text-xs text-slate-700">
-            {message && (
-              <div className="rounded border border-red-200 bg-red-50 px-3.5 py-2 text-xs font-medium text-red-700">
-                {message}
-              </div>
-            )}
-
-            {/* Section 1: Requestor Information */}
+      {/* Whole-Screen Header Bar (Salesforce Lightning Header) */}
+      <header className="shrink-0 border-b border-slate-200 bg-white px-6 py-3 shadow-2xs">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Compass Icon & Title */}
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded bg-[#0176d3] text-white shadow-2xs">
+              <Compass className="h-5 w-5" />
+            </div>
             <div>
-              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-semibold text-slate-700 tracking-wide mb-3">
-                Requestor Information
+              <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                <span>Complaints</span>
+                <ChevronRight className="h-3 w-3" />
+                <span className="text-slate-800">New Complaint</span>
+              </div>
+              <h1 id="new-complaint-title" className="text-lg font-bold text-slate-900 leading-tight">
+                New Complaint
+              </h1>
+            </div>
+          </div>
+
+          {/* Top Actions */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={busy}
+              className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Save Complaint</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ml-2 rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              aria-label="Close"
+              title="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Whole-Screen Scrollable Content Area */}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 w-full">
+        <div className="w-full max-w-6xl mx-auto space-y-5">
+          {/* Error Alert */}
+          {message && (
+            <div className="rounded border border-red-200 bg-red-50 p-4 flex items-start gap-2.5 text-xs text-red-800 shadow-2xs">
+              <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <span className="font-semibold block">Missing or Invalid Information</span>
+                <p>{message}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Master Form Card spanning wide layout */}
+          <div className="border border-slate-200 bg-white rounded-md shadow-2xs divide-y divide-slate-200">
+            {/* SECTION 1: Requestor Information */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-bold text-slate-700 uppercase tracking-wide border-l-4 border-[#0176d3] flex items-center justify-between">
+                <span>Requestor Information</span>
+                <span className="text-[10px] font-normal text-slate-500 uppercase tracking-normal">
+                  * Required fields
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                {/* Complaint date (Inline Date & Time) */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
+                {/* Complaint date & time */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    Complaint date
+                    <span className="text-red-600 mr-0.5">*</span>Complaint date
                   </label>
                   <div className="flex-1 flex items-center gap-2">
-                    <div className="flex-1">
-                      <span className="text-[10px] text-slate-500 font-medium block">
-                        <span className="text-red-600 mr-0.5">*</span>Date
-                      </span>
-                      <div className="relative">
-                        <input
-                          type="date"
-                          value={dateOnly}
-                          onChange={(e) => setDateOnly(e.target.value)}
-                          className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                        />
-                        <Calendar className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      </div>
+                    <div className="flex-1 relative">
+                      <input
+                        type="date"
+                        value={dateOnly}
+                        onChange={(e) => setDateOnly(e.target.value)}
+                        className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                      <Calendar className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     </div>
-                    <div className="flex-1">
-                      <span className="text-[10px] text-slate-500 font-medium block">
-                        <span className="text-red-600 mr-0.5">*</span>Time
-                      </span>
-                      <div className="relative">
-                        <input
-                          type="time"
-                          value={timeOnly}
-                          onChange={(e) => setTimeOnly(e.target.value)}
-                          className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                        />
-                        <Clock className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                      </div>
+                    <div className="w-32 relative">
+                      <input
+                        type="time"
+                        value={timeOnly}
+                        onChange={(e) => setTimeOnly(e.target.value)}
+                        className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      />
+                      <Clock className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     </div>
                   </div>
                 </div>
 
-                {/* Blank right spacer to match screenshot alignment */}
-                <div className="hidden md:block"></div>
-
-                {/* Requested By (Salesforce Pill with Avatar & Clear Button) */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                {/* Requested By */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>Requested By
                   </label>
                   <div className="flex-1">
-                    {form.requester.name ? (
-                      <div className="flex h-7.5 items-center justify-between rounded border border-slate-300 bg-white px-2 text-xs shadow-2xs">
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <div className="flex h-4.5 w-4.5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
-                            <User className="h-3 w-3" />
-                          </div>
-                          <span className="truncate font-semibold uppercase text-slate-800 text-[11px]">
-                            {form.requester.name}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, requester: { ...form.requester, name: '' } })}
-                          className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                          title="Clear"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                    <div className="relative flex items-center">
+                      <div className="pointer-events-none absolute left-2 flex h-4.5 w-4.5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
+                        <User className="h-3 w-3" />
                       </div>
-                    ) : (
                       <input
                         type="text"
                         placeholder="Enter requester name..."
                         value={form.requester.name}
                         onChange={(e) => setForm({ ...form, requester: { ...form.requester, name: e.target.value } })}
-                        className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                        className="h-8 w-full rounded border border-slate-300 bg-white pl-8 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                       />
-                    )}
-                    {errors['requester.name'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['requester.name']}</p>}
+                      {form.requester.name && (
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, requester: { ...form.requester, name: '' } })}
+                          className="absolute right-2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+                          title="Clear"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    {errors['requester.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['requester.name']}</p>}
                   </div>
                 </div>
 
-                {/* SBU Dropdown */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                {/* SBU */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>SBU
                   </label>
@@ -358,7 +367,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                     <select
                       value={form.sbu}
                       onChange={(e) => setForm({ ...form, sbu: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="HHP">HHP</option>
                       <option value="AHB-Rumicare">AHB-Rumicare</option>
@@ -369,13 +378,13 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       <option value="AHP-Poultry">AHP-Poultry</option>
                       <option value="AHP-Aqua">AHP-Aqua</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-                    {errors.sbu && <p className="text-[10px] text-red-600 mt-0.5">{errors.sbu}</p>}
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    {errors.sbu && <p className="text-[10px] text-red-600 mt-1">{errors.sbu}</p>}
                   </div>
                 </div>
 
                 {/* Requestor E-mail */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>Requestor E-mail
                   </label>
@@ -384,14 +393,14 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       type="email"
                       value={form.requester.email}
                       onChange={(e) => setForm({ ...form, requester: { ...form.requester, email: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
-                    {errors['requester.email'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['requester.email']}</p>}
+                    {errors['requester.email'] && <p className="text-[10px] text-red-600 mt-1">{errors['requester.email']}</p>}
                   </div>
                 </div>
 
-                {/* Country Dropdown */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                {/* Country */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>Country
                   </label>
@@ -399,7 +408,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                     <select
                       value={form.country}
                       onChange={(e) => setForm({ ...form, country: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="Afghanistan">Afghanistan</option>
                       <option value="India">India</option>
@@ -411,29 +420,29 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       <option value="United Kingdom">United Kingdom</option>
                       <option value="Vietnam">Vietnam</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-                    {errors.country && <p className="text-[10px] text-red-600 mt-0.5">{errors.country}</p>}
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    {errors.country && <p className="text-[10px] text-red-600 mt-1">{errors.country}</p>}
                   </div>
                 </div>
 
                 {/* Requestor Mobile Number */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    <span className="text-red-600 mr-0.5">*</span>Requestor Mobile Number
+                    <span className="text-red-600 mr-0.5">*</span>Requestor Mobile
                   </label>
                   <div className="flex-1">
                     <input
                       type="tel"
                       value={form.requester.mobile}
                       onChange={(e) => setForm({ ...form, requester: { ...form.requester, mobile: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
-                    {errors['requester.mobile'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['requester.mobile']}</p>}
+                    {errors['requester.mobile'] && <p className="text-[10px] text-red-600 mt-1">{errors['requester.mobile']}</p>}
                   </div>
                 </div>
 
                 {/* Complaint Head Quarter */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     Complaint Head Quarter
                   </label>
@@ -441,7 +450,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                     <select
                       value={form.headQuarter}
                       onChange={(e) => setForm({ ...form, headQuarter: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="--None--">--None--</option>
                       <option value="Bangalore">Bangalore</option>
@@ -453,20 +462,20 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       <option value="Ahmedabad">Ahmedabad</option>
                       <option value="Pune">Pune</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                   </div>
                 </div>
 
-                {/* origin */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                {/* Origin */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    origin
+                    Origin
                   </label>
                   <div className="flex-1 relative">
                     <select
                       value={form.origin}
                       onChange={(e) => setForm({ ...form, origin: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="Call">Call</option>
                       <option value="Email">Email</option>
@@ -474,12 +483,12 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       <option value="WhatsApp">WhatsApp</option>
                       <option value="Phone">Phone</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                   </div>
                 </div>
 
                 {/* Coordinator */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     Coordinator
                   </label>
@@ -487,7 +496,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                     <select
                       value={form.coordinator}
                       onChange={(e) => setForm({ ...form, coordinator: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="">Select Coordinator...</option>
                       {coordinators.map((c) => (
@@ -496,90 +505,130 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                   </div>
                 </div>
 
-                {/* Short Description */}
-                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2 md:col-span-2">
-                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0 pt-1">
-                    <span className="text-red-600 mr-0.5">*</span>Short Description of the Complaint
+                {/* Category */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
+                    Category
+                  </label>
+                  <div className="flex-1 relative">
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                    >
+                      <option value="Packaging">Packaging</option>
+                      <option value="Product quality">Product quality</option>
+                      <option value="Efficacy">Efficacy</option>
+                      <option value="Labelling">Labelling</option>
+                      <option value="Contamination">Contamination</option>
+                      <option value="Physical Quality">Physical Quality</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                  </div>
+                </div>
+
+                {/* Short Description (Full Width) */}
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2.5 md:col-span-2">
+                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0 pt-1.5">
+                    <span className="text-red-600 mr-0.5">*</span>Short Description
                   </label>
                   <div className="flex-1">
                     <textarea
                       rows={2}
                       value={form.shortDescription}
                       onChange={(e) => setForm({ ...form, shortDescription: e.target.value })}
-                      className="w-full rounded border border-slate-300 bg-white p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded border border-slate-300 bg-white p-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      placeholder="Brief description of the complaint..."
                     />
-                    {errors.shortDescription && <p className="text-[10px] text-red-600 mt-0.5">{errors.shortDescription}</p>}
+                    {errors.shortDescription && <p className="text-[10px] text-red-600 mt-1">{errors.shortDescription}</p>}
+                  </div>
+                </div>
+
+                {/* Additional Remarks (Full Width) */}
+                <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2.5 md:col-span-2">
+                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0 pt-1.5">
+                    Additional Remarks
+                  </label>
+                  <div className="flex-1">
+                    <textarea
+                      rows={2}
+                      value={form.additionalRemarks}
+                      onChange={(e) => setForm({ ...form, additionalRemarks: e.target.value })}
+                      className="w-full rounded border border-slate-300 bg-white p-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      placeholder="Any additional background, customer remarks, or initial observations..."
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Section 2: Customer Information */}
-            <div>
-              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-semibold text-slate-700 tracking-wide mb-3">
+            {/* SECTION 2: Customer Information */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-bold text-slate-700 uppercase tracking-wide border-l-4 border-[#0176d3]">
                 Customer Information
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer Name
+                    <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
                   </label>
                   <div className="flex-1">
                     <input
                       type="text"
                       value={form.customer.name}
                       onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
-                    {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['customer.name']}</p>}
+                    {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     Customer Code
                   </label>
                   <div className="flex-1">
                     <input
                       type="text"
-                      placeholder="Optional customer code"
+                      placeholder="Optional customer/dealer code"
                       value={form.customer.code}
                       onChange={(e) => setForm({ ...form, customer: { ...form.customer, code: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Section 3: Product Information */}
-            <div>
-              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-semibold text-slate-700 tracking-wide mb-3">
+            {/* SECTION 3: Product Information */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-bold text-slate-700 uppercase tracking-wide border-l-4 border-[#0176d3]">
                 Product Information
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    <span className="text-red-600 mr-0.5">*</span>Product name
+                    <span className="text-red-600 mr-0.5">*</span>Product Name
                   </label>
                   <div className="flex-1">
                     <input
                       type="text"
                       value={form.reportedProduct.name}
                       onChange={(e) => setForm({ ...form, reportedProduct: { ...form.reportedProduct, name: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
-                    {errors['reportedProduct.name'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['reportedProduct.name']}</p>}
+                    {errors['reportedProduct.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['reportedProduct.name']}</p>}
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>Batch Number
                   </label>
@@ -588,33 +637,13 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                       type="text"
                       value={form.reportedProduct.batchNumber}
                       onChange={(e) => setForm({ ...form, reportedProduct: { ...form.reportedProduct, batchNumber: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                     />
-                    {errors['reportedProduct.batchNumber'] && <p className="text-[10px] text-red-600 mt-0.5">{errors['reportedProduct.batchNumber']}</p>}
+                    {errors['reportedProduct.batchNumber'] && <p className="text-[10px] text-red-600 mt-1">{errors['reportedProduct.batchNumber']}</p>}
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    Category
-                  </label>
-                  <div className="flex-1 relative">
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                    >
-                      <option value="Packaging">Packaging</option>
-                      <option value="Product quality">Product quality</option>
-                      <option value="Efficacy">Efficacy</option>
-                      <option value="Labelling">Labelling</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     Reporter Type
                   </label>
@@ -622,161 +651,164 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                     <select
                       value={form.requester.type}
                       onChange={(e) => setForm({ ...form, requester: { ...form.requester, type: e.target.value } })}
-                      className="h-7.5 w-full rounded border border-slate-300 bg-white px-2 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                     >
                       <option value="Customer">Customer</option>
                       <option value="Retailer">Retailer</option>
                       <option value="Distributor">Distributor</option>
                     </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          /* STEP 2: D1 Proof Attachment (Matching Screenshot 2 exactly) */
-          <div className="px-6 sm:px-10 py-10 flex flex-col items-center justify-center">
-            {/* White bordered box from the screenshot */}
-            <div className="w-full max-w-2xl rounded border border-slate-300 bg-white p-8 sm:p-12 text-center shadow-2xs">
-              <h3 className="text-sm font-semibold text-slate-800 mb-6">
-                D1 Proof Attachment
-              </h3>
 
-              {/* Upload trigger with dashed border */}
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                  if (e.dataTransfer.files?.length) handleFilesAdded(e.dataTransfer.files);
-                }}
-                className={`inline-flex items-center gap-3 border border-dashed rounded px-4 py-2 transition-colors cursor-pointer ${
-                  dragging ? 'border-blue-500 bg-blue-50/60' : 'border-slate-400 bg-white hover:bg-slate-50'
-                }`}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files?.length) handleFilesAdded(e.target.files);
-                    e.target.value = '';
+            {/* SECTION 4: Evidence & D1 Proof Documents (Visible directly on whole screen) */}
+            <div className="p-5 sm:p-6 space-y-4">
+              <div className="bg-[#f3f2f2] px-3.5 py-1.5 rounded-xs text-[11px] font-bold text-slate-700 uppercase tracking-wide border-l-4 border-[#0176d3] flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5 text-[#0176d3]" />
+                  <span>D1 Proof Attachment & Evidence</span>
+                </span>
+                <span className="text-[10px] font-normal text-slate-500">
+                  Optional supporting documents
+                </span>
+              </div>
+
+              <div className="rounded border border-slate-200 bg-slate-50/50 p-6 text-center">
+                {/* Drag and Drop Zone */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
                   }}
-                />
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-[#0176d3] shadow-2xs hover:bg-slate-50"
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    if (e.dataTransfer.files?.length) handleFilesAdded(e.dataTransfer.files);
+                  }}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-6 max-w-xl mx-auto transition-colors cursor-pointer ${
+                    dragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-white hover:border-blue-400'
+                  }`}
                 >
-                  <Upload className="h-3.5 w-3.5" />
-                  Upload Files
-                </button>
-                <span className="text-xs text-slate-500 font-medium">Or drop files</span>
-              </div>
-
-              {/* Attached files list */}
-              {proofFiles.length > 0 && (
-                <div className="mt-6 border-t border-slate-100 pt-4 text-left">
-                  <p className="text-[11px] font-semibold text-slate-600 mb-2">
-                    Attached Files ({proofFiles.length}):
-                  </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                    {proofFiles.map((item, index) => (
-                      <div
-                        key={item.id || index}
-                        className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 p-2 text-xs"
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".png,.jpg,.jpeg,.webp,.pdf,.docx,.xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.length) handleFilesAdded(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-[#0176d3] shadow-2xs hover:bg-slate-50"
                       >
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          {item.previewUrl ? (
-                            <img src={item.previewUrl} alt={item.file.name} className="h-8 w-8 object-cover rounded shrink-0" />
-                          ) : (
-                            <FileText className="h-6 w-6 text-slate-400 shrink-0" />
-                          )}
-                          <div className="truncate">
-                            <p className="truncate font-medium text-slate-800 text-[11px]" title={item.file.name}>
-                              {item.file.name}
-                            </p>
-                            <span className="text-[10px] text-slate-400">{(item.file.size / 1024).toFixed(0)} KB</span>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(index)}
-                          className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-red-600 transition-colors"
-                          title="Remove"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                        Upload Files
+                      </button>
+                      <span className="text-xs text-slate-500 font-medium">or drop files here</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Supported: Images (PNG, JPG, WEBP), Documents (PDF, DOCX, XLSX)
+                    </p>
                   </div>
                 </div>
-              )}
+
+                {/* Attached Files List */}
+                {proofFiles.length > 0 && (
+                  <div className="mt-5 max-w-2xl mx-auto text-left">
+                    <p className="text-[11px] font-semibold text-slate-700 mb-2.5">
+                      Attached Files ({proofFiles.length}):
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {proofFiles.map((item, index) => (
+                        <div
+                          key={item.id || index}
+                          className="flex items-center justify-between gap-2.5 rounded border border-slate-200 bg-white p-2.5 shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 overflow-hidden">
+                            {item.previewUrl ? (
+                              <img
+                                src={item.previewUrl}
+                                alt={item.file.name}
+                                className="h-9 w-9 object-cover rounded border border-slate-200 shrink-0"
+                              />
+                            ) : (
+                              <div className="h-9 w-9 rounded bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                                <FileText className="h-5 w-5" />
+                              </div>
+                            )}
+                            <div className="truncate">
+                              <p className="truncate font-medium text-slate-800 text-xs" title={item.file.name}>
+                                {item.file.name}
+                              </p>
+                              <span className="text-[10px] text-slate-400">
+                                {(item.file.size / 1024).toFixed(0)} KB
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(index)}
+                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600 transition-colors"
+                            title="Remove file"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        )}
+        </div>
+      </main>
 
-        {/* Modal Footer - Matching exact Salesforce layout */}
-        <div className="border-t border-slate-200 bg-[#f8f9fa] px-6 py-3 flex items-center justify-between">
+      {/* Whole-Screen Docked Footer */}
+      <footer className="shrink-0 border-t border-slate-200 bg-white px-6 py-3 shadow-xs">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
           <button
             type="button"
-            onClick={handleClose}
+            onClick={onClose}
             className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors"
           >
-            close
+            Cancel
           </button>
 
-          {/* Guided Action Step Slider */}
-          <div className="flex items-center gap-1.5 w-44 sm:w-80">
-            {step === 1 ? (
-              <>
-                {/* Step 1 Active */}
-                <div className="h-3.5 w-3.5 rounded-full bg-[#0176d3] ring-4 ring-blue-100 shrink-0"></div>
-                <div className="h-1 flex-1 bg-slate-300 rounded-full"></div>
-                <div className="h-2.5 w-2.5 rounded-full bg-slate-400 shrink-0"></div>
-              </>
-            ) : (
-              <>
-                {/* Step 1 Completed with Checkmark, Solid Blue Line, Step 2 Active */}
-                <div className="h-4 w-4 rounded-full bg-[#0176d3] text-white flex items-center justify-center shrink-0">
-                  <Check className="h-2.5 w-2.5 stroke-[3]" />
-                </div>
-                <div className="h-1 flex-1 bg-[#0176d3] rounded-full"></div>
-                <div className="h-4 w-4 rounded-full border-2 border-[#0176d3] bg-white flex items-center justify-center shrink-0">
-                  <div className="h-2 w-2 rounded-full bg-[#0176d3]"></div>
-                </div>
-              </>
-            )}
+          {/* Salesforce Progress Indicator */}
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-500 font-medium">
+            <div className="h-2.5 w-2.5 rounded-full bg-[#0176d3]"></div>
+            <span>Define Problem (D1) Registration</span>
           </div>
 
-          {step === 1 ? (
-            <button
-              type="button"
-              onClick={handleSaveAndNext}
-              disabled={busy}
-              className="rounded bg-[#0176d3] px-6 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-xs transition-colors disabled:opacity-50"
-            >
-              {busy ? 'Saving...' : 'Save & Next'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSaveAttachments}
-              disabled={busy}
-              className="rounded bg-[#0176d3] px-6 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-xs transition-colors disabled:opacity-50"
-            >
-              {busy ? 'Saving...' : 'save'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={busy}
+            className="rounded bg-[#0176d3] px-6 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {busy ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Saving Complaint...</span>
+              </>
+            ) : (
+              <span>Save Complaint</span>
+            )}
+          </button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

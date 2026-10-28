@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, CornerDownRight, Lock } from 'lucide-react';
+import { Plus, Pencil, Trash2, CornerDownRight, Lock, ChevronDown } from 'lucide-react';
 import { d3Api, complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { readError } from '../../api/client.js';
@@ -679,8 +679,9 @@ function CapaImplementationSection({ complaint, d3, onReload }) {
 
 /* ---------------- Tab ---------------- */
 
-export function D3Tab({ complaint, review, refreshKey, onChanged }) {
+export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onReject, onStartD4 }) {
   const [latestRejection, setLatestRejection] = useState(null);
+  const [activeStage, setActiveStage] = useState('Fishbone');
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const load = () => d3Api.get(complaint._id).then((r) => setState({ loading: false, error: null, data: r.data })).catch((e) => setState({ loading: false, error: readError(e).message, data: null }));
   useEffect(() => { load(); }, [complaint._id, complaint.status]); // eslint-disable-line
@@ -693,13 +694,41 @@ export function D3Tab({ complaint, review, refreshKey, onChanged }) {
     return <p className="text-ink-muted">{complaint.status === 'D2_COMPLETED' ? 'D2 is complete. The First Responsible Person starts the analysis from the next-step panel.' : 'The root cause analysis opens after D2 is completed.'}</p>;
   }
   const { canEdit } = d3;
-  const methods = d3.analysis.methods;
 
   return (
-    <div className="space-y-6">
-      <ReviewBanner complaint={complaint} review={review} latestRejection={latestRejection} />
+    <div className="space-y-4">
+      {/* Centered Title matching screenshot */}
+      <h2 className="text-center font-bold text-slate-800 text-sm sm:text-base my-1">
+        Complaint Stage D3 Component
+      </h2>
+
+      {/* Select Stage Dropdown matching screenshot */}
+      <div className="bg-white rounded border border-slate-200 p-3 shadow-2xs">
+        <label className="block text-xs font-semibold text-slate-600 mb-1">Select Stage</label>
+        <div className="relative">
+          <select
+            value={activeStage}
+            onChange={(e) => setActiveStage(e.target.value)}
+            className="w-full h-8 rounded border border-slate-300 bg-white px-3 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none font-medium"
+          >
+            <option value="--None--">--None--</option>
+            <option value="Why-Why">Why-Why</option>
+            <option value="Fishbone">Fishbone</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+        </div>
+      </div>
+
+      <ReviewBanner
+        complaint={complaint}
+        review={review}
+        latestRejection={latestRejection}
+        onApprove={onApprove}
+        onReject={onReject}
+        onStartD4={onStartD4}
+      />
       {!canEdit && (
-        <p className="flex items-center gap-1.5 text-sm text-ink-muted"><Lock className="h-3.5 w-3.5" aria-hidden />
+        <p className="flex items-center gap-1.5 text-xs text-slate-500"><Lock className="h-3.5 w-3.5" aria-hidden />
           {['D3_IN_PROGRESS', 'D3_REWORK'].includes(complaint.status)
             ? 'Only the First Responsible Person can change the analysis. You can view it.'
             : complaint.status === 'D3_PENDING_APPROVAL'
@@ -707,21 +736,48 @@ export function D3Tab({ complaint, review, refreshKey, onChanged }) {
               : 'The analysis cannot be changed at this stage.'}
         </p>
       )}
-      <AnalysisHeader complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
-      {methods.length === 0 && <p className="rounded border border-dashed border-line-strong px-4 py-4 text-ink-muted">Choose Why-Why, Fishbone or both to start the analysis.</p>}
-      {methods.includes('WHY_WHY') && <WhyWhy complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />}
-      {methods.includes('FISHBONE') && (
-        <section className="border-t border-line pt-5">
-          <h3 className="font-semibold">Fishbone diagram</h3>
-          <p className="mb-3 text-sm text-ink-muted">Generated from the causes below and updated as you change them.</p>
-          <FishboneDiagram categories={d3.categories} tree={d3.fishbone} problem={d3.analysis.problemStatement} complaintNumber={complaint.complaintNumber} />
-          <CauseEditor complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
-        </section>
+
+      {/* When --None-- is selected */}
+      {activeStage === '--None--' && (
+        <div className="rounded border border-slate-200 bg-white p-8 text-center text-xs text-slate-500 shadow-2xs">
+          Select an analysis option from the dropdown above to begin root cause investigation.
+        </div>
       )}
-      <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
-      <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
-      <ReviewHistory complaintId={complaint._id} complaintNumber={complaint.complaintNumber} refreshKey={`${refreshKey}-${complaint.status}`}
-        onLoaded={(list) => setLatestRejection(list.find((r) => r.kind === 'REJECTION') || null)} />
+
+      {/* Fishbone Stage Component */}
+      {activeStage === 'Fishbone' && (
+        <FishboneDiagram
+          categories={d3.categories}
+          tree={d3.fishbone}
+          problem={d3.analysis.problemStatement || complaint.shortDescription || 'Test1'}
+          complaintNumber={complaint.complaintNumber}
+          complaintId={complaint._id}
+          canEdit={canEdit}
+          onReload={load}
+        />
+      )}
+
+      {/* Why-Why Stage Component */}
+      {activeStage === 'Why-Why' && (
+        <WhyWhy complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
+      )}
+
+      {/* Root Causes & CAPA Stage Component */}
+      {(activeStage === 'RootCause' || activeStage === 'All') && (
+        <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
+      )}
+
+      {/* CAPA Implementation Stage Component */}
+      {(activeStage === 'CapaImpl' || activeStage === 'All') && (
+        <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
+      )}
+
+      <ReviewHistory
+        complaintId={complaint._id}
+        complaintNumber={complaint.complaintNumber}
+        refreshKey={`${refreshKey}-${complaint.status}`}
+        onLoaded={(list) => setLatestRejection(list.find((r) => r.kind === 'REJECTION') || null)}
+      />
     </div>
   );
 }

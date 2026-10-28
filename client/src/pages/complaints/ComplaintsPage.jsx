@@ -19,7 +19,7 @@ import {
 import { complaintApi, adminApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useAsync, useDebounced } from '../../lib/useAsync.js';
-import { formatDate, formatDateTime } from '../../lib/format.js';
+import { formatDate, formatDateTime, formatSfDateTime } from '../../lib/format.js';
 import { Button } from '../../components/Button.jsx';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
 import { Pagination } from '../../components/Pagination.jsx';
@@ -27,16 +27,16 @@ import { Loading, ErrorState, EmptyState } from '../../components/States.jsx';
 import { NewComplaintModal } from './NewComplaintModal.jsx';
 
 const COLUMNS = [
-  { key: 'idx', label: '#', sortable: false },
-  { key: 'number', label: 'Complaint No', sortable: true },
-  { key: 'stage', label: 'Stage', sortable: true },
-  { key: 'date', label: 'Complaint date', sortable: true },
-  { key: 'sbu', label: 'SBU', sortable: true },
-  { key: 'product', label: 'Prod...', sortable: false },
-  { key: 'description', label: 'Short Description of the Compl...', sortable: false },
-  { key: 'created', label: 'Created Date', sortable: true },
-  { key: 'updated', label: 'Last Modi...', sortable: true },
-  { key: 'requester', label: 'Requested By', sortable: false },
+  { key: 'idx', label: '#', sortable: false, thClass: 'w-8 px-2.5 text-center' },
+  { key: 'number', label: 'Complaint No', sortable: true, thClass: 'px-3 whitespace-nowrap' },
+  { key: 'stage', label: 'Stage', sortable: true, thClass: 'px-2.5 whitespace-nowrap' },
+  { key: 'date', label: 'Complaint date', sortable: true, thClass: 'px-3 whitespace-nowrap' },
+  { key: 'sbu', label: 'SBU', sortable: true, thClass: 'px-3 whitespace-nowrap' },
+  { key: 'product', label: 'Prod...', sortable: false, thClass: 'px-3 max-w-[14rem] truncate' },
+  { key: 'description', label: 'Short Description of the Compl...', sortable: false, thClass: 'px-3 min-w-[14rem]' },
+  { key: 'created', label: 'Created Date', sortable: true, thClass: 'px-3 whitespace-nowrap' },
+  { key: 'updated', label: 'Last Modi...', sortable: true, thClass: 'px-3 whitespace-nowrap' },
+  { key: 'requester', label: 'Requested By', sortable: false, thClass: 'px-3 max-w-[11rem] truncate' },
 ];
 
 const FILTER_KEYS = ['search', 'status', 'stage', 'sbu', 'country', 'open', 'overdue'];
@@ -106,9 +106,9 @@ export function ComplaintsPage({ mine = false }) {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col min-h-[calc(100vh-6.5rem)] space-y-2.5">
       {/* Salesforce Standard Object List Header (Matching Screenshot) */}
-      <div className="rounded-t-md border border-slate-200 bg-white p-3 sm:p-4 shadow-2xs">
+      <div className="rounded-t-md border border-slate-200 bg-white p-3 sm:p-4 shadow-2xs shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Object icon + Title + View Selector */}
           <div className="flex items-center gap-3">
@@ -151,14 +151,14 @@ export function ComplaintsPage({ mine = false }) {
               )}
               <button
                 type="button"
-                className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
               >
                 Import
               </button>
               <button
                 type="button"
                 onClick={() => window.print()}
-                className="px-3.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                className="px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
               >
                 Printable View
               </button>
@@ -227,7 +227,7 @@ export function ComplaintsPage({ mine = false }) {
       </div>
 
       {/* Complaints Table (Matching Screenshot Columns & Style) */}
-      <div className="border border-slate-200 bg-white shadow-2xs rounded-b-md overflow-hidden">
+      <div className="flex-1 flex flex-col border border-slate-200 bg-white shadow-2xs rounded-b-md overflow-hidden">
         {list.loading && !list.data ? (
           <div className="p-8">
             <Loading label="Loading complaints" />
@@ -237,15 +237,15 @@ export function ComplaintsPage({ mine = false }) {
         ) : list.data.length === 0 ? (
           empty
         ) : (
-          <div className="overflow-x-auto">
-            <table className={`w-full min-w-[76rem] text-left text-xs ${list.loading ? 'opacity-60' : ''}`}>
+          <div className="w-full flex-1 overflow-x-hidden">
+            <table className={`w-full text-left text-xs ${list.loading ? 'opacity-60' : ''}`}>
               <thead className="border-b border-slate-200 bg-[#fafafc] text-slate-600 font-semibold select-none">
                 <tr>
                   {COLUMNS.map((col) => (
                     <th
                       key={col.key}
                       scope="col"
-                      className="whitespace-nowrap px-3 py-2 font-semibold border-r border-slate-100 last:border-r-0"
+                      className={`py-2.5 font-semibold border-r border-slate-100 last:border-r-0 ${col.thClass || 'px-3 whitespace-nowrap'}`}
                       aria-sort={query.sort === col.key ? (query.order === 'asc' ? 'ascending' : 'descending') : undefined}
                     >
                       {col.sortable ? (
@@ -271,7 +271,7 @@ export function ComplaintsPage({ mine = false }) {
                     className="cursor-pointer hover:bg-blue-50/40 transition-colors"
                     onClick={() => navigate(`/complaints/${c._id}`)}
                   >
-                    <td className="whitespace-nowrap py-2.5 px-3 text-slate-400 text-[11px] font-mono">
+                    <td className="whitespace-nowrap py-2.5 px-2.5 text-slate-400 text-[11px] font-mono text-center">
                       {idx + 1}
                     </td>
                     <td className="whitespace-nowrap py-2.5 px-3">
@@ -283,42 +283,29 @@ export function ComplaintsPage({ mine = false }) {
                         {c.complaintNumber}
                       </Link>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 font-medium text-slate-800">
+                    <td className="whitespace-nowrap px-2.5 py-2.5 font-medium text-slate-800">
                       {c.stage === 'CLOSED' ? 'Closed' : c.stage}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
-                      {formatDateTime(c.complaintDate || c.createdAt)}
+                      {formatSfDateTime(c.complaintDate || c.createdAt)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-700">
                       {c.sbu || '—'}
                     </td>
-                    <td className="max-w-[10rem] truncate px-3 py-2.5 text-slate-700" title={c.d2?.verifiedProduct?.productName || c.reportedProduct?.name}>
+                    <td className="max-w-[14rem] truncate px-3 py-2.5 text-slate-700" title={c.d2?.verifiedProduct?.productName || c.reportedProduct?.name}>
                       {c.d2?.verifiedProduct?.productName || c.reportedProduct?.name || '—'}
                     </td>
-                    <td className="min-w-[14rem] max-w-[22rem] px-3 py-2.5 text-slate-600">
-                      <p className="line-clamp-1">{c.shortDescription || '—'}</p>
+                    <td className="px-3 py-2.5 text-slate-600" title={c.shortDescription}>
+                      <span className="line-clamp-1">{c.shortDescription || '—'}</span>
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
-                      <div className="font-medium text-slate-800">{formatDateTime(c.createdAt || c.complaintDate)}</div>
-                      <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
-                        {c.origin === 'WhatsApp' ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                            via bot user
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium border border-blue-200">
-                            <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-                            manually ({c.creatorName || c.createdBy?.name || c.origin || 'Staff'})
-                          </span>
-                        )}
-                      </div>
+                      {formatSfDateTime(c.createdAt || c.complaintDate)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2.5 text-slate-600">
-                      {formatDateTime(c.lastActivityAt || c.updatedAt)}
+                      {formatSfDateTime(c.lastActivityAt || c.updatedAt)}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2.5">
-                      <span className="font-medium text-blue-600 hover:underline">
+                    <td className="max-w-[11rem] truncate px-3 py-2.5">
+                      <span className="font-medium text-blue-600 hover:underline" title={c.requester?.name}>
                         {c.requester?.name || '—'}
                       </span>
                     </td>
@@ -328,7 +315,9 @@ export function ComplaintsPage({ mine = false }) {
             </table>
           </div>
         )}
-        <Pagination meta={list.meta} onPage={(page) => set({ page: String(page) })} />
+        <div className="mt-auto border-t border-slate-200 bg-white">
+          <Pagination meta={list.meta} onPage={(page) => set({ page: String(page) })} />
+        </div>
       </div>
 
       <NewComplaintModal

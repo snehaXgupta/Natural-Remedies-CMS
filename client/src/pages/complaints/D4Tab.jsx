@@ -46,8 +46,14 @@ export function D4Tab({ complaint, onRefresh }) {
         d3Api.get(complaint._id),
         d3Api.people().catch(() => ({ data: [] })),
       ]);
-      setCapas(d3Res.capas || []);
-      setPeople(usersRes.data || []);
+      const dataPayload = d3Res?.data || d3Res || {};
+      const extractedCapas =
+        dataPayload.capas ||
+        (dataPayload.rootCauses ? dataPayload.rootCauses.flatMap((r) => r.capas || []) : []) ||
+        d3Res.capas ||
+        [];
+      setCapas(extractedCapas);
+      setPeople(usersRes.data || usersRes || []);
     } catch (err) {
       notify(err.message, 'error');
     } finally {

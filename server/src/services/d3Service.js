@@ -99,13 +99,18 @@ export async function getD3(id, user, permissions) {
   const [causes, rootCauses, capas] = await Promise.all([
     FishboneCause.find({ analysis: analysis._id, deletedAt: null }).lean(),
     RootCause.find({ analysis: analysis._id, deletedAt: null }).sort({ createdAt: 1 }).lean(),
-    CapaRecord.find({ complaint: complaint._id, deletedAt: null }).sort({ createdAt: 1 }).populate('responsiblePerson', 'name email').lean(),
+    CapaRecord.find({ complaint: complaint._id, deletedAt: null })
+      .sort({ createdAt: 1 })
+      .populate('responsiblePerson', 'name email')
+      .populate('erp', 'name email')
+      .lean(),
   ]);
   return {
     analysis,
     categories: FISHBONE_CATEGORIES,
     fishbone: buildTree(causes),
     rootCauses: rootCauses.map((r) => ({ ...r, capas: capas.filter((c) => String(c.rootCause) === String(r._id)) })),
+    capas,
     canEdit: canEdit(complaint, user, permissions),
   };
 }

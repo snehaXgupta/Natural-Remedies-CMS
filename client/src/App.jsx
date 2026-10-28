@@ -10,6 +10,7 @@ import { PlannedPage } from './pages/PlannedPage.jsx';
 import { NotFoundPage } from './pages/NotFoundPage.jsx';
 import { UsersRolesPage } from './pages/admin/UsersRolesPage.jsx';
 import { ComplaintsPage } from './pages/complaints/ComplaintsPage.jsx';
+import { NewComplaintPage } from './pages/complaints/NewComplaintPage.jsx';
 import { ComplaintDetailPage } from './pages/complaints/ComplaintDetailPage.jsx';
 import { NotificationLogsPage } from './pages/notifications/NotificationLogsPage.jsx';
 import { PendingReviewsPage } from './pages/reviews/PendingReviewsPage.jsx';
@@ -63,6 +64,7 @@ export default function App() {
           }
         />
         <Route path="complaints" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintsPage key="all" /></Guard>} />
+        <Route path="complaints/new" element={<Guard any={['complaint.create.manual']}><NewComplaintPage /></Guard>} />
         <Route path="complaints/:id" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintDetailPage /></Guard>} />
         <Route path="complaints/:complaintId/emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><EmailDetailPage /></Guard>} />
         <Route path="emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned', 'notifications.view']}><EmailDetailPage /></Guard>} />
@@ -70,7 +72,7 @@ export default function App() {
         <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
         <Route path="reports" element={<Guard any={navFor('/reports').any}><ReportsPage /></Guard>} />
         <Route path="whatsapp-simulator" element={<Guard any={navFor('/whatsapp-simulator').any}><SimulatorPage /></Guard>} />
-        <Route path="settings" element={<Guard any={navFor('/settings').any}><SettingsPage /></Guard>} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="notifications" element={<Guard any={navFor('/notifications').any}><NotificationLogsPage /></Guard>} />
         {planned.map((n) => (
           <Route

@@ -24,7 +24,6 @@ import {
 import { useAuth } from '../auth/AuthContext.jsx';
 import { NotificationBell } from '../components/NotificationBell.jsx';
 import { complaintApi } from '../api/endpoints.js';
-import { NewComplaintModal } from '../pages/complaints/NewComplaintModal.jsx';
 
 function UserMenu() {
   const { user, logout } = useAuth();
@@ -132,7 +131,8 @@ export function AppShell() {
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [favorites, setFavorites] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('nr_eqms_favorites') || '[]');
+      const parsed = JSON.parse(localStorage.getItem('nr_eqms_favorites') || '[]');
+      return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
     } catch {
       return [];
     }
@@ -141,7 +141,6 @@ export function AppShell() {
 
   // 3. Global Actions State (+ button)
   const [actionsOpen, setActionsOpen] = useState(false);
-  const [newComplaintModalOpen, setNewComplaintModalOpen] = useState(false);
   const actionsRef = useRef(null);
 
   // 4. Help Drawer State (? button)
@@ -150,7 +149,7 @@ export function AppShell() {
   // Check if currently viewing a complaint detail page
   const complaintMatch = location.pathname.match(/^\/complaints\/([a-f0-9]{24})/i);
   const currentComplaintId = complaintMatch ? complaintMatch[1] : null;
-  const isCurrentFavorite = favorites.some((f) => f.id === currentComplaintId);
+  const isCurrentFavorite = Array.isArray(favorites) && favorites.some((f) => f?.id === currentComplaintId);
 
   // Close menus on navigation
   useEffect(() => {
@@ -468,7 +467,7 @@ export function AppShell() {
                     type="button"
                     onClick={() => {
                       setActionsOpen(false);
-                      setNewComplaintModalOpen(true);
+                      navigate('/complaints/new');
                     }}
                     className="w-full text-left px-3 py-2 text-slate-800 hover:bg-blue-50 hover:text-blue-700 flex items-center gap-2 font-medium"
                   >
@@ -596,19 +595,11 @@ export function AppShell() {
       </header>
 
       {/* Main Content Viewport */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+      <main className="flex-1 w-full px-3 sm:px-4 py-2 sm:py-3">
         <Outlet />
       </main>
 
-      {/* Global New Complaint Modal launched from the '+' button */}
-      <NewComplaintModal
-        open={newComplaintModalOpen}
-        onClose={() => setNewComplaintModalOpen(false)}
-        onCreated={(c) => {
-          setNewComplaintModalOpen(false);
-          navigate(`/complaints/${c._id}`);
-        }}
-      />
+
 
       {/* Help & Process Guide Slide-Over Modal ('?' button) */}
       {helpOpen && (

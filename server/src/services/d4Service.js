@@ -302,3 +302,12 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
 
   return capa;
 }
+
+export async function startD4(complaintId, { user, permissions }) {
+  const complaint = await findVisible(complaintId, user, permissions);
+  complaint.stage = STAGES.D4;
+  complaint.status = S.D4_IN_PROGRESS;
+  complaint.lastActivityAt = new Date();
+  await complaint.save();
+  return getDetail(complaintId, user, permissions);
+}
