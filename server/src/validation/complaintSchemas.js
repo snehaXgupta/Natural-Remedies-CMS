@@ -131,6 +131,7 @@ const scored = (label) =>
 export const updateD2Body = z.object({
   version: z.number().int().min(0),
   priority: z.preprocess(blankToNull, z.enum(['Low', 'Medium', 'High', 'Critical']).nullable().optional()),
+  sendMailToFrp: yesNo,
   verifiedProduct: z
     .object({
       performanceRelated: yesNo,
@@ -153,6 +154,7 @@ export const updateD2Body = z.object({
       typeOfFailure: d2Text(120),
       slaHoursD3: d2Number(10_000, 'SLA hours for D3'),
       slaHoursD4: d2Number(10_000, 'SLA hours for D4'),
+      slaHoursD3D4: d2Number(10_000, 'SLA Hours for D3 & D4'),
     })
     .optional(),
 });
@@ -169,11 +171,11 @@ export const stageActionBody = z.object({
 
 /* ---------------- D3 (Phase 6) ---------------- */
 
-const FISHBONE = ['Manpower', 'Method', 'Machine', 'Material', 'Measurement', 'Mother Nature'];
+const FISHBONE = ['Manpower', 'Method', 'Machine', 'Material', 'Measurement', 'Mother Nature', 'Environment', 'Milieu / Environmental'];
 const category = z.enum(FISHBONE, 'Choose one of the six fishbone categories.');
 
 export const analysisBody = z.object({
-  version: z.number().int().min(0),
+  version: z.number().int().min(0).optional(),
   methods: z.array(z.enum(['WHY_WHY', 'FISHBONE'])).max(2).optional(),
   problemStatement: z.string().trim().max(2000).optional(),
   whyWhy: z

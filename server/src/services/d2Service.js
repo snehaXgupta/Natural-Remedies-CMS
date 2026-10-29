@@ -33,7 +33,7 @@ const EDITABLE_STATUSES = [S.D2_IN_PROGRESS];
  * complaint.d2.edit. Dropdown values are checked against the admin lists.
  * The version guard refuses a save based on stale data.
  */
-export async function update(id, { version, verifiedProduct, investigation, priority }, { user, permissions, context }) {
+export async function update(id, { version, verifiedProduct, investigation, priority, sendMailToFrp }, { user, permissions, context }) {
   if (!permissions.has(P.COMPLAINT_D2_EDIT)) throw AppError.forbidden();
   const complaint = await findVisible(id, user, permissions);
   if (!EDITABLE_STATUSES.includes(complaint.status)) {
@@ -52,8 +52,21 @@ export async function update(id, { version, verifiedProduct, investigation, prio
 
   const before = { d2: complaint.toObject().d2, priority: complaint.priority };
   if (verifiedProduct) complaint.set('d2.verifiedProduct', verifiedProduct);
-  if (investigation) complaint.set('d2.investigation', investigation);
+  if (investigation) {
+    if (investigation.slaHoursD3D4 !== undefined) {
+      investigation.slaHoursD3 = investigation.slaHoursD3D4;
+      investigation.slaHoursD4 = investigation.slaHoursD3D4;
+    }
+    const a = Number(investigation?.occurrences?.score);
+    const b = Number(investigation?.affectedQuantity?.score);
+    const c = Number(investigation?.severity?.score);
+    if (!isNaN(a) && !isNaN(b) && !isNaN(c) && investigation.occurrences?.score != null && investigation.affectedQuantity?.score != null && investigation.severity?.score != null) {
+      investigation.rpn = a * b * c;
+    }
+    complaint.set('d2.investigation', investigation);
+  }
   if (priority !== undefined) complaint.priority = priority || undefined;
+  if (sendMailToFrp !== undefined) complaint.set('d2.sendMailToFrp', Boolean(sendMailToFrp));
   complaint.lastActivityAt = new Date();
   await complaint.save();
 
@@ -266,6 +279,17 @@ export async function complete(id, { idempotencyKey, remarks }, { user, permissi
     }
   });
   if (queued) notifications.nudge();
+
+  // If FRP has already acknowledged, automatically transition to D3
+  try {
+    const current = await findVisible(id, user, permissions);
+    if (current.status === S.D2_COMPLETED && current.d2?.frpAcknowledgement?.acknowledged) {
+      await workflow.perform(id, 'startD3', { actor: user, permissions, context });
+    }
+  } catch (err) {
+    // Stage transition conflict or already started
+  }
+
   return getDetail(id, user, permissions);
 }
 
@@ -279,17 +303,74 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
     status: 'PENDING',
   });
   await complaint.save();
-  const frp = await User.findById(complaint.frp, { name: 1 }).lean();
+
+  const frp = await User.findById(complaint.frp, { name: 1, email: 1 }).lean();
+
+  // Find who assigned the FRP so they can be notified by email
+  const activeAssignment = await ComplaintAssignment.findOne({
+    complaint: complaint._id,
+    role: 'FRP',
+    active: true,
+  }).populate('assignedBy', 'name email').lean();
+
+  const assigner = activeAssignment?.assignedBy;
   const managers = await User.find({ roles: { $in: ['admin', 'quality_coordinator', 'reviewer'] } }, { _id: 1, email: 1, name: 1 }).lean();
+
+  // Build recipient list for email notification (priority to the person who assigned the FRP)
+  const recipientMap = new Map();
+  if (assigner?.email) {
+    recipientMap.set(assigner.email.toLowerCase(), {
+      email: assigner.email,
+      name: assigner.name,
+      userId: assigner._id,
+    });
+  }
+  for (const m of managers) {
+    if (m.email && !recipientMap.has(m.email.toLowerCase())) {
+      recipientMap.set(m.email.toLowerCase(), { email: m.email, name: m.name, userId: m._id });
+    }
+  }
+
+  // In-app notifications
   for (const m of managers) {
     await inApp.createNotification({
       recipient: m._id,
       complaint: complaint._id,
       title: 'D2 SLA Extension Request',
-      message: `${frp?.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
+      message: `${frp?.name || user.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
       link: `/complaints/${complaint._id}?tab=D2`,
     });
   }
+  if (assigner && !managers.some((m) => String(m._id) === String(assigner._id))) {
+    await inApp.createNotification({
+      recipient: assigner._id,
+      complaint: complaint._id,
+      title: 'D2 SLA Extension Request',
+      message: `${frp?.name || user.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
+      link: `/complaints/${complaint._id}?tab=D2`,
+    });
+  }
+
+  // Enqueue email notifications
+  let queued = false;
+  for (const r of recipientMap.values()) {
+    await notifications.enqueue({
+      type: 'D2_SLA_EXTENSION',
+      complaint: complaint._id,
+      recipient: r.email,
+      recipientUser: r.userId,
+      dedupeKey: `D2_SLA_EXTENSION:${complaint._id}:${r.email}:${Date.now()}`,
+      message: d2SlaExtensionRequest(complaint, {
+        managerName: r.name,
+        frpName: frp?.name || user.name,
+        hours,
+        reason,
+      }),
+    });
+    queued = true;
+  }
+  if (queued) notifications.nudge();
+
   return getDetail(id, user, permissions);
 }
 

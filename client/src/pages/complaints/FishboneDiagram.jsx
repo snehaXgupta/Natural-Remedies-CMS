@@ -10,6 +10,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { d3Api } from '../../api/endpoints.js';
+import { readError } from '../../api/client.js';
 import { useToast } from '../../components/Toast.jsx';
 
 // 6 Categories matching Salesforce QEQMS documentation
@@ -27,6 +28,7 @@ export function FishboneDiagram({
   problem = '',
   complaintNumber = '',
   complaintId,
+  analysis,
   canEdit = true,
   onReload,
 }) {
@@ -101,9 +103,9 @@ export function FishboneDiagram({
     if (!text) return;
 
     const currentList = localCauses[catKey] || [];
-    // Rule e: Maximum 3 descriptions per category
+    // Rule e: Maximum 3 descriptions per category (PDF Page 8 item e & Page 9)
     if (currentList.length >= 3) {
-      notify('Limit reached. You can add up to 3 descriptions for this category.', 'bad');
+      notify('Limit reached: You can add up to 3 descriptions for this category.', 'bad');
       return;
     }
 
@@ -135,7 +137,8 @@ export function FishboneDiagram({
     try {
       // 1. Save problem statement / root cause name (Fish Head)
       await d3Api.updateAnalysis(complaintId, {
-        problemStatement: rootCauseName || 'Test1',
+        ...(analysis?.__v !== undefined ? { version: analysis.__v } : {}),
+        problemStatement: rootCauseName || problem || 'Test1',
         methods: ['FISHBONE'],
       });
 
@@ -164,7 +167,7 @@ export function FishboneDiagram({
       if (onReload) await onReload();
       setIsEditing(false);
     } catch (err) {
-      notify(err.message || 'Failed to save fishbone analysis.', 'bad');
+      notify(readError(err).message || 'Failed to save fishbone analysis.', 'bad');
     } finally {
       setBusy(false);
     }

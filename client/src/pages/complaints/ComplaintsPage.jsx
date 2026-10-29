@@ -68,7 +68,7 @@ export function ComplaintsPage({ mine = false }) {
   }, [search]);
 
   const query = useMemo(() => {
-    const q = { sort: get('sort', 'updated'), order: get('order', 'desc'), page: get('page', '1'), limit: 20 };
+    const q = { sort: get('sort', 'updated'), order: get('order', 'desc'), page: get('page', '1'), limit: 10 };
     for (const k of FILTER_KEYS) if (params.get(k)) q[k] = params.get(k);
     if (mine) q.mine = 'true';
     return q;
@@ -272,7 +272,7 @@ export function ComplaintsPage({ mine = false }) {
                     onClick={() => navigate(`/complaints/${c._id}`)}
                   >
                     <td className="whitespace-nowrap py-2.5 px-2.5 text-slate-400 text-[11px] font-mono text-center">
-                      {idx + 1}
+                      {((list.meta?.page || 1) - 1) * (list.meta?.limit || 10) + idx + 1}
                     </td>
                     <td className="whitespace-nowrap py-2.5 px-3">
                       <Link

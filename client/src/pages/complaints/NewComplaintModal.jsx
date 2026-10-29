@@ -53,7 +53,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
     coordinator: '',
     shortDescription: 'Manual preparation test',
     customer: {
-      name: 'Manual preparation test',
+      name: 'Distributor',
       code: '',
     },
     reportedProduct: {
@@ -67,6 +67,9 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [createdComplaint, setCreatedComplaint] = useState(null);
+  const [attachmentFiles, setAttachmentFiles] = useState([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [proofFiles, setProofFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
 
@@ -101,7 +104,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
         coordinator: '',
         shortDescription: 'Manual preparation test',
         customer: {
-          name: 'Manual preparation test',
+          name: 'Distributor',
           code: '',
         },
         reportedProduct: {
@@ -114,6 +117,8 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
       setErrors({});
       setMessage(null);
       setProofFiles([]);
+      setCreatedComplaint(null);
+      setAttachmentFiles([]);
     } else {
       proofFiles.forEach((item) => {
         if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -183,21 +188,18 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
       const res = await complaintApi.create(payload);
       const created = res.data;
 
-      // Upload proof files to D1 if any are selected
+      // Upload initial proof files to D1 if any were picked
       if (proofFiles.length > 0) {
         try {
           const rawFiles = proofFiles.map((x) => x.file);
           await complaintApi.upload(created._id, rawFiles, 'D1');
-          notify(`Complaint ${created.complaintNumber} registered with ${proofFiles.length} proof document(s).`);
         } catch (uploadErr) {
           console.error('Evidence upload error:', uploadErr);
-          notify(`Complaint ${created.complaintNumber} created, but evidence upload had issues.`, 'bad');
         }
-      } else {
-        notify(`Complaint ${created.complaintNumber} registered successfully.`);
       }
 
-      onCreated(created);
+      notify(`Complaint ${created.complaintNumber} registered successfully.`);
+      setCreatedComplaint(created);
     } catch (err) {
       const e = readError(err);
       setErrors(e.fields || {});
@@ -206,6 +208,121 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
       setBusy(false);
     }
   };
+
+  // Post-Registration Upload Attachment Popup (PDF Page 3)
+  if (open && createdComplaint) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+        <div className="flex flex-col w-full max-w-xl rounded-md border border-slate-300 bg-white shadow-2xl overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
+            <h2 className="text-base font-bold text-slate-800">New Complaint</h2>
+            <button
+              type="button"
+              onClick={() => onCreated(createdComplaint)}
+              className="rounded p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-700">Upload Attachment</h3>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+              <Paperclip className="h-3.5 w-3.5" />
+              <span>Files ({attachmentFiles.length})</span>
+            </div>
+
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={async (e) => {
+                e.preventDefault();
+                setDragging(false);
+                const files = Array.from(e.dataTransfer.files || []);
+                if (!files.length) return;
+                try {
+                  setUploadingAttachment(true);
+                  await complaintApi.upload(createdComplaint._id, files, 'D1');
+                  setAttachmentFiles((prev) => [...prev, ...files.map((f) => f.name)]);
+                  notify(`${files.length} attachment(s) uploaded successfully.`);
+                } catch (err) {
+                  notify(readError(err).message, 'bad');
+                } finally {
+                  setUploadingAttachment(false);
+                }
+              }}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-md p-8 text-center transition-colors ${
+                dragging ? 'border-[#0176d3] bg-blue-50/50' : 'border-slate-300 bg-slate-50/50 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (!files.length) return;
+                  try {
+                    setUploadingAttachment(true);
+                    await complaintApi.upload(createdComplaint._id, files, 'D1');
+                    setAttachmentFiles((prev) => [...prev, ...files.map((f) => f.name)]);
+                    notify(`${files.length} attachment(s) uploaded successfully.`);
+                  } catch (err) {
+                    notify(readError(err).message, 'bad');
+                  } finally {
+                    setUploadingAttachment(false);
+                  }
+                }}
+              />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-[#0176d3] mb-3">
+                <Upload className="h-6 w-6" />
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAttachment}
+                className="text-sm font-semibold text-[#0176d3] hover:underline cursor-pointer"
+              >
+                Upload Files
+              </button>
+              <p className="text-xs text-slate-500 mt-1">Or drop files here</p>
+              {uploadingAttachment && (
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-600">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#0176d3]" />
+                  <span>Uploading files...</span>
+                </div>
+              )}
+            </div>
+
+            {attachmentFiles.length > 0 && (
+              <ul className="divide-y divide-slate-100 rounded border border-slate-200 text-xs">
+                {attachmentFiles.map((name, i) => (
+                  <li key={i} className="flex items-center gap-2 px-3 py-2 text-slate-700 bg-white">
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                    <span className="truncate">{name}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="flex justify-end px-5 py-3 border-t border-slate-200 bg-[#f8fafc]">
+            <button
+              type="button"
+              onClick={() => onCreated(createdComplaint)}
+              className="rounded bg-[#0176d3] px-6 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!open) return null;
 
@@ -578,13 +695,16 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                   <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                     <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
                   </label>
-                  <div className="flex-1">
-                    <input
-                      type="text"
+                  <div className="flex-1 relative">
+                    <select
                       value={form.customer.name}
                       onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
-                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                    />
+                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                    >
+                      <option value="Distributor">Distributor</option>
+                      <option value="Retailer">Retailer</option>
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                     {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
                   </div>
                 </div>

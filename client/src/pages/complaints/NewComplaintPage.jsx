@@ -56,7 +56,7 @@ export function NewComplaintPage() {
     coordinator: '',
     shortDescription: 'Manual preparation test',
     customer: {
-      name: 'Manual preparation test',
+      name: 'Distributor',
       code: '',
     },
     reportedProduct: {
@@ -550,14 +550,16 @@ export function NewComplaintPage() {
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                 <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
               </label>
-              <div className="flex-1">
-                <input
-                  type="text"
+              <div className="flex-1 relative">
+                <select
                   value={form.customer.name}
                   onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                  placeholder="Customer or distributor firm name"
-                />
+                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
+                >
+                  <option value="Distributor">Distributor</option>
+                  <option value="Retailer">Retailer</option>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                 {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
               </div>
             </div>

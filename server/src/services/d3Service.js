@@ -42,8 +42,15 @@ async function editable(id, user, permissions) {
   if (!canEdit(complaint, user, permissions)) {
     throw AppError.forbidden('Only the First Responsible Person for this complaint can record the analysis.');
   }
-  const analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id });
-  if (!analysis) throw AppError.conflict('Start the analysis first.');
+  let analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id });
+  if (!analysis) {
+    await RootCauseAnalysis.updateOne(
+      { complaint: complaint._id },
+      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: [] } },
+      { upsert: true },
+    );
+    analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id });
+  }
   return { complaint, analysis };
 }
 
@@ -92,7 +99,15 @@ export function buildTree(causes) {
 
 export async function getD3(id, user, permissions) {
   const complaint = await findVisible(id, user, permissions, { lean: true });
-  const analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id }).populate('updatedBy', 'name').lean();
+  let analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id }).populate('updatedBy', 'name').lean();
+  if (!analysis && [S.D3_IN_PROGRESS, S.D3_PENDING_APPROVAL, S.D3_REWORK, S.D3_APPROVED, S.D4_IN_PROGRESS, S.CLOSED].includes(complaint.status)) {
+    await RootCauseAnalysis.updateOne(
+      { complaint: complaint._id },
+      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: [] } },
+      { upsert: true },
+    );
+    analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id }).populate('updatedBy', 'name').lean();
+  }
   if (!analysis) {
     return { analysis: null, categories: FISHBONE_CATEGORIES, fishbone: buildTree([]), rootCauses: [], canEdit: false };
   }
@@ -119,7 +134,7 @@ export async function getD3(id, user, permissions) {
 
 export async function updateAnalysis(id, { version, methods, problemStatement, whyWhy }, { user, permissions, context }) {
   const { complaint, analysis } = await editable(id, user, permissions);
-  if (analysis.__v !== version) {
+  if (version !== undefined && analysis.__v !== version) {
     throw AppError.conflict('The analysis was changed by someone else after you opened it. Reload to see the latest version.');
   }
   const before = { methods: analysis.methods, problemStatement: analysis.problemStatement, whyWhy: analysis.whyWhy.map((w) => ({ level: w.level, why: w.why, because: w.because })) };
@@ -144,6 +159,7 @@ export async function updateAnalysis(id, { version, methods, problemStatement, w
 export async function addCause(id, { category, text, parent }, { user, permissions, context }) {
   const { complaint, analysis } = await editable(id, user, permissions);
   let cat = category;
+  if (cat === 'Environment' || cat === 'Milieu / Environmental') cat = 'Mother Nature';
   if (parent) {
     const p = await FishboneCause.findOne({ _id: parent, analysis: analysis._id, deletedAt: null }).lean();
     if (!p) throw AppError.validation([{ field: 'parent', message: 'The cause this belongs to no longer exists.' }]);

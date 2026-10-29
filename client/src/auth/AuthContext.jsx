@@ -48,10 +48,12 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => {
     const set = new Set(state.permissions);
+    const isAdmin = state.user?.roles?.includes('admin') || set.has('users.manage');
     return {
       ...state,
-      can: (...perms) => perms.every((p) => set.has(p)),
-      canAny: (...perms) => perms.some((p) => set.has(p)),
+      isAdmin,
+      can: (...perms) => isAdmin || perms.every((p) => set.has(p)),
+      canAny: (...perms) => isAdmin || perms.some((p) => set.has(p)),
       login,
       logout,
       changePassword,

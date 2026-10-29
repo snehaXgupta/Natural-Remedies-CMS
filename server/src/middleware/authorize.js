@@ -3,6 +3,8 @@ import { AppError } from '../utils/AppError.js';
 /** Allow the request only if the user has every listed permission. */
 export function requirePermission(...required) {
   return (req, _res, next) => {
+    const isAdmin = req.user?.roles?.includes('admin') || req.permissions?.has('users.manage');
+    if (isAdmin) return next();
     const missing = required.filter((p) => !req.permissions?.has(p));
     if (missing.length) return next(AppError.forbidden());
     return next();
@@ -12,6 +14,8 @@ export function requirePermission(...required) {
 /** Allow the request if the user has at least one of the listed permissions. */
 export function requireAnyPermission(...options) {
   return (req, _res, next) => {
+    const isAdmin = req.user?.roles?.includes('admin') || req.permissions?.has('users.manage');
+    if (isAdmin) return next();
     if (options.some((p) => req.permissions?.has(p))) return next();
     return next(AppError.forbidden());
   };

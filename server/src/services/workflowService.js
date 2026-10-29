@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, ComplaintStatusHistory } from '../models/index.js';
+import { Complaint, ComplaintStatusHistory, RootCauseAnalysis } from '../models/index.js';
 import { STATUSES as S, STATUS_STAGE, STATUS_LABELS } from '../config/workflow.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
@@ -87,10 +87,11 @@ function unmet(transition, complaint) {
  * them is blocked. Used by the detail page to show "what happens next".
  */
 export function availableActions(complaint, permissions) {
+  const isAdmin = permissions?.has('users.manage');
   return TRANSITIONS.filter((t) => t.from === complaint.status && t.permission).map((t) => {
     const blockers = [];
     if (t.pending) blockers.push('The business rules for this step are not confirmed yet.');
-    if (!permissions.has(t.permission)) blockers.push('Your role cannot perform this step.');
+    if (!isAdmin && !permissions.has(t.permission)) blockers.push('Your role cannot perform this step.');
     blockers.push(...unmet(t, complaint));
     return { action: t.action, label: t.label, to: t.to, toLabel: STATUS_LABELS[t.to], phase: t.phase, remarks: t.remarks || 'optional', allowed: blockers.length === 0, blockers };
   });
@@ -118,10 +119,11 @@ export async function perform(complaintId, action, { actor, permissions, remarks
   const t = byAction.get(action);
   if (!t) throw AppError.badRequest(`Unknown workflow action "${action}".`);
 
-  if (t.permission === null && actor && permissions) {
+  const isAdmin = actor?.roles?.includes('admin') || permissions?.has('users.manage');
+  if (t.permission === null && actor && permissions && !isAdmin) {
     throw AppError.forbidden('This step is performed by the system.');
   }
-  if (t.permission && !permissions?.has(t.permission)) throw AppError.forbidden();
+  if (t.permission && !isAdmin && !permissions?.has(t.permission)) throw AppError.forbidden();
   if (t.pending) {
     throw AppError.conflict('This step is not available yet: its business rules are still to be confirmed.');
   }
@@ -163,6 +165,14 @@ export async function perform(complaintId, action, { actor, permissions, remarks
       { returnDocument: 'after', session: s },
     );
     if (!updated) throw AppError.conflict('Someone else changed this complaint at the same moment. Reload and try again.');
+
+    if (t.to === S.D3_IN_PROGRESS) {
+      await RootCauseAnalysis.updateOne(
+        { complaint: updated._id },
+        { $setOnInsert: { complaint: updated._id, status: 'DRAFT', methods: [] } },
+        { upsert: true, session: s },
+      );
+    }
 
     await ComplaintStatusHistory.create(
       [{ complaint: complaintId, fromStatus: t.from, toStatus: t.to, actor: actor?._id, at: now, remarks: note, idempotencyKey }],

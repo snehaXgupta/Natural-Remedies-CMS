@@ -40,7 +40,7 @@
 
 @layer components {
   .field-input {
-    @apply block w-full rounded border border-line-strong bg-surface px-2.5 py-1.5 text-base text-ink placeholder:text-ink-faint hover:border-ink-faint focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand-ring disabled:cursor-not-allowed disabled:bg-page disabled:text-ink-muted;
+    @apply block w-full rounded-sm border border-line-strong bg-surface px-2.5 py-1.5 text-base text-ink placeholder:text-ink-faint hover:border-[#0176d3] focus:border-[#0176d3] focus:outline-none focus:ring-2 focus:ring-[#75c6ff] disabled:cursor-not-allowed disabled:bg-page disabled:text-ink-muted;
   }
 
   .field-input[aria-invalid='true'] {
@@ -48,7 +48,7 @@
   }
 
   .panel {
-    @apply rounded-md border border-line bg-surface shadow-panel;
+    @apply rounded-md border border-line bg-surface shadow-none;
   }
 
   .sf-chevron {

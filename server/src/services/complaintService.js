@@ -24,7 +24,7 @@ import { newComplaintHandler } from '../mail/templates.js';
  * 404, never someone else's complaint (no insecure direct object references).
  */
 export async function visibilityFilter(user, permissions) {
-  if (permissions.has(P.COMPLAINT_VIEW_ALL)) return {};
+  if (permissions.has(P.COMPLAINT_VIEW_ALL) || user?.roles?.includes('admin')) return {};
   if (permissions.has(P.COMPLAINT_VIEW_ASSIGNED)) {
     const assigned = await ComplaintAssignment.distinct('complaint', { assignee: user._id, active: true });
     return { $or: [{ frp: user._id }, { _id: { $in: assigned } }] };
@@ -293,11 +293,12 @@ export async function getDetail(id, user, permissions) {
         submittedAt: analysis.lastSubmittedAt,
         reviewer: assignment?.assignee || null,
       };
+      const isAdmin = permissions.has(P.USERS_MANAGE) || user?.roles?.includes('admin');
       mayReview =
         complaint.status === S.D3_PENDING_APPROVAL &&
-        permissions.has(P.COMPLAINT_D3_REVIEW) &&
-        String(analysis.lastSubmittedBy?._id) !== String(user._id) &&
-        (String(assignment?.assignee?._id) === String(user._id) || permissions.has(P.USERS_MANAGE));
+        (permissions.has(P.COMPLAINT_D3_REVIEW) || isAdmin) &&
+        (isAdmin || String(analysis.lastSubmittedBy?._id) !== String(user._id)) &&
+        (String(assignment?.assignee?._id) === String(user._id) || isAdmin);
     }
   }
 

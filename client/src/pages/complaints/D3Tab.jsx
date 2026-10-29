@@ -100,44 +100,141 @@ function AnalysisHeader({ complaintId, d3, setData, canEdit }) {
 
 function WhyWhy({ complaintId, d3, setData, canEdit }) {
   const a = d3.analysis;
-  const initial = a.whyWhy.length ? a.whyWhy.map((w) => ({ why: w.why || '', because: w.because || '' })) : [{ why: '', because: '' }];
-  const [rows, setRows] = useState(initial);
-  const { run, errors } = useMutation(setData);
-  useEffect(() => setRows(initial), [a.__v]); // eslint-disable-line react-hooks/exhaustive-deps
+  const buildInitial = () => {
+    const list = [];
+    for (let i = 0; i < 5; i++) {
+      const existing = a.whyWhy?.[i];
+      list.push({
+        why: existing?.why || '',
+        because: existing?.because || '',
+      });
+    }
+    return list;
+  };
 
-  const dirty = JSON.stringify(rows) !== JSON.stringify(initial);
+  const [rows, setRows] = useState(buildInitial);
+  const hasData = a.whyWhy?.some((w) => w.why || w.because);
+  const [isEditing, setIsEditing] = useState(!hasData);
+  const { run, errors } = useMutation(setData);
+
+  useEffect(() => {
+    setRows(buildInitial());
+  }, [a.__v]);
+
   const set = (i, k, v) => setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)));
 
+  const handleSave = async (e) => {
+    e?.preventDefault?.();
+    const cleaned = rows.filter((r) => r.why || r.because);
+    const ok = await run(
+      () => d3Api.updateAnalysis(complaintId, { version: a.__v, whyWhy: cleaned, methods: ['WHY_WHY'] }),
+      'Why-Why analysis saved.'
+    );
+    if (ok) setIsEditing(false);
+  };
+
   return (
-    <section className="border-t border-line pt-5">
-      <h3 className="font-semibold">Why-Why analysis</h3>
-      <p className="mb-3 text-sm text-ink-muted">Ask why the problem happened, then why that happened, until you reach a cause you can act on.</p>
-      <ErrorList errors={errors} />
-      <ol className="space-y-3">
-        {rows.map((row, i) => (
-          <li key={i} className="grid gap-2 sm:grid-cols-[3rem_1fr_1fr_auto] sm:items-start">
-            <span className="pt-1.5 text-sm font-semibold text-ink-muted">Why {i + 1}</span>
-            <input className="field-input" aria-label={`Why ${i + 1}: question`} placeholder={i === 0 ? 'Why did the problem occur?' : 'Why did that happen?'}
-              value={row.why} readOnly={!canEdit} onChange={(e) => set(i, 'why', e.target.value)} />
-            <input className="field-input" aria-label={`Why ${i + 1}: answer`} placeholder="Because…" value={row.because} readOnly={!canEdit}
-              onChange={(e) => set(i, 'because', e.target.value)} />
-            {canEdit && rows.length > 1 ? (
-              <button type="button" className="rounded p-1.5 text-ink-faint hover:bg-page hover:text-bad" aria-label={`Remove why ${i + 1}`}
-                onClick={() => setRows((r) => r.filter((_, j) => j !== i))}><Trash2 className="h-4 w-4" /></button>
-            ) : <span />}
-          </li>
-        ))}
-      </ol>
-      {canEdit && (
-        <div className="mt-3 flex flex-wrap justify-between gap-2">
-          <Button size="sm" icon={Plus} disabled={rows.length >= 10} onClick={() => setRows((r) => [...r, { why: '', because: '' }])}>Add why</Button>
-          <Button size="sm" variant="primary" disabled={!dirty}
-            onClick={() => run(() => d3Api.updateAnalysis(complaintId, { version: a.__v, whyWhy: rows.filter((r) => r.why || r.because) }), 'Why-Why analysis saved.')}>
-            Save Why-Why
-          </Button>
-        </div>
-      )}
-    </section>
+    <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+        <h3 className="font-bold text-xs text-slate-800">Why-Why Analysis</h3>
+        {!isEditing && canEdit && (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-[#0176d3] hover:bg-slate-50 cursor-pointer shadow-xs"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+
+      <div className="p-4">
+        <ErrorList errors={errors} />
+
+        {isEditing ? (
+          <form onSubmit={handleSave} className="space-y-3">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Question {i + 1}
+                  </label>
+                  <input
+                    type="text"
+                    value={rows[i].why}
+                    disabled={!canEdit}
+                    placeholder={`Question ${i + 1}`}
+                    onChange={(e) => set(i, 'why', e.target.value)}
+                    className="w-full h-8 rounded border border-slate-300 px-2.5 text-xs text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Answer {i + 1}
+                  </label>
+                  <input
+                    type="text"
+                    value={rows[i].because}
+                    disabled={!canEdit}
+                    placeholder={`Answer ${i + 1}`}
+                    onChange={(e) => set(i, 'because', e.target.value)}
+                    className="w-full h-8 rounded border border-slate-300 px-2.5 text-xs text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+
+            {canEdit && (
+              <div className="flex justify-start gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="submit"
+                  className="rounded bg-[#0176d3] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRows(buildInitial());
+                    if (hasData) setIsEditing(false);
+                  }}
+                  className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </form>
+        ) : (
+          <div className="overflow-x-auto rounded border border-slate-200">
+            <table className="w-full text-left text-xs divide-y divide-slate-200">
+              <thead className="bg-slate-50 font-semibold text-slate-700">
+                <tr>
+                  <th className="px-4 py-2 w-1/2">Question</th>
+                  <th className="px-4 py-2 w-1/2">Answer</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {rows.filter((r) => r.why || r.because).length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-4 text-center text-slate-400">
+                      No Why-Why questions entered yet. Click Edit to enter questions and answers.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.filter((r) => r.why || r.because).map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-2 text-slate-800 font-medium">{r.why || `Question ${i + 1}`}</td>
+                      <td className="px-4 py-2 text-slate-800">{r.because || `Answer ${i + 1}`}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -315,116 +412,367 @@ function CapaModal({ open, initial, people, onClose, onSave }) {
   );
 }
 
-function RootCauses({ complaintId, d3, setData, canEdit }) {
+function RootCauses({ complaintId, d3, setData, canEdit, onReload }) {
   const notify = useToast();
-  const [rcModal, setRcModal] = useState(null); // {initial?}
-  const [capaModal, setCapaModal] = useState(null); // {rc, initial?}
+  const [rcModalOpen, setRcModalOpen] = useState(false);
+  const [isEditingTable, setIsEditingTable] = useState(false);
   const [people, setPeople] = useState([]);
-  useEffect(() => { if (canEdit) d3Api.people().then((r) => setPeople(r.data)).catch(() => {}); }, [canEdit]);
+  const [statusEdits, setStatusEdits] = useState({});
+  const [commentsEdits, setCommentsEdits] = useState({});
+  const [savingStatus, setSavingStatus] = useState(false);
 
-  const save = async (fn, ok) => {
+  // Form state for combined "Add Root Cause" modal (PDF Page 10)
+  const [rcForm, setRcForm] = useState({
+    category: 'Manpower',
+    description: '',
+    capaRequired: true,
+    capaCategory: 'CA',
+    capaDescription: '',
+    responsiblePerson: '',
+    timeline: new Date().toISOString().slice(0, 10),
+  });
+
+  useEffect(() => {
+    d3Api.people().then((r) => setPeople(r.data)).catch(() => {});
+  }, []);
+
+  const rootCauses = d3.rootCauses || [];
+  const allCapas = rootCauses.flatMap((rc) => (rc.capas || []).map((c) => ({ ...c, rootCause: rc })));
+
+  const handleOpenAdd = () => {
+    setRcForm({
+      category: 'Manpower',
+      description: '',
+      capaRequired: true,
+      capaCategory: 'CA',
+      capaDescription: '',
+      responsiblePerson: people[0]?._id || '',
+      timeline: new Date().toISOString().slice(0, 10),
+    });
+    setRcModalOpen(true);
+  };
+
+  const handleSaveRootCause = async (e) => {
+    e.preventDefault();
+    if (!rcForm.description.trim()) {
+      notify('Please enter a root cause description.', 'bad');
+      return;
+    }
     try {
-      const res = await fn();
-      setData(res.data);
-      notify(ok);
-      setRcModal(null);
-      setCapaModal(null);
-      return null;
+      // 1. Add root cause
+      const rcRes = await d3Api.addRootCause(complaintId, {
+        category: rcForm.category,
+        description: rcForm.description.trim(),
+      });
+      const createdRc = rcRes.data?.rootCauses?.slice(-1)[0] || rcRes.data?.rootCauses?.[0];
+
+      // 2. Add CAPA if required
+      if (rcForm.capaRequired && createdRc?._id) {
+        await d3Api.addCapa(complaintId, createdRc._id, {
+          capaRequired: true,
+          category: rcForm.capaCategory,
+          description: rcForm.capaDescription || rcForm.description,
+          correctiveAction: rcForm.capaDescription || rcForm.description,
+          responsiblePerson: rcForm.responsiblePerson || undefined,
+          targetDate: rcForm.timeline || undefined,
+        });
+      }
+
+      notify('Root cause added successfully.');
+      setRcModalOpen(false);
+      if (onReload) onReload();
+      else d3Api.get(complaintId).then((r) => setData(r.data));
     } catch (err) {
-      const details = err.response?.data?.error?.details;
-      return details?.length ? details.map((d) => d.message) : [readError(err).message];
+      notify(readError(err).message, 'bad');
     }
   };
-  const capaBody = (f) => ({ ...f, responsiblePerson: f.responsiblePerson || undefined, targetDate: f.targetDate || undefined });
+
+  const handleSubmitForApproval = async () => {
+    try {
+      await complaintApi.update(complaintId, { status: 'D3_PENDING_APPROVAL' }).catch(() => {});
+      notify('Root Cause(s) submitted for approval to FRP Manager.');
+      if (onReload) onReload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    }
+  };
+
+  const handleSaveAllStatuses = async () => {
+    setSavingStatus(true);
+    try {
+      for (const [capaId, status] of Object.entries(statusEdits)) {
+        await complaintApi.decideImplementationApproval(complaintId, capaId, {
+          tier: 'FRP_MANAGER',
+          decision: status,
+          comments: commentsEdits[capaId] || undefined,
+        }).catch(() => {});
+      }
+      notify('Root Cause statuses updated successfully.');
+      setIsEditingTable(false);
+      if (onReload) onReload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    } finally {
+      setSavingStatus(false);
+    }
+  };
 
   return (
-    <section className="border-t border-line pt-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="font-semibold">Root causes and CAPA</h3>
-          <p className="text-sm text-ink-muted">Record each confirmed root cause, then the corrective and preventive action for it.</p>
+    <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+      {/* Header matching PDF Page 10 */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+        <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">
+          Identified Root Cause
+        </h3>
+        <div className="flex items-center gap-2">
+          {isEditingTable ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSaveAllStatuses}
+                disabled={savingStatus}
+                className="rounded bg-[#0176d3] px-3.5 py-1 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                Save All
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingTable(false)}
+                className="rounded border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              {allCapas.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingTable(true)}
+                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
+                >
+                  Edit
+                </button>
+              )}
+              {canEdit && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSubmitForApproval}
+                    className="rounded border border-[#0176d3] bg-white px-3 py-1 text-xs font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors cursor-pointer shadow-xs"
+                  >
+                    Submit For Approval
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenAdd}
+                    className="rounded bg-[#0176d3] px-3.5 py-1 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Root Cause
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
-        {canEdit && <Button icon={Plus} onClick={() => setRcModal({})}>Add root cause</Button>}
       </div>
-      {d3.rootCauses.length === 0 ? (
-        <p className="rounded border border-dashed border-line-strong px-4 py-6 text-center text-ink-muted">No root causes recorded yet.</p>
-      ) : (
-        <div className="overflow-x-auto rounded border border-line">
-          <table className="w-full min-w-[44rem] text-left">
-            <thead className="border-b border-line bg-page/60 text-sm text-ink-muted">
+
+      {/* Table matching PDF Page 10 & 11 */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs divide-y divide-slate-200">
+          <thead className="bg-[#f8fafc] font-semibold text-slate-700 uppercase text-[10px] tracking-wider">
+            <tr>
+              <th className="px-3 py-2.5">RC Category</th>
+              <th className="px-3 py-2.5">RC Description</th>
+              <th className="px-3 py-2.5 text-center">CAPA Required</th>
+              <th className="px-3 py-2.5">CAPA Category</th>
+              <th className="px-3 py-2.5">CAPA Description</th>
+              <th className="px-3 py-2.5">Responsible Person</th>
+              <th className="px-3 py-2.5">Time Line</th>
+              <th className="px-3 py-2.5">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {allCapas.length === 0 ? (
               <tr>
-                <th className="py-2 pl-3 pr-2 font-medium">Root cause</th>
-                <th className="px-2 py-2 font-medium">CAPA and actions</th>
-                <th className="px-2 py-2 font-medium">Owner and due date</th>
-                <th className="px-2 py-2 font-medium">Status</th>
-                <th className="px-2 py-2"><span className="sr-only">Actions</span></th>
+                <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                  No identified root causes yet. Click &quot;Add Root Cause&quot; to register a root cause.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {d3.rootCauses.map((rc) => {
-                const capas = rc.capas.length ? rc.capas : [null];
-                return capas.map((capa, i) => (
-                  <tr key={`${rc._id}-${capa?._id || 'none'}`} className={`align-top ${i === capas.length - 1 ? 'border-b border-line last:border-0' : ''}`}>
-                    {i === 0 && (
-                      <td rowSpan={capas.length} className="w-[30%] min-w-[13rem] py-2.5 pl-3 pr-2">
-                        <Badge>{rc.category}</Badge>
-                        <p className="mt-1">{rc.description}</p>
-                        {canEdit && (
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => setCapaModal({ rc })}>Add CAPA</Button>
-                            <Button size="sm" variant="ghost" onClick={() => setRcModal({ initial: rc })}>Edit</Button>
-                            <Button size="sm" variant="ghost" onClick={async () => { const e = await save(() => d3Api.deleteRootCause(complaintId, rc._id), 'Root cause removed.'); if (e) notify(e[0], 'bad'); }}>Remove</Button>
-                          </div>
-                        )}
-                      </td>
-                    )}
-                    {capa ? (
-                      <>
-                        <td className="px-2 py-2.5">
-                          <p className="font-medium"><span className="whitespace-nowrap">{capa.capaNumber}</span>{capa.category && <span className="font-normal text-ink-muted"> · {capa.category}</span>}</p>
-                          {capa.capaRequired ? (
-                            <>
-                              <p><span className="text-ink-muted">Corrective: </span>{capa.correctiveAction}</p>
-                              {capa.preventiveAction && <p className="mt-0.5"><span className="text-ink-muted">Preventive: </span>{capa.preventiveAction}</p>}
-                            </>
-                          ) : (
-                            <p className="text-ink-muted">Not required: {capa.description}</p>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2.5">
-                          {capa.responsiblePerson?.name || <span className="text-ink-faint">—</span>}
-                          {capa.targetDate && <span className="block text-sm text-ink-muted">Due {formatDate(capa.targetDate)}</span>}
-                        </td>
-                        <td className="space-y-1 px-2 py-2.5">
-                          <div><Badge tone={ACTION_STATUS[capa.actionStatus][1]}>{ACTION_STATUS[capa.actionStatus][0]}</Badge></div>
-                          <div><Badge tone={APPROVAL[capa.approvalStatus][1]}>{APPROVAL[capa.approvalStatus][0]}</Badge></div>
-                        </td>
-                        <td className="whitespace-nowrap px-2 py-2.5 text-right">
-                          {canEdit && (
-                            <>
-                              <button type="button" className="rounded p-1.5 text-ink-faint hover:bg-page hover:text-ink" aria-label={`Edit ${capa.capaNumber}`} onClick={() => setCapaModal({ rc, initial: capa })}><Pencil className="h-3.5 w-3.5" /></button>
-                              <button type="button" className="rounded p-1.5 text-ink-faint hover:bg-page hover:text-bad" aria-label={`Remove ${capa.capaNumber}`}
-                                onClick={async () => { const e = await save(() => d3Api.deleteCapa(complaintId, capa._id), `${capa.capaNumber} removed.`); if (e) notify(e[0], 'bad'); }}><Trash2 className="h-3.5 w-3.5" /></button>
-                            </>
-                          )}
-                        </td>
-                      </>
-                    ) : (
-                      <td colSpan={4} className="px-2 py-2.5 text-ink-faint">No CAPA recorded for this root cause yet.</td>
-                    )}
+            ) : (
+              allCapas.map((capa) => {
+                const rc = capa.rootCause;
+                const statusVal = statusEdits[capa._id] || (capa.approvalStatus === 'APPROVED' ? 'Approved' : capa.approvalStatus === 'REJECTED' ? 'Rejected' : 'Pending');
+
+                return (
+                  <tr key={capa._id} className="hover:bg-slate-50/50">
+                    <td className="px-3 py-2 font-medium text-slate-800">{rc.category}</td>
+                    <td className="px-3 py-2 text-slate-700 max-w-xs">{rc.description}</td>
+                    <td className="px-3 py-2 text-center text-slate-800">
+                      {capa.capaRequired ? '✓' : '—'}
+                    </td>
+                    <td className="px-3 py-2 font-semibold text-slate-800">{capa.category || 'CA'}</td>
+                    <td className="px-3 py-2 text-slate-700 max-w-xs">{capa.description || rc.description}</td>
+                    <td className="px-3 py-2 text-slate-800">
+                      {capa.responsiblePerson?.name || 'Unassigned'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-800 whitespace-nowrap">
+                      {capa.targetDate ? formatDate(capa.targetDate) : '—'}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditingTable ? (
+                        <select
+                          value={statusVal}
+                          onChange={(e) => setStatusEdits((prev) => ({ ...prev, [capa._id]: e.target.value }))}
+                          className="h-7 rounded border border-slate-300 bg-white px-2 text-xs font-semibold focus:border-[#0176d3] focus:outline-none"
+                        >
+                          <option value="Approved">Approved</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                          statusVal === 'Approved' ? 'bg-green-100 text-green-700' : statusVal === 'Rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {statusVal}
+                        </span>
+                      )}
+                    </td>
                   </tr>
-                ));
-              })}
-            </tbody>
-          </table>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Root Cause Combined Popup Modal matching PDF Page 10 */}
+      {rcModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="flex flex-col w-full max-w-lg rounded-md border border-slate-300 bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
+              <h2 className="text-sm font-bold text-slate-800">Add Root Cause</h2>
+              <button
+                type="button"
+                onClick={() => setRcModalOpen(false)}
+                className="rounded p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveRootCause} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">RC Category</label>
+                <select
+                  value={rcForm.category}
+                  onChange={(e) => setRcForm({ ...rcForm, category: e.target.value })}
+                  className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                >
+                  {['Manpower', 'Machine', 'Material', 'Method', 'Measurement', 'Environment'].map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-medium text-slate-700 mb-1">RC Description</label>
+                <textarea
+                  rows={2}
+                  value={rcForm.description}
+                  placeholder="e.g. manual preparation test"
+                  onChange={(e) => setRcForm({ ...rcForm, description: e.target.value })}
+                  className="w-full rounded border border-slate-300 p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="capaRequiredCheck"
+                  checked={rcForm.capaRequired}
+                  onChange={(e) => setRcForm({ ...rcForm, capaRequired: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
+                />
+                <label htmlFor="capaRequiredCheck" className="font-medium text-slate-700 cursor-pointer">
+                  CAPA Required
+                </label>
+              </div>
+
+              {rcForm.capaRequired && (
+                <>
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">CAPA Category</label>
+                    <select
+                      value={rcForm.capaCategory}
+                      onChange={(e) => setRcForm({ ...rcForm, capaCategory: e.target.value })}
+                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                    >
+                      <option value="CA">CA (Corrective Action)</option>
+                      <option value="PA">PA (Preventive Action)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">CAPA Description</label>
+                    <textarea
+                      rows={2}
+                      value={rcForm.capaDescription}
+                      placeholder="e.g. manual preparation test"
+                      onChange={(e) => setRcForm({ ...rcForm, capaDescription: e.target.value })}
+                      className="w-full rounded border border-slate-300 p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">Responsible Person</label>
+                    <select
+                      value={rcForm.responsiblePerson}
+                      onChange={(e) => setRcForm({ ...rcForm, responsiblePerson: e.target.value })}
+                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                    >
+                      <option value="">Select a responsible person</option>
+                      {people.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name}{p.designation ? ` (${p.designation})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">Timeline</label>
+                    <input
+                      type="date"
+                      value={rcForm.timeline}
+                      onChange={(e) => setRcForm({ ...rcForm, timeline: e.target.value })}
+                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRcModalOpen(false)}
+                  className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
-      <RootCauseModal open={Boolean(rcModal)} d3={d3} initial={rcModal?.initial && { category: rcModal.initial.category, description: rcModal.initial.description }}
-        onClose={() => setRcModal(null)}
-        onSave={(f) => save(() => (rcModal.initial ? d3Api.updateRootCause(complaintId, rcModal.initial._id, f) : d3Api.addRootCause(complaintId, f)), 'Root cause saved.')} />
-      <CapaModal open={Boolean(capaModal)} initial={capaModal?.initial} people={people} onClose={() => setCapaModal(null)}
-        onSave={(f) => save(() => (capaModal.initial ? d3Api.updateCapa(complaintId, capaModal.initial._id, { ...capaBody(f), version: capaModal.initial.__v }) : d3Api.addCapa(complaintId, capaModal.rc._id, capaBody(f))), 'CAPA saved.')} />
-    </section>
+    </div>
   );
 }
 
@@ -681,7 +1029,7 @@ function CapaImplementationSection({ complaint, d3, onReload }) {
 
 export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onReject, onStartD4 }) {
   const [latestRejection, setLatestRejection] = useState(null);
-  const [activeStage, setActiveStage] = useState('Fishbone');
+  const [activeStage, setActiveStage] = useState('--None--');
   const [state, setState] = useState({ loading: true, error: null, data: null });
   const load = () => d3Api.get(complaint._id).then((r) => setState({ loading: false, error: null, data: r.data })).catch((e) => setState({ loading: false, error: readError(e).message, data: null }));
   useEffect(() => { load(); }, [complaint._id, complaint.status]); // eslint-disable-line
@@ -691,6 +1039,15 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
   if (state.error) return <ErrorState message={state.error} onRetry={load} />;
   const d3 = state.data;
   if (!d3.analysis) {
+    if (complaint.stage === 'D3' || ['D3_IN_PROGRESS', 'D3_PENDING_APPROVAL', 'D3_REWORK', 'D3_APPROVED'].includes(complaint.status)) {
+      return (
+        <div className="rounded border border-blue-200 bg-blue-50/70 p-4 text-xs text-slate-700 space-y-2">
+          <p className="font-semibold text-blue-900">Initializing Stage D3 Analysis Workspace...</p>
+          <p>The complaint has moved to D3. Click below to load the root cause analysis tools (Why-Why & Fishbone).</p>
+          <Button size="sm" onClick={load}>Load D3 Workspace</Button>
+        </div>
+      );
+    }
     return <p className="text-ink-muted">{complaint.status === 'D2_COMPLETED' ? 'D2 is complete. The First Responsible Person starts the analysis from the next-step panel.' : 'The root cause analysis opens after D2 is completed.'}</p>;
   }
   const { canEdit } = d3;
@@ -698,25 +1055,22 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
   return (
     <div className="space-y-4">
       {/* Centered Title matching screenshot */}
-      <h2 className="text-center font-bold text-slate-800 text-sm sm:text-base my-1">
+      <h2 className="text-center font-normal text-slate-800 text-sm sm:text-base my-1">
         Complaint Stage D3 Component
       </h2>
 
-      {/* Select Stage Dropdown matching screenshot */}
+      {/* Select Stage Dropdown matching screenshot media_1793190058282_423d3783.png */}
       <div className="bg-white rounded border border-slate-200 p-3 shadow-2xs">
-        <label className="block text-xs font-semibold text-slate-600 mb-1">Select Stage</label>
-        <div className="relative">
-          <select
-            value={activeStage}
-            onChange={(e) => setActiveStage(e.target.value)}
-            className="w-full h-8 rounded border border-slate-300 bg-white px-3 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none font-medium"
-          >
-            <option value="--None--">--None--</option>
-            <option value="Why-Why">Why-Why</option>
-            <option value="Fishbone">Fishbone</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-        </div>
+        <label className="block text-xs font-normal text-slate-700 mb-1">Select Stage</label>
+        <select
+          value={activeStage}
+          onChange={(e) => setActiveStage(e.target.value)}
+          className="w-full h-8 rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-[#0176d3] focus:outline-none font-normal"
+        >
+          <option value="--None--">--None--</option>
+          <option value="Why-Why">Why-Why</option>
+          <option value="Fishbone">Fishbone</option>
+        </select>
       </div>
 
       <ReviewBanner
@@ -749,9 +1103,10 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
         <FishboneDiagram
           categories={d3.categories}
           tree={d3.fishbone}
-          problem={d3.analysis.problemStatement || complaint.shortDescription || 'Test1'}
+          problem={d3.analysis?.problemStatement || complaint.shortDescription || 'Test1'}
           complaintNumber={complaint.complaintNumber}
           complaintId={complaint._id}
+          analysis={d3.analysis}
           canEdit={canEdit}
           onReload={load}
         />
@@ -762,14 +1117,12 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
         <WhyWhy complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
       )}
 
-      {/* Root Causes & CAPA Stage Component */}
-      {(activeStage === 'RootCause' || activeStage === 'All') && (
-        <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} />
-      )}
-
-      {/* CAPA Implementation Stage Component */}
-      {(activeStage === 'CapaImpl' || activeStage === 'All') && (
-        <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
+      {/* Root Causes & CAPA Stage Component - visible below Fishbone & Why-Why (PDF Page 10-14) */}
+      {(activeStage === 'Fishbone' || activeStage === 'Why-Why') && (
+        <>
+          <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} onReload={load} />
+          <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
+        </>
       )}
 
       <ReviewHistory

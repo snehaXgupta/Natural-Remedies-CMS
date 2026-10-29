@@ -23,6 +23,9 @@ async function roleMap() {
 }
 
 export async function permissionsFor(roleKeys = []) {
+  if (roleKeys.includes('admin')) {
+    return [...ALL_PERMISSIONS].sort();
+  }
   const map = await roleMap();
   const set = new Set();
   for (const key of roleKeys) for (const p of map.get(key) || []) set.add(p);

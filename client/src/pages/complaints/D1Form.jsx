@@ -20,7 +20,7 @@ export function toForm(c = {}) {
     country: c.country || '',
     headQuarter: c.headQuarter || '',
     category: c.category || '',
-    customer: { name: c.customer?.name || '', code: c.customer?.code || '' },
+    customer: { name: c.customer?.name || 'Distributor', code: c.customer?.code || '' },
     reportedProduct: { name: c.reportedProduct?.name || '', batchNumber: c.reportedProduct?.batchNumber || '' },
     shortDescription: c.shortDescription || '',
     additionalRemarks: c.additionalRemarks || '',
@@ -163,8 +163,13 @@ export function D1Form({
       </Section>
 
       <Section title="Customer Information">
-        <Field label="Distributor / Retailer Name" required error={err('customer.name')}>
-          {(p) => <input {...p} className="field-input" {...field('customer.name')} />}
+        <Field label="Distributor / Retailer" required error={err('customer.name')}>
+          {(p) => (
+            <select {...p} className="field-input" {...field('customer.name')}>
+              <option value="Distributor">Distributor</option>
+              <option value="Retailer">Retailer</option>
+            </select>
+          )}
         </Field>
         <Field label="Customer Code" error={err('customer.code')}>
           {(p) => <input {...p} className="field-input" {...field('customer.code')} />}

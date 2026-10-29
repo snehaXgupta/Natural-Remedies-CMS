@@ -150,7 +150,7 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
   if (tier === 'QA' && isApproved) {
     const allCapas = await CapaRecord.find({ complaint: complaint._id, deletedAt: null });
     const allApproved = allCapas.every((c) => c.qaImplementationApproval?.status === 'APPROVED');
-    if (allApproved && allCapas.length > 0) {
+    if (complaint.stage !== STAGES.D4 && complaint.stage !== STAGES.CLOSED && allApproved && allCapas.length > 0) {
       complaint.stage = STAGES.D4;
       complaint.status = S.D4_IN_PROGRESS;
       complaint.lastActivityAt = new Date();
@@ -239,30 +239,35 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
   const complaint = await Complaint.findById(capa.complaint);
 
   capa.effectivenessReview = effectivenessReview;
+  const wasAlreadyClosed = Boolean(capa.isClosed);
   capa.isClosed = Boolean(isClosed);
   if (isClosed) {
-    capa.closedAt = new Date();
+    if (!wasAlreadyClosed) {
+      capa.closedAt = new Date();
+    }
     capa.actionStatus = 'VERIFIED';
   }
   await capa.save();
 
-  // Notify Complaint Handler
-  const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
-  for (const h of handlers) {
-    await inApp.createNotification({
-      recipient: h._id,
-      complaint: complaint._id,
-      title: 'CAPA Process Completed',
-      message: `CAPA ${capa.capaNumber} for complaint ${complaint.complaintNumber} has been marked closed by ERP.`,
-      link: `/complaints/${complaint._id}?tab=D4`,
-    });
+  // Notify Complaint Handler only if marking as closed for the first time
+  if (isClosed && !wasAlreadyClosed) {
+    const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
+    for (const h of handlers) {
+      await inApp.createNotification({
+        recipient: h._id,
+        complaint: complaint._id,
+        title: 'CAPA Process Completed',
+        message: `CAPA ${capa.capaNumber} for complaint ${complaint.complaintNumber} has been marked closed by ERP.`,
+        link: `/complaints/${complaint._id}?tab=D4`,
+      });
+    }
   }
 
-  // Check if ALL CAPAs for this complaint are now closed
+  // Check if ALL CAPAs for this complaint are now closed (only close if not already closed)
   const allCapas = await CapaRecord.find({ complaint: complaint._id, deletedAt: null });
   const allClosed = allCapas.every((c) => c.isClosed);
 
-  if (allClosed && allCapas.length > 0) {
+  if (complaint.status !== S.CLOSED && allClosed && allCapas.length > 0) {
     complaint.stage = STAGES.CLOSED;
     complaint.status = S.CLOSED;
     complaint.closedAt = new Date();
@@ -280,6 +285,7 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
         message: complaintSuccessfullyClosed(complaint, { recipientName: complaint.requester.name, isRequester: true }),
       });
     }
+    const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
     for (const h of handlers) {
       await notifications.enqueue({
         type: 'CLOSURE',

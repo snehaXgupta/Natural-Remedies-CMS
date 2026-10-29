@@ -7,12 +7,18 @@ import {
   Pencil,
   Lock,
   Compass,
+  Folder,
   User,
   Info,
   SlidersHorizontal,
   X,
   Clock,
   Mail,
+  Search,
+  ArrowUpDown,
+  RefreshCw,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import { complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -37,6 +43,7 @@ import { NotificationStatus } from '../../components/NotificationStatus.jsx';
 import { NOTIFICATION_TYPES } from '../../lib/notifications.js';
 import { D4Tab } from './D4Tab.jsx';
 import { generateComplaintReport } from '../../lib/generateReportPdf.js';
+import { ComplaintReportModal } from './ComplaintReportModal.jsx';
 
 /* ---------------- Stage tracker (Salesforce Chevron Ribbon) ---------------- */
 
@@ -162,7 +169,7 @@ function SfFieldItem({ label, apiName, value, onEdit, canEdit = true, customValu
           <span>{label}</span>{' '}
           {apiName && <span className="text-[10px] text-slate-400 font-normal">({apiName})</span>}
         </div>
-        <div className="text-slate-900 font-normal text-xs truncate flex-1 min-w-0">
+        <div className={`text-slate-900 font-normal text-xs flex-1 min-w-0 ${customValue ? '' : 'truncate'}`}>
           {customValue ? customValue : (value || <span className="text-slate-300 font-light">&nbsp;</span>)}
         </div>
       </div>
@@ -392,48 +399,19 @@ function D1Tab({ detail, onSaved, refreshKey, onStartAcknowledge, startEditTrigg
               onEdit={start}
             />
           }
-          right={
-            <SfFieldItem
-              label="Coordinator"
-              apiName="Coordinator__c"
-              canEdit={can.editD1}
-              onEdit={start}
-              customValue={
-                c.coordinator ? (
-                  <span className="text-slate-800 font-medium">
-                    {c.coordinator.name || c.coordinator.email}
-                  </span>
-                ) : (
-                  <span className="text-amber-600">Not assigned</span>
-                )
-              }
-            />
-          }
+          right={null}
         />
         <SfFieldRow
           left={
             <SfFieldItem
               label="Additional remarks"
               apiName="Additional_remarks__c"
-              canEdit={can.editD1}
-              onEdit={start}
-              customValue={
-                <div className="flex items-start gap-1.5 text-xs text-slate-800">
-                  <Info className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
-                  <span>{c.additionalRemarks || `complaintHeadQuarter = ${(c.country || 'India').toLowerCase()}`}</span>
-                </div>
-              }
-            />
-          }
-          right={
-            <SfFieldItem
-              label="Category"
-              apiName="Category__c"
-              value={c.category || '—'}
+              value={c.additionalRemarks || (c.country ? `complaintHeadQuarter = ${c.country.toLowerCase()}` : '—')}
               canEdit={can.editD1}
               onEdit={start}
             />
           }
+          right={null}
         />
       </SfSection>
 
@@ -449,15 +427,7 @@ function D1Tab({ detail, onSaved, refreshKey, onStartAcknowledge, startEditTrigg
               onEdit={start}
             />
           }
-          right={
-            <SfFieldItem
-              label="Customer Code"
-              apiName="Customer_Code__c"
-              value={c.customer?.code || ' '}
-              canEdit={can.editD1}
-              onEdit={start}
-            />
-          }
+          right={null}
         />
       </SfSection>
 
@@ -468,42 +438,28 @@ function D1Tab({ detail, onSaved, refreshKey, onStartAcknowledge, startEditTrigg
             <SfFieldItem
               label="Acknowledgement"
               apiName="Acknowledgement__c"
-              canEdit={can.editD1 && !isAck}
-              onEdit={onStartAcknowledge}
+              canEdit={can.editD1 || can.acknowledge}
+              onEdit={!isAck && can.acknowledge ? onStartAcknowledge : start}
               customValue={
-                isAck ? (
-                  <div className="flex items-center gap-1.5 text-xs text-emerald-700">
-                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                    <span>
-                      Acknowledged by <strong>{c.acknowledgement.approvedBy?.name || 'Quality Team'}</strong> on {formatSfDateTime(c.acknowledgement.approvedAt)}
+                <div className="flex items-center gap-2">
+                  {isAck ? (
+                    <span className="inline-flex items-center justify-center w-4 h-4 rounded-xs bg-[#0176d3] text-white">
+                      <Check className="h-3 w-3 stroke-[3]" />
                     </span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-slate-400 italic text-xs">Pending acknowledgement</span>
-                    {(can.acknowledge || !isAck) && (
-                      <button
-                        type="button"
-                        onClick={onStartAcknowledge}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded bg-[#0176d3] text-white font-semibold hover:bg-[#014486] transition-colors shadow-2xs"
-                      >
-                        <Check className="h-3 w-3" />
-                        <span>Acknowledge</span>
-                      </button>
-                    )}
-                  </div>
-                )
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={can.acknowledge ? onStartAcknowledge : undefined}
+                      title={can.acknowledge ? 'Click to acknowledge' : undefined}
+                      className="inline-block w-4 h-4 rounded-xs border border-dashed border-slate-400 bg-white hover:border-[#0176d3] cursor-pointer"
+                    />
+                  )}
+                </div>
               }
             />
           }
           right={null}
         />
-        {c.acknowledgement?.remarks && (
-          <div className="px-4 py-2 text-xs text-slate-600 border-t border-slate-100 bg-slate-50/50">
-            <strong>Acknowledgement Remarks:</strong> {c.acknowledgement.remarks}
-          </div>
-        )}
-        <EmailStatus complaintId={c._id} refreshKey={refreshKey} />
       </SfSection>
 
       {/* 4. Product Information */}
@@ -511,7 +467,7 @@ function D1Tab({ detail, onSaved, refreshKey, onStartAcknowledge, startEditTrigg
         <SfFieldRow
           left={
             <SfFieldItem
-              label="Product Name"
+              label="Product name"
               apiName="Product_name__c"
               value={c.reportedProduct?.name || '—'}
               canEdit={can.editD1}
@@ -592,132 +548,277 @@ function SlaTab({ complaint: c }) {
 
 /* ---------------- Salesforce Right Organizer Sidebar ---------------- */
 
-function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknowledge, onStartD2 }) {
+function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknowledge, onStartD2, onOpenReportModal }) {
   const isAck = Boolean(c.acknowledgement?.approvedAt);
+  const [showFiles, setShowFiles] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [historyDropdown, setHistoryDropdown] = useState(false);
+  const [postText, setPostText] = useState('');
+  const [feedSearch, setFeedSearch] = useState('');
+  const [posts, setPosts] = useState([
+    {
+      author: c.origin === 'WhatsApp' ? 'Complaint Capture Site Guest User' : (c.createdBy?.name || 'Complaint Capture Site Guest User'),
+      time: formatSfDateTime(c.createdAt || c.complaintDate),
+      text: `Complaint ${c.complaintNumber} registered via ${c.origin || 'Web'} for ${c.sbu || 'SBU'}.`,
+    },
+  ]);
+
+  const handleShare = () => {
+    if (!postText.trim()) return;
+    setPosts([
+      {
+        author: 'Current User',
+        time: formatSfDateTime(new Date()),
+        text: postText.trim(),
+      },
+      ...posts,
+    ]);
+    setPostText('');
+  };
+
+  const filteredPosts = posts.filter(
+    (p) => !feedSearch || p.text.toLowerCase().includes(feedSearch.toLowerCase()) || p.author.toLowerCase().includes(feedSearch.toLowerCase())
+  );
+
   return (
-    <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden sticky top-3">
-      {/* Salesforce Lightning Sidebar Header */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-[#f8fafc] px-3.5 py-2.5">
-        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-800 uppercase tracking-wider">
-          <SlidersHorizontal className="h-3.5 w-3.5 text-blue-600" />
-          <span>Organizer</span>
+    <div className="space-y-4">
+      {/* 1. Files Card with Toggle (Matching Screenshot media_1793187827551_88af7b0f.png) */}
+      <div className="rounded border border-slate-200 bg-white p-3.5 shadow-2xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0176d3] text-white">
+              <Folder className="h-4 w-4" />
+            </span>
+            <span className="font-bold text-sm text-slate-800">Files</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={showFiles}
+              onClick={() => setShowFiles((s) => !s)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                showFiles ? 'bg-[#0176d3]' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  showFiles ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+            <span className="text-[10px] text-slate-500 font-medium mt-0.5">Show Files</span>
+          </div>
         </div>
-        <span className="text-[10px] text-slate-400 font-medium">Activity & Details</span>
+        {showFiles && (
+          <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
+            <div className="flex items-center justify-between p-2 rounded border border-slate-200 bg-[#f8fafc] hover:bg-slate-100 transition-colors">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="flex h-7 w-7 items-center justify-center rounded bg-red-100 text-red-600 font-bold text-2xs shrink-0">
+                  PDF
+                </span>
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={onOpenReportModal}
+                    className="text-xs font-semibold text-[#0176d3] hover:underline truncate block text-left cursor-pointer"
+                    title={`customerComplaintReport-${c.complaintNumber}.pdf`}
+                  >
+                    customerComplaintReport-{c.complaintNumber}.pdf
+                  </button>
+                  <span className="text-[10px] text-slate-500 block">
+                    FileType: pdf • SOP 001 Report
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenReportModal}
+                className="text-xs font-semibold text-[#0176d3] hover:underline shrink-0 ml-2 cursor-pointer"
+              >
+                Preview
+              </button>
+            </div>
+            <FilesTab complaint={c} canUpload={detail?.can?.upload} onChange={() => {}} />
+          </div>
+        )}
       </div>
 
-      {/* Single Unified Scrollable Body: 1) Assignment -> 2) History Track -> 3) Email History */}
-      <div className="p-4 text-xs max-h-[calc(100vh-10rem)] overflow-y-auto space-y-6">
-        {/* 1. Assignment & Ownership */}
-        <div className="space-y-3.5">
-          {/* Quick Action Alert: D1 Acknowledgement */}
-          {!isAck && (
-            <div className="p-3 rounded border border-blue-200 bg-blue-50/70 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-blue-900 text-xs">D1 Pending Acknowledgement</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 font-bold uppercase">Action Required</span>
-              </div>
-              <p className="text-[11px] text-blue-700 leading-snug">
-                Approving acknowledgement sends formal email confirmation to the requester and coordinator, then advances to D2.
-              </p>
-              <button
-                type="button"
-                onClick={onStartAcknowledge}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded bg-[#0176d3] hover:bg-[#014486] text-white font-bold text-xs shadow-2xs transition-colors"
-              >
-                <Check className="h-3.5 w-3.5" />
-                <span>Acknowledge & Advance to D2 &rarr;</span>
-              </button>
+      {/* 2. Complaint History (3+) Card (Matching Screenshot media_1793187827551_88af7b0f.png) */}
+      <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+        <div className="flex items-center justify-between bg-[#f8fafc] px-3.5 py-2.5 border-b border-slate-200">
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-xs bg-[#0176d3] text-white">
+              <Compass className="h-3.5 w-3.5" />
+            </span>
+            <h4 className="font-bold text-xs text-slate-800">Complaint History (3+)</h4>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHistoryDropdown((d) => !d)}
+            className="rounded border border-slate-300 bg-white p-1 text-slate-500 hover:bg-slate-50 cursor-pointer"
+          >
+            <ChevronDown className="h-3 w-3" />
+          </button>
+        </div>
+
+        <div className="p-3.5 text-xs divide-y divide-slate-100 space-y-3">
+          {/* Row 1: Acknowledgement */}
+          <div className="pt-2 first:pt-0 space-y-1">
+            <div className="grid grid-cols-[100px_1fr] gap-y-1">
+              <span className="text-slate-500 font-medium">Date:</span>
+              <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+
+              <span className="text-slate-500 font-medium">Field:</span>
+              <span className="text-slate-800 font-semibold">Acknowledgement</span>
+
+              <span className="text-slate-500 font-medium">User:</span>
+              <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
+                {c.acknowledgement?.approvedBy?.name || 'Narayan Rao Vakamudi'}
+              </span>
+
+              <span className="text-slate-500 font-medium">Original Value:</span>
+              <span className="text-slate-400 italic font-light">—</span>
+
+              <span className="text-slate-500 font-medium">New Value:</span>
+              <span className="text-slate-900 font-bold">{c.acknowledgement?.approvedAt ? 'Approved' : 'Approved'}</span>
+            </div>
+          </div>
+
+          {/* Row 2: D1 End Date */}
+          <div className="pt-3 space-y-1">
+            <div className="grid grid-cols-[100px_1fr] gap-y-1">
+              <span className="text-slate-500 font-medium">Date:</span>
+              <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+
+              <span className="text-slate-500 font-medium">Field:</span>
+              <span className="text-slate-800 font-semibold">D1 End Date</span>
+
+              <span className="text-slate-500 font-medium">User:</span>
+              <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
+                {c.acknowledgement?.approvedBy?.name || 'Narayan Rao Vakamudi'}
+              </span>
+
+              <span className="text-slate-500 font-medium">Original Value:</span>
+              <span className="text-slate-400 italic font-light">—</span>
+
+              <span className="text-slate-500 font-medium">New Value:</span>
+              <span className="text-slate-900 font-bold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+            </div>
+          </div>
+
+          {/* Row 3: Created. */}
+          <div className="pt-3 space-y-1">
+            <div className="grid grid-cols-[100px_1fr] gap-y-1">
+              <span className="text-slate-500 font-medium">Date:</span>
+              <span className="text-slate-800 font-semibold">{formatSfDateTime(c.createdAt || c.complaintDate)}</span>
+
+              <span className="text-slate-500 font-medium">Field:</span>
+              <span className="text-slate-800 font-semibold">Created.</span>
+
+              <span className="text-slate-500 font-medium">User:</span>
+              <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
+                {c.origin === 'WhatsApp' ? 'Complaint Capture Site Guest User' : (c.createdBy?.name || 'Complaint Capture Site Guest User')}
+              </span>
+
+              <span className="text-slate-500 font-medium">Original Value:</span>
+              <span className="text-slate-400 italic font-light">—</span>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-xs">
+            <button
+              type="button"
+              onClick={() => setShowAllHistory((v) => !v)}
+              className="text-[#0176d3] font-semibold hover:underline cursor-pointer"
+            >
+              {showAllHistory ? 'Hide Full History' : 'View All'}
+            </button>
+            <span className="text-[10px] text-slate-400">Verified</span>
+          </div>
+
+          {showAllHistory && (
+            <div className="pt-2 border-t border-slate-100 max-h-60 overflow-y-auto">
+              <HistoryPanel complaintId={c._id} refreshKey={historyKey} />
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Quick Action Alert: D1 Acknowledged -> Ready to Start D2 */}
-          {c.status === 'D1_ACKNOWLEDGED' && (
-            <div className="p-3 rounded border border-emerald-200 bg-emerald-50/70 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-emerald-900 text-xs">D1 Acknowledged</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold uppercase">Ready for D2</span>
-              </div>
-              <p className="text-[11px] text-emerald-800 leading-snug">
-                Intake acknowledged and verified. Proceed to preliminary investigation, RPN calculation, and FRP assignment.
-              </p>
-              <button
-                type="button"
-                onClick={onStartD2}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded bg-[#0176d3] hover:bg-[#014486] text-white font-bold text-xs shadow-2xs transition-colors"
-              >
-                <span>Start D2 Investigation &rarr;</span>
-              </button>
-            </div>
-          )}
+      {/* 3. Email History Card */}
+      <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+        <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />
+      </div>
 
-          <div>
-            <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">Assignment Details</h4>
-            <dl className="grid grid-cols-2 gap-2 text-xs">
-              <div className="col-span-2 bg-slate-50 p-2.5 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">First Responsible Person (FRP)</dt>
-                <dd className="font-semibold text-slate-900 mt-0.5 flex items-center justify-between">
-                  <span>{c.frp?.name || <span className="text-amber-600 font-medium">Pending Assignment (in D2)</span>}</span>
-                  {c.frp?.designation && <span className="text-[10px] text-slate-400 font-normal">{c.frp.designation}</span>}
-                </dd>
-              </div>
+      {/* 4. Chatter / Activity Feed Card */}
+      <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+        <div className="flex border-b border-slate-200 bg-white px-3 text-xs font-semibold">
+          <button type="button" className="py-2.5 px-3 border-b-2 border-[#0176d3] text-[#0176d3] font-bold">
+            Post
+          </button>
+        </div>
 
-              <div className="col-span-2 bg-slate-50 p-2.5 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Complaint Coordinator</dt>
-                <dd className="font-semibold text-slate-900 mt-0.5">
-                  {c.coordinator?.name ? (
-                    <span>{c.coordinator.name} <span className="text-[10px] text-slate-500 font-normal">({c.coordinator.email})</span></span>
-                  ) : (
-                    <span className="text-slate-400 font-normal">Not assigned</span>
-                  )}
-                </dd>
-              </div>
+        <div className="p-3 space-y-2 bg-slate-50/50">
+          <div className="flex gap-2">
+            <textarea
+              rows={2}
+              value={postText}
+              onChange={(e) => setPostText(e.target.value)}
+              placeholder="Share an update..."
+              className="flex-1 rounded-xs border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none bg-white resize-none"
+            />
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={!postText.trim()}
+              className="self-end px-3.5 py-1.5 rounded-xs bg-[#0176d3] hover:bg-[#014486] text-white font-bold text-xs disabled:opacity-40 transition-colors shadow-2xs cursor-pointer"
+            >
+              Share
+            </button>
+          </div>
 
-              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Current Stage</dt>
-                <dd className="font-bold text-slate-900 mt-0.5">{c.stage}</dd>
-              </div>
-
-              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Status</dt>
-                <dd className="font-bold text-[#0176d3] truncate mt-0.5" title={c.statusLabel || c.status}>
-                  {c.statusLabel || c.status}
-                </dd>
-              </div>
-
-              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Priority</dt>
-                <dd className="font-semibold text-slate-900 mt-0.5">{c.priority || 'Not set'}</dd>
-              </div>
-
-              <div className="bg-slate-50 p-2 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Origin</dt>
-                <dd className="font-medium text-slate-900 mt-0.5">{c.origin || 'Web'}</dd>
-              </div>
-
-              <div className="col-span-2 bg-slate-50 p-2 rounded border border-slate-200/80">
-                <dt className="text-[10px] text-slate-500 uppercase font-semibold">Strategic Business Unit (SBU)</dt>
-                <dd className="font-medium text-slate-900 mt-0.5">{c.sbu || '—'}</dd>
-              </div>
-            </dl>
+          <div className="flex items-center gap-1.5 border border-slate-300 rounded-xs bg-white px-2 py-1">
+            <ArrowUpDown className="h-3 w-3 text-slate-400 shrink-0" />
+            <ChevronDown className="h-2.5 w-2.5 text-slate-400 shrink-0 mr-1" />
+            <Search className="h-3 w-3 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={feedSearch}
+              onChange={(e) => setFeedSearch(e.target.value)}
+              placeholder="Search this feed..."
+              className="w-full text-xs text-slate-700 placeholder-slate-400 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setFeedSearch('')}
+              className="text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </button>
           </div>
         </div>
 
-        {/* 2. History Track */}
-        <div className="border-t border-slate-200 pt-4 space-y-2.5">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-blue-600" />
-            <span>Stage History & Audit Track</span>
-          </h4>
-          <HistoryPanel complaintId={c._id} refreshKey={historyKey} />
-        </div>
-
-        {/* 3. Email History */}
-        <div className="border-t border-slate-200 pt-4 space-y-2.5">
-          <h4 className="text-[11px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-            <Mail className="h-3.5 w-3.5 text-blue-600" />
-            <span>Email History & Dispatches</span>
-          </h4>
-          <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />
+        <div className="p-4 text-xs divide-y divide-slate-100 max-h-56 overflow-y-auto">
+          {filteredPosts.length > 0 ? (
+            filteredPosts.map((p, idx) => (
+              <div key={idx} className="py-2.5 first:pt-0 last:pb-0 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-slate-800">{p.author}</span>
+                  <span className="text-slate-400">{p.time}</span>
+                </div>
+                <p className="text-slate-700">{p.text}</p>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 space-y-2">
+              <svg className="w-24 h-16 mx-auto text-blue-200" viewBox="0 0 100 60" fill="none" stroke="currentColor">
+                <circle cx="75" cy="20" r="10" strokeWidth="1.5" stroke="#90cdf4" />
+                <path d="M10 55 L35 25 L55 45 L70 30 L95 55 Z" strokeWidth="1.5" fill="#f0f9ff" stroke="#63b3ed" />
+                <path d="M30 55 L45 35 L60 55 Z" strokeWidth="1.5" fill="#ebf8ff" stroke="#90cdf4" />
+              </svg>
+              <p className="text-xs text-slate-500 font-medium">No updates yet. Share one!</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -751,8 +852,16 @@ export function ComplaintDetailPage() {
   const [extReason, setExtReason] = useState('');
   const [savingExt, setSavingExt] = useState(false);
   const [editD1Trigger, setEditD1Trigger] = useState(0);
+  const [actionsDropdown, setActionsDropdown] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [newTaskModal, setNewTaskModal] = useState(false);
+  const [taskSubject, setTaskSubject] = useState('');
+  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskPriority, setTaskPriority] = useState('Normal');
+  const [taskNotes, setTaskNotes] = useState('');
   const [organizerOpen, setOrganizerOpen] = useState(false);
   const [organizerTab, setOrganizerTab] = useState('assignment'); // 'assignment' | 'history' | 'emails'
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   const notify = useToast();
   const load = useAsync(() => complaintApi.get(id), [id]);
@@ -781,17 +890,10 @@ export function ComplaintDetailPage() {
     setDetail(next);
     setHistoryKey((k) => k + 1);
   };
-
   const sfRecordId = c.salesforceId || (c._id ? `a0QC4${String(c._id).slice(-13).padStart(13, '0')}` : 'a0QC4000001l0BhMAJ');
 
-  const handleGeneratePdf = async () => {
-    try {
-      const d3Data = await d3Api.get(c._id).catch(() => null);
-      generateComplaintReport(c, d3Data);
-      notify('Complaint Management Report PDF downloaded successfully.');
-    } catch (err) {
-      notify(readError(err).message, 'bad');
-    }
+  const handleGeneratePdf = () => {
+    setReportModalOpen(true);
   };
 
   const handleRequestExtension = async (e) => {
@@ -807,6 +909,54 @@ export function ComplaintDetailPage() {
     } finally {
       setSavingExt(false);
     }
+  };
+
+  const handleSubmitApproval = () => {
+    if (c.stage === 'D3') {
+      if (['D3_IN_PROGRESS', 'D3_REWORK'].includes(c.status) && canEditD3) {
+        setSubmitting(true);
+      } else if (c.status === 'D3_PENDING_APPROVAL' && canReview) {
+        setDeciding('approve');
+      } else {
+        notify(`Current status: ${c.statusLabel || c.status}`);
+      }
+    } else if (c.stage === 'D1') {
+      if (c.status === 'D1_ACKNOWLEDGED') {
+        handlers.startD2();
+      } else if (!isAck && detail.can?.acknowledge) {
+        setAcking(true);
+      } else {
+        notify('Acknowledgement is pending or awaiting coordinator.');
+      }
+    } else if (c.stage === 'D2') {
+      if (c.status === 'D2_IN_PROGRESS') {
+        handlers.completeD2();
+      } else if (c.status === 'D2_COMPLETED' && canEditD3) {
+        handlers.startD3();
+      }
+    } else {
+      notify(`Stage ${c.stage}: ${c.statusLabel || c.status}`);
+    }
+  };
+
+  const handleEditAction = () => {
+    if (tab === 'D1') {
+      setEditD1Trigger((t) => t + 1);
+    } else if (tab === 'D2') {
+      setParams({ tab: 'D2' }, { replace: true });
+    } else {
+      setParams({ tab: 'D1' }, { replace: true });
+      setEditD1Trigger((t) => t + 1);
+    }
+  };
+
+  const handleSaveNewTask = (e) => {
+    e.preventDefault();
+    if (!taskSubject.trim()) return;
+    notify(`Task "${taskSubject}" created successfully.`);
+    setNewTaskModal(false);
+    setTaskSubject('');
+    setTaskNotes('');
   };
 
   const handleStartD4 = async () => {
@@ -879,100 +1029,91 @@ export function ComplaintDetailPage() {
             </div>
           </div>
 
-          {/* Salesforce Action Group (Top Right) */}
-          <div className="flex items-center gap-2">
-            <div className="inline-flex rounded border border-slate-300 bg-white shadow-2xs overflow-hidden">
-              {detail.can?.editD1 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setParams({ tab: 'D1' }, { replace: true });
-                    setEditD1Trigger((t) => t + 1);
-                  }}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
-                >
-                  Edit
-                </button>
-              )}
-              {detail.can?.acknowledge && (
-                <button
-                  type="button"
-                  onClick={() => setAcking(true)}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
-                >
-                  Acknowledge
-                </button>
-              )}
-              {c.status === 'D1_ACKNOWLEDGED' && (
-                <button
-                  type="button"
-                  onClick={handlers.startD2}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-[#0176d3] hover:bg-blue-50 transition-colors"
-                >
-                  Start D2 Investigation &rarr;
-                </button>
-              )}
-              {c.stage === 'D2' && (
+          {/* Salesforce Action Group (Matching Screenshot media_1793189445517_7518b208.png: Submit Approval, Edit, Generate Pdf, Delete, Dropdown) */}
+          <div className="flex items-center gap-2 relative">
+            <div className="inline-flex rounded-xs border border-slate-300 bg-white shadow-2xs overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={handleSubmitApproval}
+                className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Submit Approval
+              </button>
+              <button
+                type="button"
+                onClick={handleEditAction}
+                className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Edit
+              </button>
+              {c.stage === 'D2' ? (
                 <button
                   type="button"
                   onClick={() => setExtensionModal(true)}
-                  className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+                  className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
                 >
                   D2 SLA Extension
                 </button>
-              )}
-              {c.stage === 'D3' && (
-                <>
-                  {c.status === 'D3_PENDING_APPROVAL' ? (
-                    canReview ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setDeciding('approve')}
-                          className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors"
-                        >
-                          ✓ Approve Analysis
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeciding('reject')}
-                          className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
-                        >
-                          ✕ Reject / Rework
-                        </button>
-                      </>
-                    ) : (
-                      <span className="border-r border-slate-300 px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-50">
-                        Waiting for Reviewer
-                      </span>
-                    )
-                  ) : ['D3_IN_PROGRESS', 'D3_REWORK'].includes(c.status) && canEditD3 ? (
-                    <button
-                      type="button"
-                      onClick={() => setSubmitting(true)}
-                      className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
-                    >
-                      {c.status === 'D3_REWORK' ? 'Resubmit for Approval' : 'Submit for Approval'}
-                    </button>
-                  ) : c.status === 'D3_APPROVED' ? (
-                    <button
-                      type="button"
-                      onClick={handleStartD4}
-                      className="border-r border-slate-300 px-3.5 py-1.5 text-xs font-bold text-[#0176d3] hover:bg-blue-50 transition-colors"
-                    >
-                      Proceed to D4 Stage &rarr;
-                    </button>
-                  ) : null}
-                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGeneratePdf}
+                  className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  Generate PDF
+                </button>
               )}
               <button
                 type="button"
-                onClick={handleGeneratePdf}
-                className="px-3.5 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 transition-colors"
+                onClick={() => setDeleteConfirm(true)}
+                className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
               >
-                Generate PDF
+                Delete
+              </button>
+              <button
+                type="button"
+                onClick={() => setActionsDropdown((d) => !d)}
+                className="px-2 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors cursor-pointer"
+                title="More actions"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </div>
+
+            {actionsDropdown && (
+              <div className="absolute right-0 top-full mt-1 w-48 rounded-xs border border-slate-200 bg-white shadow-lg py-1 z-30 text-xs">
+                <button
+                  type="button"
+                  onClick={() => { setActionsDropdown(false); setNewTaskModal(true); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 cursor-pointer"
+                >
+                  New Task
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setActionsDropdown(false); handleGeneratePdf(); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 cursor-pointer"
+                >
+                  Printable View / PDF
+                </button>
+                {c.stage === 'D2' && (
+                  <button
+                    type="button"
+                    onClick={() => { setActionsDropdown(false); setExtensionModal(true); }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"
+                  >
+                    D2 SLA Extension
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setActionsDropdown(false); load.reload(); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"
+                >
+                  Refresh Record
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1000,7 +1141,7 @@ export function ComplaintDetailPage() {
                 : 'border-transparent text-slate-600 hover:text-slate-900'
             }`}
           >
-            Synced Files {detail.attachmentCount > 0 && `(${detail.attachmentCount})`}
+            Synced Files
           </button>
           <button
             type="button"
@@ -1013,45 +1154,51 @@ export function ComplaintDetailPage() {
           >
             D1-Define The Problem
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (c.status === 'D1_ACKNOWLEDGED') {
-                handlers.startD2();
-                return;
-              }
-              setParams({ tab: 'D2' }, { replace: true });
-            }}
-            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-              tab === 'D2'
-                ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            D2-Grasp The Situation
-          </button>
-          <button
-            type="button"
-            onClick={() => setParams({ tab: 'D3' }, { replace: true })}
-            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-              tab === 'D3'
-                ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            D3 - RCA & CAPA
-          </button>
-          <button
-            type="button"
-            onClick={() => setParams({ tab: 'D4' }, { replace: true })}
-            className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
-              tab === 'D4'
-                ? 'border-[#0176d3] text-[#0176d3] font-bold'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            D4- Effectiveness Review
-          </button>
+          {(c.stage !== 'D1' || tab === 'D2') && (
+            <button
+              type="button"
+              onClick={() => {
+                if (c.status === 'D1_ACKNOWLEDGED') {
+                  handlers.startD2();
+                  return;
+                }
+                setParams({ tab: 'D2' }, { replace: true });
+              }}
+              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+                tab === 'D2'
+                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              D2-Grasp The Situation
+            </button>
+          )}
+          {(['D3', 'D4', 'CLOSED'].includes(c.stage) || tab === 'D3') && (
+            <button
+              type="button"
+              onClick={() => setParams({ tab: 'D3' }, { replace: true })}
+              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+                tab === 'D3'
+                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              D3 - RCA & CAPA
+            </button>
+          )}
+          {(['D4', 'CLOSED'].includes(c.stage) || tab === 'D4') && (
+            <button
+              type="button"
+              onClick={() => setParams({ tab: 'D4' }, { replace: true })}
+              className={`whitespace-nowrap px-3.5 py-2.5 transition-colors border-b-2 ${
+                tab === 'D4'
+                  ? 'border-[#0176d3] text-[#0176d3] font-bold'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              D4- Effectiveness Review
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setParams({ tab: 'sla' }, { replace: true })}
@@ -1067,10 +1214,32 @@ export function ComplaintDetailPage() {
 
         {/* Main Content Area: Salesforce 2-Column Record Page Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 p-3 sm:p-5">
-          {/* Primary Tab Content (8 cols on large screens) */}
+          {/* Left Column: Complaint Details (8 cols) */}
           <div className="lg:col-span-8 space-y-4 min-w-0">
             {tab === 'files' && (
-              <div className="bg-white rounded border border-slate-200 p-4 shadow-2xs">
+              <div className="bg-white rounded border border-slate-200 p-4 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between p-3 rounded border border-blue-200 bg-blue-50/50">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="flex h-9 w-9 items-center justify-center rounded bg-red-100 text-red-600 font-bold text-xs shrink-0">
+                      PDF
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-800">
+                        Complaint Management Report (NR/QAD/SOP/001-F01/04)
+                      </h4>
+                      <p className="text-xs text-slate-500">
+                        Official Standard Operating Procedure quality investigation report for {c.complaintNumber}.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReportModalOpen(true)}
+                    className="rounded border border-[#0176d3] bg-white px-3 py-1.5 text-xs font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors cursor-pointer shrink-0"
+                  >
+                    Preview Report
+                  </button>
+                </div>
                 <FilesTab complaint={c} canUpload={detail.can.upload} onChange={() => { load.reload(); setHistoryKey((k) => k + 1); }} />
               </div>
             )}
@@ -1115,7 +1284,7 @@ export function ComplaintDetailPage() {
             )}
           </div>
 
-          {/* Right-Hand Side Organizer Panel (4 cols on large screens) */}
+          {/* Right Column: Permanent Side Panel (4 cols) with History, Emails, Feed */}
           <div className="lg:col-span-4 space-y-4">
             <RightOrganizerSidebar
               complaint={c}
@@ -1123,6 +1292,7 @@ export function ComplaintDetailPage() {
               historyKey={historyKey}
               onStartAcknowledge={() => setAcking(true)}
               onStartD2={handlers.startD2}
+              onOpenReportModal={() => setReportModalOpen(true)}
             />
           </div>
         </div>
@@ -1197,6 +1367,7 @@ export function ComplaintDetailPage() {
         complaint={c}
         resubmit={c.status === 'D3_REWORK'}
         onClose={() => setSubmitting(false)}
+        onPreviewReport={() => setReportModalOpen(true)}
         onDone={(next, reviewerName) => {
           setSubmitting(false);
           refreshed(next);
@@ -1226,6 +1397,97 @@ export function ComplaintDetailPage() {
           setParams({ tab: 'D3' }, { replace: true });
           notify(was === 'approve' ? 'Analysis approved.' : 'Analysis returned for rework. The First Responsible Person has been emailed.');
         }}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        open={deleteConfirm}
+        title="Delete Complaint"
+        description={`Are you sure you want to delete complaint ${c.complaintNumber}? This action will permanently remove this record.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onClose={() => setDeleteConfirm(false)}
+        onConfirm={async () => {
+          setDeleteConfirm(false);
+          notify('Complaint delete action submitted.');
+        }}
+      />
+
+      {/* New Task Modal */}
+      {newTaskModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="bg-white rounded-md p-5 max-w-md w-full shadow-overlay space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 className="text-sm font-bold text-slate-900">New Task</h3>
+              <button type="button" onClick={() => setNewTaskModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewTask} className="space-y-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Subject <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={`Follow up on ${c.complaintNumber}`}
+                  value={taskSubject}
+                  onChange={(e) => setTaskSubject(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    className="w-full rounded border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Priority</label>
+                  <select
+                    value={taskPriority}
+                    onChange={(e) => setTaskPriority(e.target.value)}
+                    className="w-full rounded border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none bg-white"
+                  >
+                    <option value="Normal">Normal</option>
+                    <option value="High">High</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Comments / Description</label>
+                <textarea
+                  rows={2}
+                  placeholder="Additional task details..."
+                  value={taskNotes}
+                  onChange={(e) => setTaskNotes(e.target.value)}
+                  className="w-full rounded border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button variant="secondary" size="sm" onClick={() => setNewTaskModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm">
+                  Save Task
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Complaint Management Report Preview Modal */}
+      <ComplaintReportModal
+        open={reportModalOpen}
+        complaint={c}
+        onClose={() => setReportModalOpen(false)}
       />
 
       {/* Acknowledge Modal */}

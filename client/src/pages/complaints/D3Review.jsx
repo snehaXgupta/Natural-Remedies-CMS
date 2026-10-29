@@ -13,7 +13,7 @@ import { FishboneDiagram } from './FishboneDiagram.jsx';
 
 /* ---------------- Submit / resubmit ---------------- */
 
-export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone }) {
+export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPreviewReport }) {
   const [ready, setReady] = useState(null);
   const [reviewers, setReviewers] = useState([]);
   const [reviewerId, setReviewerId] = useState('');
@@ -56,7 +56,19 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone }) {
     <Modal open={open} onClose={onClose} width="max-w-xl"
       title={resubmit ? 'Resubmit for approval' : 'Submit for approval'}
       description={`${complaint.complaintNumber}. The analysis is locked while it is reviewed, and the reviewer is emailed.`}
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button variant="primary" icon={Send} loading={busy} disabled={!ready || blocked || !reviewerId} onClick={submit}>{resubmit ? 'Resubmit' : 'Submit'}</Button></>}>
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          {onPreviewReport && (
+            <Button variant="secondary" onClick={onPreviewReport}>
+              Generate / Preview PDF
+            </Button>
+          )}
+          <Button variant="primary" icon={Send} loading={busy} disabled={!ready || blocked || !reviewerId} onClick={submit}>
+            {resubmit ? 'Resubmit' : 'Submit'}
+          </Button>
+        </>
+      }>
       {errors && (
         <ul className="mb-4 space-y-0.5 rounded border border-bad/20 bg-bad-soft px-3 py-2 text-sm text-bad" role="alert">{errors.map((m) => <li key={m}>{m}</li>)}</ul>
       )}

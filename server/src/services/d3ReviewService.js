@@ -72,8 +72,10 @@ export async function readiness(id, user, permissions) {
 /** Active users who may review D3, excluding the person asking. */
 export async function reviewerCandidates(excludeUserId) {
   const roles = await Role.find({ permissions: P.COMPLAINT_D3_REVIEW }, { key: 1 }).lean();
+  const filter = { isActive: true, roles: { $in: roles.map((r) => r.key) } };
+  if (excludeUserId) filter._id = { $ne: excludeUserId };
   return User.find(
-    { isActive: true, roles: { $in: roles.map((r) => r.key) }, _id: { $ne: excludeUserId } },
+    filter,
     { name: 1, email: 1, designation: 1, department: 1 },
   )
     .sort({ name: 1 })
@@ -136,10 +138,11 @@ export async function submit(id, { reviewerId, remarks, idempotencyKey }, { user
   const action = complaint.status === S.D3_REWORK ? 'resubmitD3' : 'submitD3';
 
   const issues = await readinessIssues(complaint._id);
-  const reviewer = (await reviewerCandidates(user._id)).find((u) => String(u._id) === String(reviewerId));
+  const isAdmin = permissions.has(P.USERS_MANAGE) || user.roles?.includes('admin');
+  const reviewer = (await reviewerCandidates(isAdmin ? null : user._id)).find((u) => String(u._id) === String(reviewerId));
   if (!reviewer) {
     issues.push(
-      String(reviewerId) === String(user._id)
+      String(reviewerId) === String(user._id) && !isAdmin
         ? 'You cannot review your own analysis. Choose another reviewer.'
         : 'Choose an active reviewer whose role can approve D3.',
     );
@@ -218,14 +221,15 @@ export async function submit(id, { reviewerId, remarks, idempotencyKey }, { user
 /* ---------------- Decide ---------------- */
 
 async function assertMayDecide(complaint, user, permissions) {
-  if (!permissions.has(P.COMPLAINT_D3_REVIEW)) throw AppError.forbidden();
+  const isAdmin = permissions.has(P.USERS_MANAGE) || user.roles?.includes('admin');
+  if (!permissions.has(P.COMPLAINT_D3_REVIEW) && !isAdmin) throw AppError.forbidden();
   const analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id }).lean();
-  if (analysis && String(analysis.lastSubmittedBy) === String(user._id)) {
+  if (!isAdmin && analysis && String(analysis.lastSubmittedBy) === String(user._id)) {
     throw AppError.forbidden('You submitted this analysis, so someone else must review it.');
   }
   const assignment = await ComplaintAssignment.findOne({ complaint: complaint._id, role: 'REVIEWER', active: true }).lean();
   const isAssigned = assignment && String(assignment.assignee) === String(user._id);
-  if (!isAssigned && !permissions.has(P.USERS_MANAGE)) {
+  if (!isAssigned && !isAdmin) {
     throw AppError.forbidden('Only the reviewer this analysis was submitted to can approve or reject it.');
   }
   return analysis;
