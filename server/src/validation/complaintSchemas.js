@@ -58,7 +58,7 @@ const d1Fields = (empty) => ({
     : z.object({ name: text(200).min(1, 'Enter the Distributor / Retailer Name.'), code: optional(60, empty) }),
   reportedProduct: empty === null
     ? z.object({ name: optional(200, null), batchNumber: optional(60, null) }).optional()
-    : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: text(60).min(1, 'Enter the Batch Number.') }),
+    : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: optional(60, empty) }),
   coordinator: z.preprocess((v) => (v === '' ? null : v), z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid coordinator ID.').nullable().optional()),
 });
 

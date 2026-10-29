@@ -3,15 +3,31 @@ import { AppError } from '../utils/AppError.js';
 
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+export function isOriginAllowed(origin) {
+  if (!origin) return true;
+  if (origin === env.CLIENT_ORIGIN) return true;
+  try {
+    const u = new URL(origin);
+    const host = u.hostname.toLowerCase();
+    // Local development
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    // Allow ngrok tunnels (all domains and subdomains)
+    if (
+      host.endsWith('.ngrok-free.app') ||
+      host.endsWith('.ngrok-free.dev') ||
+      host.endsWith('.ngrok.io') ||
+      host.endsWith('.ngrok.app')
+    ) {
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
 /**
  * CSRF defence for cookie sessions. SameSite=Lax already blocks most
  * cross-site POSTs; this also rejects state-changing requests whose Origin
- * (or Referer) is not the web app. Requests with neither header (server to
- * server, tests, curl) are allowed because browsers always send Origin on
- * cross-site POST/PUT/PATCH/DELETE.
- *
- * Webhooks (e.g. WhatsApp) are mounted before this middleware and
- * authenticate with signatures instead.
+ * (or Referer) is not the web app or an authorized development tunnel.
  */
 export function originCheck(req, _res, next) {
   if (SAFE.has(req.method)) return next();
@@ -23,6 +39,6 @@ export function originCheck(req, _res, next) {
       return next(AppError.forbidden('Request origin not allowed.'));
     }
   }
-  if (!origin || origin === env.CLIENT_ORIGIN) return next();
+  if (!origin || isOriginAllowed(origin)) return next();
   return next(AppError.forbidden('Request origin not allowed.'));
 }

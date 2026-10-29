@@ -6,6 +6,7 @@ import { useAsync } from '../../lib/useAsync.js';
 import { formatDate } from '../../lib/format.js';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { Loading, ErrorState } from '../../components/States.jsx';
+import { SBUS, COUNTRIES } from '../../lib/constants.js';
 
 const ACTION = { NOT_STARTED: 'Not started', IN_PROGRESS: 'In progress', COMPLETED: 'Completed', VERIFIED: 'Verified', NOT_REQUIRED: 'Not required' };
 const APPROVAL = { PENDING: 'Approval pending', APPROVED: 'Approved', REJECTED: 'Rejected' };
@@ -73,6 +74,9 @@ export function ReportsPage() {
   const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value });
   const r = report.data;
 
+  const availableSbus = Array.from(new Set([...SBUS, ...(options.sbus || [])])).sort();
+  const availableCountries = Array.from(new Set([...COUNTRIES, ...(options.countries || [])])).sort();
+
   return (
     <>
       <PageHeader
@@ -88,10 +92,10 @@ export function ReportsPage() {
         <label className="text-sm">From<input type="date" className="field-input mt-1" value={filters.from} onChange={set('from')} /></label>
         <label className="text-sm">To<input type="date" className="field-input mt-1" value={filters.to} onChange={set('to')} /></label>
         <label className="text-sm">SBU
-          <select className="field-input mt-1" value={filters.sbu} onChange={set('sbu')}><option value="">All</option>{options.sbus.map((s) => <option key={s}>{s}</option>)}</select>
+          <select className="field-input mt-1" value={filters.sbu} onChange={set('sbu')}><option value="">All</option>{availableSbus.map((s) => <option key={s}>{s}</option>)}</select>
         </label>
         <label className="text-sm">Country
-          <select className="field-input mt-1" value={filters.country} onChange={set('country')}><option value="">All</option>{options.countries.map((s) => <option key={s}>{s}</option>)}</select>
+          <select className="field-input mt-1" value={filters.country} onChange={set('country')}><option value="">All</option>{availableCountries.map((s) => <option key={s}>{s}</option>)}</select>
         </label>
         {Object.values(filters).some(Boolean) && <button type="button" className="pb-2 text-sm font-medium text-brand hover:underline" onClick={() => setFilters({ from: '', to: '', sbu: '', country: '' })}>Clear</button>}
       </div>

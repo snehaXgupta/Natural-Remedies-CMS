@@ -118,6 +118,11 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
       handler = await User.findOne({ roles: 'quality_coordinator', isActive: true }).session(session).lean();
     }
 
+    if (!complaint.coordinator && handler?._id) {
+      complaint.coordinator = handler._id;
+      await complaint.save({ session });
+    }
+
     if (handler?.email) {
       const handlerEmail = newComplaintHandler(complaint, handler);
       await notifications.enqueue({

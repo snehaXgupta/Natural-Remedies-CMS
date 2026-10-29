@@ -16,10 +16,11 @@ import {
   ArrowLeft,
   Paperclip,
 } from 'lucide-react';
-import { complaintApi, userApi } from '../../api/endpoints.js';
+import { complaintApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
 import { useToast } from '../../components/Toast.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
+import { SBUS, COUNTRIES, getHqOptionsForCountry } from '../../lib/constants.js';
 
 /** Formats a date object to YYYY-MM-DD */
 function toDateStr(d = new Date()) {
@@ -40,7 +41,6 @@ export function NewComplaintPage() {
 
   const [dateOnly, setDateOnly] = useState(toDateStr());
   const [timeOnly, setTimeOnly] = useState(toTimeStr());
-  const [coordinators, setCoordinators] = useState([]);
 
   const [form, setForm] = useState({
     requester: {
@@ -53,18 +53,14 @@ export function NewComplaintPage() {
     country: 'Afghanistan',
     headQuarter: '--None--',
     origin: 'Call',
-    coordinator: '',
     shortDescription: 'Manual preparation test',
     customer: {
-      name: 'Distributor',
-      code: '',
+      name: 'Manual preparation test',
     },
     reportedProduct: {
       name: 'Manual preparation test',
-      batchNumber: 'BATCH-01',
+      batchNumber: '',
     },
-    category: 'Packaging',
-    additionalRemarks: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -72,17 +68,6 @@ export function NewComplaintPage() {
   const [busy, setBusy] = useState(false);
   const [proofFiles, setProofFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
-
-  // Fetch coordinators directory
-  useEffect(() => {
-    userApi
-      .directory()
-      .then((res) => {
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        setCoordinators(list);
-      })
-      .catch(() => {});
-  }, []);
 
   // Update initial user info when auth loaded
   useEffect(() => {
@@ -145,10 +130,8 @@ export function NewComplaintPage() {
       sbu: form.sbu || 'HHP',
       country: form.country || 'Afghanistan',
       headQuarter: form.headQuarter === '--None--' ? undefined : form.headQuarter,
-      coordinator: form.coordinator || null,
+      coordinator: undefined,
       shortDescription: form.shortDescription,
-      additionalRemarks: form.additionalRemarks || undefined,
-      category: form.category || 'Packaging',
       requester: {
         name: form.requester.name,
         email: form.requester.email,
@@ -157,11 +140,10 @@ export function NewComplaintPage() {
       },
       customer: {
         name: form.customer.name,
-        code: form.customer.code || undefined,
       },
       reportedProduct: {
         name: form.reportedProduct.name,
-        batchNumber: form.reportedProduct.batchNumber || 'BATCH-01',
+        batchNumber: form.reportedProduct.batchNumber || undefined,
       },
     };
 
@@ -341,14 +323,11 @@ export function NewComplaintPage() {
                   onChange={(e) => setForm({ ...form, sbu: e.target.value })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
-                  <option value="HHP">HHP</option>
-                  <option value="AHB-Rumicare">AHB-Rumicare</option>
-                  <option value="AHB-Omnicare">AHB-Omnicare</option>
-                  <option value="QA - AHB Omnicare">QA - AHB Omnicare</option>
-                  <option value="QA - AHB Remicare">QA - AHB Remicare</option>
-                  <option value="QA - Packaging & Phytocare">QA - Packaging & Phytocare</option>
-                  <option value="AHP-Poultry">AHP-Poultry</option>
-                  <option value="AHP-Aqua">AHP-Aqua</option>
+                  {SBUS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                 {errors.sbu && <p className="text-[10px] text-red-600 mt-1">{errors.sbu}</p>}
@@ -379,18 +358,22 @@ export function NewComplaintPage() {
               <div className="flex-1 relative">
                 <select
                   value={form.country}
-                  onChange={(e) => setForm({ ...form, country: e.target.value })}
+                  onChange={(e) => {
+                    const nextCountry = e.target.value;
+                    const hqs = getHqOptionsForCountry(nextCountry);
+                    setForm((prev) => ({
+                      ...prev,
+                      country: nextCountry,
+                      headQuarter: hqs[0] || '--None--',
+                    }));
+                  }}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
-                  <option value="Afghanistan">Afghanistan</option>
-                  <option value="India">India</option>
-                  <option value="Bangladesh">Bangladesh</option>
-                  <option value="Nepal">Nepal</option>
-                  <option value="Sri Lanka">Sri Lanka</option>
-                  <option value="United Arab Emirates">United Arab Emirates</option>
-                  <option value="United States">United States</option>
-                  <option value="United Kingdom">United Kingdom</option>
-                  <option value="Vietnam">Vietnam</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                 {errors.country && <p className="text-[10px] text-red-600 mt-1">{errors.country}</p>}
@@ -425,14 +408,11 @@ export function NewComplaintPage() {
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
                   <option value="--None--">--None--</option>
-                  <option value="Bangalore">Bangalore</option>
-                  <option value="Mumbai">Mumbai</option>
-                  <option value="Delhi">Delhi</option>
-                  <option value="Hyderabad">Hyderabad</option>
-                  <option value="Chennai">Chennai</option>
-                  <option value="Kolkata">Kolkata</option>
-                  <option value="Ahmedabad">Ahmedabad</option>
-                  <option value="Pune">Pune</option>
+                  {getHqOptionsForCountry(form.country).map((h) => (
+                    <option key={h} value={h}>
+                      {h}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
               </div>
@@ -459,51 +439,6 @@ export function NewComplaintPage() {
               </div>
             </div>
 
-            {/* Coordinator */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Coordinator
-              </label>
-              <div className="flex-1 relative">
-                <select
-                  value={form.coordinator}
-                  onChange={(e) => setForm({ ...form, coordinator: e.target.value })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                >
-                  <option value="">Select Coordinator...</option>
-                  {coordinators.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.name} — {c.department?.name || c.designation || 'Quality Assurance'}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-              </div>
-            </div>
-
-            {/* Category */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Category
-              </label>
-              <div className="flex-1 relative">
-                <select
-                  value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                >
-                  <option value="Packaging">Packaging</option>
-                  <option value="Product quality">Product quality</option>
-                  <option value="Efficacy">Efficacy</option>
-                  <option value="Labelling">Labelling</option>
-                  <option value="Contamination">Contamination</option>
-                  <option value="Physical Quality">Physical Quality</option>
-                  <option value="Other">Other</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-              </div>
-            </div>
-
             {/* Short Description (Full Width) */}
             <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 md:col-span-2">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0 pt-1.5">
@@ -514,26 +449,10 @@ export function NewComplaintPage() {
                   rows={2}
                   value={form.shortDescription}
                   onChange={(e) => setForm({ ...form, shortDescription: e.target.value })}
-                  className="w-full rounded border border-slate-300 bg-white p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded border border-slate-300 bg-white p-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                   placeholder="Enter a brief summary of the issue..."
                 />
                 {errors.shortDescription && <p className="text-[10px] text-red-600 mt-1">{errors.shortDescription}</p>}
-              </div>
-            </div>
-
-            {/* Additional Remarks (Full Width) */}
-            <div className="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3 md:col-span-2">
-              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0 pt-1.5">
-                Additional Remarks
-              </label>
-              <div className="flex-1">
-                <textarea
-                  rows={2}
-                  value={form.additionalRemarks}
-                  onChange={(e) => setForm({ ...form, additionalRemarks: e.target.value })}
-                  className="w-full rounded border border-slate-300 bg-white p-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                  placeholder="Enter any additional background, customer context, or findings..."
-                />
               </div>
             </div>
           </div>
@@ -545,37 +464,20 @@ export function NewComplaintPage() {
             Customer Information
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-700">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 md:col-span-2">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
-              </label>
-              <div className="flex-1 relative">
-                <select
-                  value={form.customer.name}
-                  onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                >
-                  <option value="Distributor">Distributor</option>
-                  <option value="Retailer">Retailer</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-                {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Customer Code
+                <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer Name
               </label>
               <div className="flex-1">
                 <input
                   type="text"
-                  placeholder="Optional customer/dealer code"
-                  value={form.customer.code}
-                  onChange={(e) => setForm({ ...form, customer: { ...form.customer, code: e.target.value } })}
+                  placeholder="Enter distributor or retailer name..."
+                  value={form.customer.name}
+                  onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                 />
+                {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
               </div>
             </div>
           </div>
@@ -587,7 +489,7 @@ export function NewComplaintPage() {
             Product Information
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                 <span className="text-red-600 mr-0.5">*</span>Product Name
@@ -595,10 +497,10 @@ export function NewComplaintPage() {
               <div className="flex-1">
                 <input
                   type="text"
+                  placeholder="Enter product name..."
                   value={form.reportedProduct.name}
                   onChange={(e) => setForm({ ...form, reportedProduct: { ...form.reportedProduct, name: e.target.value } })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                  placeholder="Reported product name"
                 />
                 {errors['reportedProduct.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['reportedProduct.name']}</p>}
               </div>
@@ -606,35 +508,17 @@ export function NewComplaintPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                <span className="text-red-600 mr-0.5">*</span>Batch Number
+                Batch Number
               </label>
               <div className="flex-1">
                 <input
                   type="text"
+                  placeholder="e.g. 26T006 (optional)"
                   value={form.reportedProduct.batchNumber}
                   onChange={(e) => setForm({ ...form, reportedProduct: { ...form.reportedProduct, batchNumber: e.target.value } })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                  placeholder="e.g. BATCH-01"
                 />
                 {errors['reportedProduct.batchNumber'] && <p className="text-[10px] text-red-600 mt-1">{errors['reportedProduct.batchNumber']}</p>}
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Reporter Type
-              </label>
-              <div className="flex-1 relative">
-                <select
-                  value={form.requester.type}
-                  onChange={(e) => setForm({ ...form, requester: { ...form.requester, type: e.target.value } })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                >
-                  <option value="Customer">Customer</option>
-                  <option value="Retailer">Retailer</option>
-                  <option value="Distributor">Distributor</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
               </div>
             </div>
           </div>

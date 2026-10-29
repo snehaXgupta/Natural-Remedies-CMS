@@ -44,6 +44,7 @@ import { NOTIFICATION_TYPES } from '../../lib/notifications.js';
 import { D4Tab } from './D4Tab.jsx';
 import { generateComplaintReport } from '../../lib/generateReportPdf.js';
 import { ComplaintReportModal } from './ComplaintReportModal.jsx';
+import { RpnGuide } from './RpnGuide.jsx';
 
 /* ---------------- Stage tracker (Salesforce Chevron Ribbon) ---------------- */
 
@@ -745,6 +746,15 @@ function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknow
         </div>
       </div>
 
+      {/* RPN Guide (Right below Complaint History, matching media_1793265264314_341ae616.png) */}
+      <RpnGuide
+        selectedSeverity={c.d2?.investigation?.severity?.score}
+        selectedProbability={c.d2?.investigation?.occurrences?.score}
+        selectedDetectability={c.d2?.investigation?.affectedQuantity?.score}
+        rpn={c.d2?.investigation?.rpn}
+        defaultOpen={false}
+      />
+
       {/* 3. Email History Card */}
       <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
         <EmailHistoryPanel complaintId={c._id} refreshKey={historyKey} />
@@ -884,6 +894,7 @@ export function ComplaintDetailPage() {
   if (!detail) return null;
 
   const c = detail.complaint;
+  const isAck = Boolean(c?.acknowledgement?.approvedAt);
   const defaultTab = ['D1', 'D2', 'D3', 'D4'].includes(c.stage) ? c.stage : 'D1';
   const tab = TABS.find((t) => t.key === params.get('tab'))?.key || defaultTab;
   const refreshed = (next) => {

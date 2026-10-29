@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, X, FileText } from 'lucide-react';
 import { Field } from '../../components/Field.jsx';
-import { ORIGINS, REPORTER_TYPES } from '../../lib/complaints.js';
-import { userApi } from '../../api/endpoints.js';
+import { ORIGINS } from '../../lib/complaints.js';
+import { SBUS, COUNTRIES, getHqOptionsForCountry } from '../../lib/constants.js';
 
 /** yyyy-mm-dd in the user's own time zone (toISOString would use UTC). */
 export function localDay(d = new Date()) {
@@ -12,18 +12,25 @@ export function localDay(d = new Date()) {
 /** Form state <-> API body. Dates are yyyy-mm-dd in the form. */
 export function toForm(c = {}) {
   return {
-    origin: c.origin || 'Phone',
+    origin: c.origin || 'Call',
     complaintDate: localDay(c.complaintDate || new Date()),
-    coordinator: c.coordinator?._id || c.coordinator || '',
-    requester: { name: c.requester?.name || '', email: c.requester?.email || '', mobile: c.requester?.mobile || '', type: c.requester?.type || '' },
+    requester: {
+      name: c.requester?.name || '',
+      email: c.requester?.email || '',
+      mobile: c.requester?.mobile || '',
+      type: c.requester?.type || 'Customer',
+    },
     sbu: c.sbu || '',
     country: c.country || '',
     headQuarter: c.headQuarter || '',
-    category: c.category || '',
-    customer: { name: c.customer?.name || 'Distributor', code: c.customer?.code || '' },
-    reportedProduct: { name: c.reportedProduct?.name || '', batchNumber: c.reportedProduct?.batchNumber || '' },
+    customer: {
+      name: c.customer?.name || '',
+    },
+    reportedProduct: {
+      name: c.reportedProduct?.name || '',
+      batchNumber: c.reportedProduct?.batchNumber || '',
+    },
     shortDescription: c.shortDescription || '',
-    additionalRemarks: c.additionalRemarks || '',
   };
 }
 
@@ -33,11 +40,10 @@ export function toForm(c = {}) {
  * save would quietly reset the time of receipt to midnight.
  */
 export function toBody(form, { includeOrigin, original }) {
-  const { origin, requester, complaintDate, coordinator, ...rest } = form;
+  const { origin, requester, complaintDate, coordinator, category, additionalRemarks, ...rest } = form;
   const body = {
     ...rest,
-    coordinator: coordinator || null,
-    requester: { ...requester, type: requester.type || undefined },
+    requester: { ...requester },
   };
   if (includeOrigin) body.origin = origin;
   if (!original || complaintDate !== localDay(original.complaintDate)) {
@@ -59,9 +65,8 @@ function Section({ title, children }) {
 }
 
 /**
- * D1 fields from the brief: requester information, customer information and
- * the complaint itself. The option lists for SBU, country, category and head
- * quarter are free text until the company's lists are confirmed (Q6).
+ * D1 fields matching EQMS Page 3: Requester information, Customer information, and Product information.
+ * Coordinator is automatically assigned as the universal Complaint Handler.
  */
 export function D1Form({
   value,
@@ -72,24 +77,13 @@ export function D1Form({
   onAddEvidence,
   onRemoveEvidence,
 }) {
-  const [coordinators, setCoordinators] = useState([]);
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef(null);
-
-  useEffect(() => {
-    userApi
-      .directory()
-      .then((res) => {
-        const list = Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
-        setCoordinators(list);
-      })
-      .catch(() => {});
-  }, []);
 
   const field = (path) => {
     const [a, b] = path.split('.');
     return {
-      value: b ? value[a][b] : value[a],
+      value: b ? (value[a] ? value[a][b] : '') : (value[a] || ''),
       onChange: (e) => onChange(b ? { ...value, [a]: { ...value[a], [b]: e.target.value } } : { ...value, [a]: e.target.value }),
     };
   };
@@ -104,10 +98,10 @@ export function D1Form({
         <Field label="Requested By" required error={err('requester.name')}>
           {(p) => <input {...p} className="field-input" {...field('requester.name')} />}
         </Field>
-        <Field label="Requester E-mail" required error={err('requester.email')} hint="Needed to send the acknowledgement email.">
+        <Field label="Requestor E-mail" required error={err('requester.email')} hint="Needed to send the acknowledgement email.">
           {(p) => <input {...p} type="email" className="field-input" {...field('requester.email')} />}
         </Field>
-        <Field label="Requester Mobile Number" required error={err('requester.mobile')}>
+        <Field label="Requestor Mobile Number" required error={err('requester.mobile')}>
           {(p) => <input {...p} type="tel" className="field-input" {...field('requester.mobile')} />}
         </Field>
         {showOrigin && (
@@ -119,69 +113,76 @@ export function D1Form({
             )}
           </Field>
         )}
-        <Field label="SBU" required error={err('sbu')} hint="e.g. AHP-Rumicare, AHP-Omnicare">
-          {(p) => <input {...p} className="field-input" {...field('sbu')} />}
+        <Field label="SBU" required error={err('sbu')}>
+          {(p) => (
+            <select {...p} className="field-input" {...field('sbu')}>
+              <option value="">Select SBU...</option>
+              {SBUS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          )}
         </Field>
         <Field label="Country" required error={err('country')}>
-          {(p) => <input {...p} className="field-input" autoComplete="country-name" {...field('country')} />}
-        </Field>
-        <Field label="Complaint Head Quarter" required error={err('headQuarter')}>
-          {(p) => <input {...p} className="field-input" {...field('headQuarter')} />}
-        </Field>
-        <Field label="Coordinator" error={err('coordinator')} hint="Manually selected coordinator for notifications.">
           {(p) => (
-            <select {...p} className="field-input" value={value.coordinator || ''} onChange={(e) => onChange({ ...value, coordinator: e.target.value })}>
-              <option value="">Select Coordinator...</option>
-              {coordinators.map((u) => {
-                const dept = u.department?.name || u.designation || 'Quality Assurance';
-                return (
-                  <option key={u._id} value={u._id}>
-                    {u.name} — {dept} ({u.email})
+            <select
+              {...p}
+              className="field-input"
+              value={value.country || ''}
+              onChange={(e) => {
+                const nextCountry = e.target.value;
+                const hqs = getHqOptionsForCountry(nextCountry);
+                onChange({ ...value, country: nextCountry, headQuarter: hqs[0] || '' });
+              }}
+            >
+              <option value="">Select Country...</option>
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
+        </Field>
+        <Field label="Complaint Head Quarter" error={err('headQuarter')}>
+          {(p) => {
+            const hqOptions = getHqOptionsForCountry(value.country);
+            return (
+              <select
+                {...p}
+                className="field-input"
+                value={value.headQuarter || ''}
+                onChange={(e) => onChange({ ...value, headQuarter: e.target.value })}
+              >
+                <option value="">--None--</option>
+                {hqOptions.map((h) => (
+                  <option key={h} value={h}>
+                    {h}
                   </option>
-                );
-              })}
-            </select>
-          )}
-        </Field>
-        <Field label="Reporter Type" required error={err('requester.type')}>
-          {(p) => (
-            <select {...p} className="field-input" {...field('requester.type')}>
-              <option value="">Select Reporter Type...</option>
-              {REPORTER_TYPES.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          )}
-        </Field>
-        <Field label="Category" error={err('category')}>
-          {(p) => <input {...p} className="field-input" {...field('category')} />}
+                ))}
+              </select>
+            );
+          }}
         </Field>
         <Field label="Short Description of the Complaint" required error={err('shortDescription')} className="sm:col-span-2">
           {(p) => <textarea {...p} rows={2} maxLength={500} className="field-input" {...field('shortDescription')} />}
         </Field>
-        <Field label="Additional remarks" error={err('additionalRemarks')} className="sm:col-span-2">
-          {(p) => <textarea {...p} rows={3} maxLength={4000} className="field-input" {...field('additionalRemarks')} />}
-        </Field>
       </Section>
 
       <Section title="Customer Information">
-        <Field label="Distributor / Retailer" required error={err('customer.name')}>
-          {(p) => (
-            <select {...p} className="field-input" {...field('customer.name')}>
-              <option value="Distributor">Distributor</option>
-              <option value="Retailer">Retailer</option>
-            </select>
-          )}
-        </Field>
-        <Field label="Customer Code" error={err('customer.code')}>
-          {(p) => <input {...p} className="field-input" {...field('customer.code')} />}
+        <Field label="Distributor / Retailer Name" required error={err('customer.name')} className="sm:col-span-2">
+          {(p) => <input {...p} placeholder="Enter distributor or retailer name..." className="field-input" {...field('customer.name')} />}
         </Field>
       </Section>
 
       <Section title="Product Information">
         <Field label="Product Name" required error={err('reportedProduct.name')}>
-          {(p) => <input {...p} className="field-input" {...field('reportedProduct.name')} />}
+          {(p) => <input {...p} placeholder="Enter product name..." className="field-input" {...field('reportedProduct.name')} />}
         </Field>
-        <Field label="Batch Number" required error={err('reportedProduct.batchNumber')} hint="Verified in D2.">
-          {(p) => <input {...p} className="field-input" {...field('reportedProduct.batchNumber')} />}
+        <Field label="Batch Number" error={err('reportedProduct.batchNumber')} hint="Optional at registration. Verified in D2.">
+          {(p) => <input {...p} placeholder="e.g. 26T006 (optional)" className="field-input" {...field('reportedProduct.batchNumber')} />}
         </Field>
       </Section>
 

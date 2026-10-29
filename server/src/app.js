@@ -8,7 +8,7 @@ import env from './config/env.js';
 import logger from './config/logger.js';
 import { authenticate } from './middleware/authenticate.js';
 import { requirePasswordChanged } from './middleware/authorize.js';
-import { originCheck } from './middleware/originCheck.js';
+import { originCheck, isOriginAllowed } from './middleware/originCheck.js';
 import { apiLimiter, webhookLimiter as rateLimitWebhook } from './middleware/rateLimits.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
@@ -17,6 +17,7 @@ import adminRoutes from './routes/adminRoutes.js';
 import complaintRoutes from './routes/complaintRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import whatsappRoutes from './routes/whatsappRoutes.js';
+import externalComplaintRoutes from './routes/externalComplaintRoutes.js';
 import simulatorRoutes from './routes/simulatorRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import { dashboard } from './controllers/complaintController.js';
@@ -28,7 +29,18 @@ export function createApp() {
   app.disable('x-powered-by');
 
   app.use(helmet());
-  app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || isOriginAllowed(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true,
+    })
+  );
   if (!env.isTest) app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
 
   // Liveness: the process is up. Readiness: it can reach the database.
@@ -55,6 +67,9 @@ export function createApp() {
 
   app.use(express.json({ limit: '200kb' }));
   app.use(cookieParser());
+
+  // NRPL external WhatsApp complaint webhook (Salesforce replacement)
+  app.use(externalComplaintRoutes);
   app.use('/api', apiLimiter, originCheck);
 
   app.use('/api/auth', authRoutes);

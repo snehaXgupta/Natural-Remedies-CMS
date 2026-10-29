@@ -25,6 +25,7 @@ import { StatusBadge } from '../../components/StatusBadge.jsx';
 import { Pagination } from '../../components/Pagination.jsx';
 import { Loading, ErrorState, EmptyState } from '../../components/States.jsx';
 import { NewComplaintModal } from './NewComplaintModal.jsx';
+import { SBUS } from '../../lib/constants.js';
 
 const COLUMNS = [
   { key: 'idx', label: '#', sortable: false, thClass: 'w-8 px-2.5 text-center' },
@@ -82,6 +83,7 @@ export function ComplaintsPage({ mine = false }) {
       .then(([f, m]) => setOptions({ ...f.data, statuses: m.data.statuses }))
       .catch(() => {});
   }, []);
+  const availableSbus = Array.from(new Set([...SBUS, ...(options.sbus || [])]));
 
   const [creating, setCreating] = useState(false);
   const hasFilters = FILTER_KEYS.some((k) => params.get(k));
@@ -188,7 +190,7 @@ export function ComplaintsPage({ mine = false }) {
             {/* Quick Filter dropdowns */}
             <select className="h-7.5 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700" value={get('sbu')} onChange={(e) => set({ sbu: e.target.value })}>
               <option value="">All SBUs</option>
-              {options.sbus.map((s) => <option key={s}>{s}</option>)}
+              {availableSbus.map((s) => <option key={s}>{s}</option>)}
             </select>
 
             <select className="h-7.5 rounded border border-slate-300 bg-white px-2 text-xs text-slate-700" value={get('status')} onChange={(e) => set({ status: e.target.value })}>

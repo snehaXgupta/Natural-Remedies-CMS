@@ -8,6 +8,7 @@ import { Button } from '../../components/Button.jsx';
 import { Modal } from '../../components/Modal.jsx';
 import { Loading } from '../../components/States.jsx';
 import { useToast } from '../../components/Toast.jsx';
+import { getRpnCategory } from './RpnGuide.jsx';
 
 /* ---------------- form <-> API ---------------- */
 
@@ -253,7 +254,30 @@ function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp }) {
               <SfFieldItem
                 label="RPN value"
                 apiName="RPN_value__c"
-                value={rpnVal}
+                customValue={
+                  rpnVal !== '' ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900">{rpnVal}</span>
+                      {(() => {
+                        const cat = getRpnCategory(rpnVal);
+                        if (!cat) return null;
+                        const cls =
+                          cat.category === 'MINOR'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                            : cat.category === 'MAJOR'
+                            ? 'bg-amber-50 text-amber-700 border-amber-300'
+                            : 'bg-red-50 text-red-700 border-red-300';
+                        return (
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wide ${cls}`}>
+                            {cat.category}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    '-'
+                  )
+                }
                 canEdit={false}
               />
             }
@@ -503,13 +527,13 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
           <div className="divide-y divide-slate-200/60">
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                A-No. of Occurrence of the Event & Score <span className="text-[10px] text-slate-400 font-normal">(A_No_of_Occurrence_of_the_Event_Score__c)</span>
+                A-No. of Occurrence of the Event & Score (Probability: 2, 4, 6, 8) <span className="text-[10px] text-slate-400 font-normal">(A_No_of_Occurrence_of_the_Event_Score__c)</span>
               </label>
               <input
                 {...numInputProps}
                 value={form.investigation.occurrencesScore}
                 onChange={setInv('occurrencesScore')}
-                placeholder="Score (e.g. 2)"
+                placeholder="Score (e.g. 2, 4, 6, 8)"
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none"
               />
               {errors['investigation.occurrences.score'] && (
@@ -519,14 +543,14 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                C-Severity & Score <span className="text-[10px] text-slate-400 font-normal">(C_Severity_Score__c)</span>
+                C-Severity & Score (Severity: 2, 4, 6, 54) <span className="text-[10px] text-slate-400 font-normal">(C_Severity_Score__c)</span>
                 <span className="text-red-500 ml-0.5">*</span>
               </label>
               <input
                 {...numInputProps}
                 value={form.investigation.severityScore}
                 onChange={setInv('severityScore')}
-                placeholder="Score (e.g. 5)"
+                placeholder="Score (e.g. 2, 4, 6, 54)"
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none"
               />
               {errors['investigation.severity.score'] && (
@@ -594,13 +618,13 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
           <div className="divide-y divide-slate-200/60">
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                B-Affected Qtys. & Score <span className="text-[10px] text-slate-400 font-normal">(B_Affected_Qtys_Score__c)</span>
+                B-Affected Qtys. & Score (Detectability: 2, 4, 6, 8) <span className="text-[10px] text-slate-400 font-normal">(B_Affected_Qtys_Score__c)</span>
               </label>
               <input
                 {...numInputProps}
                 value={form.investigation.affectedQuantityScore}
                 onChange={setInv('affectedQuantityScore')}
-                placeholder="Score (e.g. 4)"
+                placeholder="Score (e.g. 2, 4, 6, 8)"
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none"
               />
               {errors['investigation.affectedQuantity.score'] && (
@@ -610,15 +634,32 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
 
             <div className="px-4 py-2.5 bg-slate-50/50">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                RPN value <span className="text-[10px] text-slate-400 font-normal">(RPN_value__c = A × B × C)</span>
+                RPN value <span className="text-[10px] text-slate-400 font-normal">(RPN_value__c = S × P × D)</span>
               </label>
-              <input
-                {...numInputProps}
-                value={form.investigation.rpn}
-                readOnly
-                placeholder="Auto-calculated (A × B × C)"
-                className="w-full rounded-xs border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none cursor-not-allowed"
-              />
+              <div className="flex items-center gap-2">
+                <input
+                  {...numInputProps}
+                  value={form.investigation.rpn}
+                  readOnly
+                  placeholder="Auto-calculated (S × P × D)"
+                  className="flex-1 rounded-xs border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-900 focus:outline-none cursor-not-allowed"
+                />
+                {(() => {
+                  const cat = getRpnCategory(form.investigation.rpn);
+                  if (!cat) return null;
+                  const cls =
+                    cat.category === 'MINOR'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : cat.category === 'MAJOR'
+                      ? 'bg-amber-50 text-amber-700 border-amber-300'
+                      : 'bg-red-50 text-red-700 border-red-300';
+                  return (
+                    <span className={`px-2.5 py-1 rounded text-[11px] font-bold border uppercase tracking-wide shrink-0 ${cls}`}>
+                      {cat.category}
+                    </span>
+                  );
+                })()}
+              </div>
             </div>
 
             <div className="px-4 py-2.5">

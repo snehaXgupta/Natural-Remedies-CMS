@@ -6,6 +6,17 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: { '/api': { target: 'http://127.0.0.1:4000', changeOrigin: false } },
+    host: true,
+    allowedHosts: [
+      'landowner-dentist-capped.ngrok-free.dev',
+      '.ngrok-free.dev',
+      '.ngrok.io',
+      'localhost',
+      '127.0.0.1',
+    ],
+    proxy: {
+      '/api': { target: 'http://127.0.0.1:4000', changeOrigin: false },
+      '/externalsource1': { target: 'http://127.0.0.1:4000', changeOrigin: false },
+    },
   },
 });
