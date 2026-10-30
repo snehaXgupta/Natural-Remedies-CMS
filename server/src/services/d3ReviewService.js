@@ -12,7 +12,8 @@ import {
 import { STATUSES as S } from '../config/workflow.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
-import { d3ApprovalRequest, d3CapaRejected } from '../mail/templates.js';
+import { d3ApprovalRequest, d3CapaRejected, capaImplementationAssignment } from '../mail/templates.js';
+import * as inApp from './inAppNotificationService.js';
 import { findVisible, getDetail } from './complaintService.js';
 import { canEdit, buildTree } from './d3Service.js';
 import * as workflow from './workflowService.js';
@@ -62,6 +63,30 @@ export async function readinessIssues(complaintId) {
     }
   }
   return issues;
+}
+
+
+/**
+ * Automatically resolve the FRP's Manager from database mapping.
+ * Strategy: FRP direct manager (user.manager) -> Department manager (department.manager).
+ */
+export async function getFrpManager(complaint) {
+  if (!complaint?.frp) return null;
+  const frpUser = await User.findById(complaint.frp)
+    .populate('manager', 'name email designation roles isActive')
+    .populate({
+      path: 'department',
+      populate: { path: 'manager', select: 'name email designation roles isActive' },
+    })
+    .lean();
+
+  if (frpUser?.manager && frpUser.manager.isActive) {
+    return frpUser.manager;
+  }
+  if (frpUser?.department?.manager && frpUser.department.manager.isActive) {
+    return frpUser.department.manager;
+  }
+  return null;
 }
 
 export async function readiness(id, user, permissions) {
@@ -277,6 +302,34 @@ export async function decide(id, decision, { remarks, idempotencyKey }, { user, 
       [{ complaint: updated._id, stage: 'D3', kind: approve ? 'APPROVAL' : 'REJECTION', actor: user._id, at: now, remarks: note, version: analysis.submissionCount }],
       { session },
     );
+
+    if (approve) {
+      const capas = await CapaRecord.find({ complaint: updated._id, deletedAt: null, capaRequired: true }).session(session).lean();
+      for (const capa of capas) {
+        if (capa.responsiblePerson) {
+          const rpUser = await User.findById(capa.responsiblePerson, { name: 1, email: 1 }).session(session).lean();
+          if (rpUser?.email) {
+            await notifications.enqueue({
+              type: 'CAPA_IMPLEMENTATION_ASSIGNMENT',
+              complaint: updated._id,
+              recipient: rpUser.email,
+              recipientUser: rpUser._id,
+              dedupeKey: `CAPA_ASSIGNMENT:${capa._id}:${analysis.submissionCount}`,
+              message: capaImplementationAssignment(updated, capa, { rpName: rpUser.name }),
+              session,
+            });
+            queued = true;
+          }
+          await inApp.createNotification({
+            recipient: capa.responsiblePerson,
+            complaint: updated._id,
+            title: 'CAPA Implementation Assignment',
+            message: `You have been assigned as Responsible Person to implement CAPA ${capa.capaNumber} for complaint ${updated.complaintNumber}.`,
+            link: `/complaints/${updated._id}?tab=D3`,
+          });
+        }
+      }
+    }
 
     if (!approve) {
       const frp = updated.frp ? await User.findById(updated.frp, { name: 1, email: 1 }).session(session).lean() : null;

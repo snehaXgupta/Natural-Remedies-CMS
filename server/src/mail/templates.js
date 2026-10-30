@@ -536,6 +536,125 @@ ${rows
   return { subject, text: textLines.join('\n'), html };
 }
 
+
+export function capaImplementationRejected(complaint, capa, { recipientName, rejectedBy, tier, remarks }) {
+  const number = complaint.complaintNumber;
+  const subject = `CAPA Implementation Rejected - Action Required - ${capa.capaNumber}`;
+  const link = complaintLink(complaint._id);
+  const details = detailsBlock([
+    ['CAPA Number', capa.capaNumber],
+    ['Complaint Number', number],
+    ['CAPA Description', capa.description || 'Not specified'],
+    ['Rejected By', rejectedBy],
+    ['Approval Tier', tier],
+    ['Rejection Remarks', remarks || 'None provided'],
+  ]);
+  const text = [
+    `Dear ${recipientName || 'Responsible Person'},`,
+    '',
+    `The CAPA implementation for ${capa.capaNumber} on complaint ${number} has been rejected at the ${tier} review tier.`,
+    '',
+    details.text,
+    '',
+    `View Complaint Record: ${link}`,
+    '',
+    'Action Required: Please review the remarks, update the implementation details, and forward for review again.',
+    '',
+    'Best Regards,',
+    'Natural Remedies - Quality Assurance Department',
+    '',
+    'Note: This is an automatically generated email. Please do not reply to this email.',
+  ].join('\n');
+  const html = layout({
+    title: subject,
+    bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(recipientName || 'Responsible Person')},</p>
+<p style="margin:0 0 14px;padding:10px 12px;background:#fbeae9;border-left:3px solid #b3261e;color:#7a1a14;">The CAPA implementation for <strong>${escapeHtml(capa.capaNumber)}</strong> on complaint <strong>${escapeHtml(number)}</strong> has been <strong>rejected</strong> at the <strong>${escapeHtml(tier)}</strong> review tier.</p>
+<p style="margin:0 0 14px;">Please review the rejection remarks, update your action implementation details, and forward for review again.</p>
+${details.html}
+${button(link, 'View Complaint Record')}
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies - Quality Assurance Department</strong></p>`,
+    footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
+  });
+  return { subject, text, html };
+}
+
+export function erpAssignment(complaint, capa, { erpName, scheduleType, scheduleDetail }) {
+  const number = complaint.complaintNumber;
+  const subject = `Effectiveness Review Assignment - ${capa.capaNumber}`;
+  const link = complaintLink(complaint._id);
+  const details = detailsBlock([
+    ['CAPA Number', capa.capaNumber],
+    ['Complaint Number', number],
+    ['Product Name', productName(complaint)],
+    ['Batch Number', batchNumber(complaint)],
+    ['Schedule Type', scheduleType || 'Timeline'],
+    ['Schedule Details', scheduleDetail || 'Not specified'],
+  ]);
+  const text = [
+    `Dear ${erpName || 'Effectiveness Responsible Person'},`,
+    '',
+    `You have been assigned as Effectiveness Responsible Person (ERP) for CAPA ${capa.capaNumber} on complaint ${number}.`,
+    '',
+    details.text,
+    '',
+    `View Complaint Record: ${link}`,
+    '',
+    'Action Required: Please monitor and perform the post-implementation effectiveness review per the schedule.',
+    '',
+    'Best Regards,',
+    'Natural Remedies - Quality Assurance Department',
+    '',
+    'Note: This is an automatically generated email. Please do not reply to this email.',
+  ].join('\n');
+  const html = layout({
+    title: subject,
+    bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(erpName || 'Effectiveness Responsible Person')},</p>
+<p style="margin:0 0 14px;">You have been assigned as <strong>Effectiveness Responsible Person (ERP)</strong> for CAPA <strong>${escapeHtml(capa.capaNumber)}</strong> on complaint <strong>${escapeHtml(number)}</strong>.</p>
+${details.html}
+${button(link, 'View Complaint Record')}
+<p style="margin:0 0 14px;color:#1d5bb8;font-weight:600;">Action Required: Please monitor and perform the post-implementation effectiveness review per the schedule.</p>
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies - Quality Assurance Department</strong></p>`,
+    footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
+  });
+  return { subject, text, html };
+}
+
+export function capaClosedNotice(complaint, capa, { recipientName, closedByName, effectivenessReview }) {
+  const number = complaint.complaintNumber;
+  const subject = `CAPA Process Completed - ${capa.capaNumber}`;
+  const link = complaintLink(complaint._id);
+  const details = detailsBlock([
+    ['CAPA Number', capa.capaNumber],
+    ['Complaint Number', number],
+    ['Closed By (ERP)', closedByName || 'ERP'],
+    ['Effectiveness Review', effectivenessReview || 'Verified and closed'],
+  ]);
+  const text = [
+    `Dear ${recipientName || 'Complaint Handler'},`,
+    '',
+    `CAPA ${capa.capaNumber} for complaint ${number} has been verified and marked closed by the Effectiveness Responsible Person.`,
+    '',
+    details.text,
+    '',
+    `View Complaint Record: ${link}`,
+    '',
+    'Best Regards,',
+    'Natural Remedies - Quality Assurance Department',
+    '',
+    'Note: This is an automatically generated email. Please do not reply to this email.',
+  ].join('\n');
+  const html = layout({
+    title: subject,
+    bodyHtml: `<p style="margin:0 0 14px;">Dear ${escapeHtml(recipientName || 'Complaint Handler')},</p>
+<p style="margin:0 0 14px;color:#137333;font-weight:600;">CAPA <strong>${escapeHtml(capa.capaNumber)}</strong> for complaint <strong>${escapeHtml(number)}</strong> has been verified and marked closed by the Effectiveness Responsible Person.</p>
+${details.html}
+${button(link, 'View Complaint Record')}
+<p style="margin:0;">Best Regards,<br><strong>Natural Remedies - Quality Assurance Department</strong></p>`,
+    footnote: 'Note: This is an automatically generated email. Please do not reply to this email.',
+  });
+  return { subject, text, html };
+}
+
 export const TEMPLATES = Object.freeze({
   NEW_COMPLAINT_HANDLER: newComplaintHandler,
   D1_ACKNOWLEDGEMENT: d1Acknowledgement,
@@ -546,6 +665,9 @@ export const TEMPLATES = Object.freeze({
   D2_SLA_EXTENSION: d2SlaExtensionRequest,
   ROOT_CAUSE_APPROVAL_REQUEST: rootCauseApprovalRequest,
   CAPA_IMPLEMENTATION_ASSIGNMENT: capaImplementationAssignment,
+  CAPA_IMPLEMENTATION_REJECTED: capaImplementationRejected,
+  ERP_ASSIGNMENT: erpAssignment,
+  CAPA_CLOSED: capaClosedNotice,
   MOVED_TO_D4: movedToD4Stage,
   COMPLAINT_CLOSED: complaintSuccessfullyClosed,
 });

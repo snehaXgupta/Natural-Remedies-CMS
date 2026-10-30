@@ -9,7 +9,7 @@ import * as workflow from './workflowService.js';
 import * as audit from './auditService.js';
 import * as notifications from './notificationService.js';
 import * as inApp from './inAppNotificationService.js';
-import { newComplaintHandler } from '../mail/templates.js';
+import { newComplaintHandler, d1Acknowledgement } from '../mail/templates.js';
 
 /* ------------------------------------------------------------------ */
 /* Visibility                                                          */
@@ -78,10 +78,26 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
   const result = await mongoose.connection.transaction(async (session) => {
     const complaintDate = input.complaintDate || new Date();
     const complaintNumber = await nextComplaintNumber(complaintDate, session);
+    // Resolve Complaint Handler / Universal Coordinator (Sneha or admin)
+    const adminUser = await User.findOne({ email: 'admin@naturalremedies.com', isActive: true }).session(session).lean();
+    let handler = null;
+    if (input.coordinator) {
+      handler = await User.findById(input.coordinator).session(session).lean();
+    }
+    if (!handler) {
+      handler = adminUser;
+    }
+    if (!handler) {
+      handler = await User.findOne({ roles: 'quality_coordinator', isActive: true }).session(session).lean();
+    }
+
+    const assignedCoordinator = input.coordinator || handler?._id || null;
+
     const [complaint] = await Complaint.create(
       [
         {
           ...pickD1(input),
+          coordinator: assignedCoordinator,
           complaintDate,
           complaintNumber,
           origin,
@@ -105,24 +121,21 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
     });
     const { complaint: registered } = await workflow.perform(complaint._id, 'register', { actor, context, session });
 
-    // Notify Complaint Handler (Assigned Coordinator or Sneha admin@naturalremedies.com)
-    let handler = null;
-    const adminUser = await User.findOne({ email: 'admin@naturalremedies.com', isActive: true }).session(session).lean();
-    if (complaint.coordinator) {
-      handler = await User.findById(complaint.coordinator).session(session).lean();
-    }
-    if (!handler) {
-      handler = adminUser;
-    }
-    if (!handler) {
-      handler = await User.findOne({ roles: 'quality_coordinator', isActive: true }).session(session).lean();
-    }
-
-    if (!complaint.coordinator && handler?._id) {
-      complaint.coordinator = handler._id;
-      await complaint.save({ session });
+    // 1. Notify Requester immediately that their complaint has been received
+    if (complaint.requester?.email && complaint.requester.email.includes('@')) {
+      const requesterEmail = d1Acknowledgement(complaint, { recipientName: complaint.requester?.name });
+      await notifications.enqueue({
+        type: 'D1_ACKNOWLEDGEMENT',
+        channel: 'email',
+        complaint: complaint._id,
+        recipient: complaint.requester.email,
+        dedupeKey: `COMPLAINT_REGISTRATION_ACK:${complaint._id}:${complaint.requester.email.toLowerCase()}`,
+        message: requesterEmail,
+        session,
+      });
     }
 
+    // 2. Notify Complaint Handler (Assigned Coordinator or Sneha)
     if (handler?.email) {
       const handlerEmail = newComplaintHandler(complaint, handler);
       await notifications.enqueue({

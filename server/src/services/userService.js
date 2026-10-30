@@ -5,7 +5,7 @@ import { escapeRegex, pageMeta } from '../utils/http.js';
 import { existingRoleKeys } from './roleService.js';
 import * as audit from './auditService.js';
 
-const AUDITED_FIELDS = ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'roles', 'isActive'];
+const AUDITED_FIELDS = ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'manager', 'roles', 'isActive'];
 
 function pick(obj, keys) {
   const out = {};
@@ -74,14 +74,15 @@ export async function listUsers({ search, role, department, status }, page) {
       .sort({ isActive: -1, name: 1 })
       .skip(page.skip)
       .limit(page.limit)
-      .populate('department', 'name code'),
+      .populate('department', 'name code')
+      .populate('manager', 'name email designation'),
     User.countDocuments(filter),
   ]);
   return { items: items.map((u) => u.toJSON()), meta: pageMeta(page, total) };
 }
 
 export async function getUser(id) {
-  const user = await User.findById(id).populate('department', 'name code');
+  const user = await User.findById(id).populate('department', 'name code').populate('manager', 'name email designation');
   if (!user) throw AppError.notFound('User');
   return user.toJSON();
 }
@@ -105,7 +106,7 @@ export async function createUser(input, actor, context) {
 
   const temporaryPassword = input.password ? null : generateTemporaryPassword();
   const user = new User({
-    ...pick(input, ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'roles']),
+    ...pick(input, ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'manager', 'roles']),
     mustChangePassword: true,
     createdBy: actor._id,
     updatedBy: actor._id,

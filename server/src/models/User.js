@@ -12,6 +12,7 @@ const userSchema = new Schema(
     phone: { type: String, trim: true, maxlength: 20 },
     designation: { type: String, trim: true, maxlength: 120 },
     department: { type: Schema.Types.ObjectId, ref: 'Department' },
+    manager: { type: Schema.Types.ObjectId, ref: 'User' },
     roles: { type: [String], default: ['employee'] },
 
     passwordHash: { type: String, required: true, select: false },
@@ -34,6 +35,7 @@ const userSchema = new Schema(
 userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ employeeId: 1 }, { unique: true, partialFilterExpression: { employeeId: { $type: 'string' } } });
 userSchema.index({ roles: 1, isActive: 1 });
+userSchema.index({ manager: 1 });
 userSchema.index({ name: 'text', email: 'text', employeeId: 'text' });
 
 userSchema.methods.setPassword = async function setPassword(plain) {

@@ -68,6 +68,10 @@ export function NewComplaintPage() {
   const [busy, setBusy] = useState(false);
   const [proofFiles, setProofFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
+  const [createdComplaint, setCreatedComplaint] = useState(null);
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [postUploadFiles, setPostUploadFiles] = useState([]);
+  const [uploadingDocs, setUploadingDocs] = useState(false);
 
   // Update initial user info when auth loaded
   useEffect(() => {
@@ -161,11 +165,13 @@ export function NewComplaintPage() {
           console.error('Evidence upload error:', uploadErr);
           notify(`Complaint ${created.complaintNumber} registered, but file upload had issues.`, 'bad');
         }
+        navigate(`/complaints/${created._id}`);
       } else {
+        // Point 3 of SOP: Prompt with document upload pop-up
         notify(`Complaint ${created.complaintNumber} registered successfully.`);
+        setCreatedComplaint(created);
+        setShowDocModal(true);
       }
-
-      navigate(`/complaints/${created._id}`);
     } catch (err) {
       const e = readError(err);
       setErrors(e.fields || {});
@@ -660,6 +666,82 @@ export function NewComplaintPage() {
           </button>
         </div>
       </form>
+
+      {/* Point 3 SOP Pop-up Window: Prompt to upload required supporting documents */}
+      {showDocModal && createdComplaint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-lg bg-white shadow-xl overflow-hidden border border-slate-200">
+            <div className="bg-gradient-to-r from-blue-900 to-[#0176d3] p-4 text-white">
+              <h2 className="text-sm font-bold flex items-center gap-2">
+                <Check className="h-4 w-4 bg-emerald-500 rounded-full p-0.5" />
+                Complaint Registered Successfully!
+              </h2>
+              <p className="text-xs text-blue-100 mt-1">
+                Record <span className="font-bold underline">{createdComplaint.complaintNumber}</span> has been created.
+              </p>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded text-xs text-blue-900">
+                <strong>SOP Step 3 Prompt:</strong> Please upload any required supporting documents (photos of defects, packing slips, distributor invoices, certificates of analysis) before proceeding.
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-2">
+                  Select Supporting Documents:
+                </label>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => setPostUploadFiles(Array.from(e.target.files || []))}
+                  className="block w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                />
+                {postUploadFiles.length > 0 && (
+                  <p className="text-[11px] text-emerald-600 mt-1 font-medium">
+                    {postUploadFiles.length} file(s) selected for upload.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 bg-slate-50 px-5 py-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => navigate(`/complaints/${createdComplaint._id}`)}
+                className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-200/60 rounded transition-colors cursor-pointer"
+              >
+                Skip for Now
+              </button>
+              <button
+                type="button"
+                disabled={uploadingDocs}
+                onClick={async () => {
+                  if (postUploadFiles.length > 0) {
+                    try {
+                      setUploadingDocs(true);
+                      await complaintApi.upload(createdComplaint._id, postUploadFiles, 'D1');
+                      notify(`Uploaded ${postUploadFiles.length} supporting document(s) successfully.`);
+                    } catch (err) {
+                      notify('Error uploading documents: ' + err.message, 'error');
+                    }
+                  }
+                  navigate(`/complaints/${createdComplaint._id}`);
+                }}
+                className="px-4 py-1.5 bg-[#0176d3] hover:bg-[#015ba5] text-white text-xs font-semibold rounded shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {uploadingDocs ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <span>Upload & View Complaint</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

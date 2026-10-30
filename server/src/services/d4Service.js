@@ -7,9 +7,13 @@ import * as inApp from './inAppNotificationService.js';
 import * as notifications from './notificationService.js';
 import {
   capaImplementationAssignment,
+  capaImplementationRejected,
+  erpAssignment,
+  capaClosedNotice,
   movedToD4Stage,
   complaintSuccessfullyClosed,
 } from '../mail/templates.js';
+import { generateComplaintPdfBuffer } from './pdfReportService.js';
 
 /**
  * D4 & CAPA Lifecycle Service implementing business rules from the Process Manual:
@@ -18,6 +22,21 @@ import {
  * - Effectiveness Responsible Person (ERP) assignment & review
  * - Final Complaint closure
  */
+
+
+/**
+ * Automatically resolve the Complaint Handler's Manager from database mapping.
+ */
+export async function getHandlerManager(complaint) {
+  if (!complaint?.coordinator) return null;
+  const coord = await User.findById(complaint.coordinator)
+    .populate('manager', 'name email designation roles isActive')
+    .lean();
+  if (coord?.manager && coord.manager.isActive) {
+    return coord.manager;
+  }
+  return null;
+}
 
 export async function updateCopq(complaintId, { logisticsCost = 0, testingCost = 0, reprocessingCost = 0 }, { user, permissions }) {
   const complaint = await findVisible(complaintId, user, permissions);
@@ -103,7 +122,10 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
   const now = new Date();
   const isApproved = decision === 'APPROVED';
 
-  if (tier === 'FRP') {
+  // Normalize tier name (handle 'FRP_MANAGER' or 'FRP')
+  const normalizedTier = tier === 'FRP_MANAGER' ? 'FRP' : tier;
+
+  if (normalizedTier === 'FRP') {
     capa.frpImplementationApproval = { status: isApproved ? 'APPROVED' : 'REJECTED', comments, approver: user._id, date: now };
     capa.approvalHistory.push({
       step: 'FRP CAPA Implementation Approval',
@@ -115,8 +137,19 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     });
     if (isApproved) {
       capa.handlerImplementationApproval = { status: 'PENDING' };
+      // Notify Complaint Handlers
+      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      for (const h of handlers) {
+        await inApp.createNotification({
+          recipient: h._id,
+          complaint: complaint._id,
+          title: 'CAPA Review Required (Handler)',
+          message: `CAPA implementation for ${capa.capaNumber} was approved by FRP (${user.name}) and requires Handler review.`,
+          link: `/complaints/${complaint._id}?tab=D3`,
+        });
+      }
     }
-  } else if (tier === 'HANDLER') {
+  } else if (normalizedTier === 'HANDLER') {
     capa.handlerImplementationApproval = { status: isApproved ? 'APPROVED' : 'REJECTED', comments, approver: user._id, date: now };
     capa.approvalHistory.push({
       step: 'Handler CAPA Implementation Approval',
@@ -128,8 +161,24 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     });
     if (isApproved) {
       capa.qaImplementationApproval = { status: 'PENDING' };
+      // Notify QA reviewers (including Handler Manager from database mapping)
+      const handlerManager = await getHandlerManager(complaint);
+      const qas = await User.find({ roles: { $in: ['admin', 'reviewer'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      const targetQas = handlerManager && !qas.some((q) => String(q._id) === String(handlerManager._id))
+        ? [handlerManager, ...qas]
+        : qas;
+
+      for (const q of targetQas) {
+        await inApp.createNotification({
+          recipient: q._id,
+          complaint: complaint._id,
+          title: 'CAPA Approval Required (QA / Handler Manager)',
+          message: `CAPA implementation for ${capa.capaNumber} was approved by Complaint Handler (${user.name}) and requires QA approval.`,
+          link: `/complaints/${complaint._id}?tab=D3`,
+        });
+      }
     }
-  } else if (tier === 'QA') {
+  } else if (normalizedTier === 'QA') {
     capa.qaImplementationApproval = { status: isApproved ? 'APPROVED' : 'REJECTED', comments, approver: user._id, date: now };
     capa.approvalHistory.push({
       step: 'QA CAPA Implementation Approval',
@@ -144,10 +193,44 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     }
   }
 
+  // If rejected at ANY tier: reset forwardForReview and notify Responsible Person per SOP Points 28-30
+  if (!isApproved) {
+    capa.forwardForReview = false;
+    capa.actionStatus = 'IN_PROGRESS';
+
+    const rpUser = capa.responsiblePerson ? await User.findById(capa.responsiblePerson).lean() : null;
+    if (rpUser) {
+      await inApp.createNotification({
+        recipient: rpUser._id,
+        complaint: complaint._id,
+        title: `CAPA Implementation Rejected (${normalizedTier})`,
+        message: `Your CAPA implementation for ${capa.capaNumber} was rejected by ${user.name} (${normalizedTier}). Remarks: ${comments || 'No remarks provided'}. Please revise and resubmit.`,
+        link: `/complaints/${complaint._id}?tab=D3`,
+      });
+
+      if (rpUser.email) {
+        await notifications.enqueue({
+          type: 'CAPA_IMPLEMENTATION_REJECTED',
+          complaint: complaint._id,
+          recipient: rpUser.email,
+          recipientUser: rpUser._id,
+          dedupeKey: `CAPA_IMPL_REJECT:${capa._id}:${normalizedTier}:${Date.now()}`,
+          message: capaImplementationRejected(complaint, capa, {
+            recipientName: rpUser.name,
+            rejectedBy: user.name,
+            tier: normalizedTier,
+            remarks: comments,
+          }),
+        });
+        notifications.nudge();
+      }
+    }
+  }
+
   await capa.save();
 
   // If approved at QA, check if all CAPAs are approved -> Move to D4 Stage
-  if (tier === 'QA' && isApproved) {
+  if (normalizedTier === 'QA' && isApproved) {
     const allCapas = await CapaRecord.find({ complaint: complaint._id, deletedAt: null });
     const allApproved = allCapas.every((c) => c.qaImplementationApproval?.status === 'APPROVED');
     if (complaint.stage !== STAGES.D4 && complaint.stage !== STAGES.CLOSED && allApproved && allCapas.length > 0) {
@@ -156,9 +239,17 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
       complaint.lastActivityAt = new Date();
       await complaint.save();
 
-      // Dispatch 2 emails for moving to D4: Complaint Handler & FRP
+      // Dispatch 2 emails for moving to D4 (SOP Point 32):
+      // - Complaint Handler: WITH official PDF report attachment
+      // - FRP: WITHOUT attachment
+      // - Requester: NO email
       const frp = complaint.frp ? await User.findById(complaint.frp).lean() : null;
       const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
+
+      const pdfBuf = await generateComplaintPdfBuffer(complaint);
+      const attachments = pdfBuf
+        ? [{ filename: `customerComplaintReport-${complaint.complaintNumber}.pdf`, content: pdfBuf, contentType: 'application/pdf' }]
+        : undefined;
 
       for (const h of handlers) {
         await notifications.enqueue({
@@ -166,6 +257,7 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           complaint: complaint._id,
           recipient: h.email,
           recipientUser: h._id,
+          attachments,
           dedupeKey: `D4_NOTICE_HANDLER:${complaint._id}:${h.email}`,
           message: movedToD4Stage(complaint, { recipientName: h.name }),
         });
@@ -228,6 +320,27 @@ export async function assignErp(capaId, { erpId, scheduleType, scheduleTimeline,
         message: `You have been assigned as Effectiveness Responsible Person for CAPA: ${capa.capaNumber} on complaint: ${complaint.complaintNumber}. Please review and action accordingly.`,
         link: `/complaints/${complaint._id}?tab=D4`,
       });
+
+      // SOP Point 36: Send email notification to ERP
+      if (erpUser.email) {
+        const scheduleDetail = scheduleType === 'Timeline'
+          ? (capa.scheduleTimeline ? capa.scheduleTimeline.toISOString().slice(0, 10) : 'Timeline')
+          : (capa.scheduleFrequency || 'Frequency');
+
+        await notifications.enqueue({
+          type: 'ERP_ASSIGNMENT',
+          complaint: complaint._id,
+          recipient: erpUser.email,
+          recipientUser: erpUser._id,
+          dedupeKey: `ERP_ASSIGN:${capa._id}:${erpUser._id}`,
+          message: erpAssignment(complaint, capa, {
+            erpName: erpUser.name,
+            scheduleType,
+            scheduleDetail,
+          }),
+        });
+        notifications.nudge();
+      }
     }
   }
   return capa;
@@ -249,7 +362,7 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
   }
   await capa.save();
 
-  // Notify Complaint Handler only if marking as closed for the first time
+  // Notify Complaint Handler only if marking as closed for the first time (SOP Point 37)
   if (isClosed && !wasAlreadyClosed) {
     const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
     for (const h of handlers) {
@@ -260,10 +373,26 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
         message: `CAPA ${capa.capaNumber} for complaint ${complaint.complaintNumber} has been marked closed by ERP.`,
         link: `/complaints/${complaint._id}?tab=D4`,
       });
+
+      if (h.email) {
+        await notifications.enqueue({
+          type: 'CAPA_CLOSED',
+          complaint: complaint._id,
+          recipient: h.email,
+          recipientUser: h._id,
+          dedupeKey: `CAPA_CLOSED_HANDLER:${capa._id}:${h.email}`,
+          message: capaClosedNotice(complaint, capa, {
+            recipientName: h.name,
+            closedByName: user.name,
+            effectivenessReview,
+          }),
+        });
+      }
     }
+    notifications.nudge();
   }
 
-  // Check if ALL CAPAs for this complaint are now closed (only close if not already closed)
+  // Check if ALL CAPAs for this complaint are now closed -> Final Complaint Closure (SOP Points 38-39)
   const allCapas = await CapaRecord.find({ complaint: complaint._id, deletedAt: null });
   const allClosed = allCapas.every((c) => c.isClosed);
 
@@ -275,7 +404,8 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
     complaint.set('d4.completedAt', new Date());
     await complaint.save();
 
-    // 2 emails: Requester and Handler
+    // 2 emails:
+    // 1. Requester: gets confirmation email WITHOUT report attachment
     if (complaint.requester?.email) {
       await notifications.enqueue({
         type: 'CLOSURE',
@@ -285,13 +415,21 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
         message: complaintSuccessfullyClosed(complaint, { recipientName: complaint.requester.name, isRequester: true }),
       });
     }
+
+    // 2. Complaint Handler: gets closure email WITH official SOP PDF report attachment
     const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
+    const closurePdfBuf = await generateComplaintPdfBuffer(complaint);
+    const closureAttachments = closurePdfBuf
+      ? [{ filename: `customerComplaintReport-${complaint.complaintNumber}.pdf`, content: closurePdfBuf, contentType: 'application/pdf' }]
+      : undefined;
+
     for (const h of handlers) {
       await notifications.enqueue({
         type: 'CLOSURE',
         complaint: complaint._id,
         recipient: h.email,
         recipientUser: h._id,
+        attachments: closureAttachments,
         dedupeKey: `CLOSURE_HANDLER:${complaint._id}:${h.email}`,
         message: complaintSuccessfullyClosed(complaint, { recipientName: h.name, isRequester: false }),
       });

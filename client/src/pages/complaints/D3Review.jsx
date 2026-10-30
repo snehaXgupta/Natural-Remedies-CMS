@@ -16,6 +16,7 @@ import { FishboneDiagram } from './FishboneDiagram.jsx';
 export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPreviewReport }) {
   const [ready, setReady] = useState(null);
   const [reviewers, setReviewers] = useState([]);
+  const [mappedManager, setMappedManager] = useState(null);
   const [reviewerId, setReviewerId] = useState('');
   const [remarks, setRemarks] = useState('');
   const [errors, setErrors] = useState(null);
@@ -64,7 +65,7 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPr
               Generate / Preview PDF
             </Button>
           )}
-          <Button variant="primary" icon={Send} loading={busy} disabled={!ready || blocked || !reviewerId} onClick={submit}>
+          <Button variant="primary" icon={Send} loading={busy} disabled={!ready || blocked || (!reviewerId && !mappedManager)} onClick={submit}>
             {resubmit ? 'Resubmit' : 'Submit'}
           </Button>
         </>

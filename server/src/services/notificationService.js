@@ -39,10 +39,20 @@ export function backoff(attempts) {
  * Queue a message. Returns { notification, created }. If the dedupeKey was
  * already used, the existing notification is returned and nothing is added.
  */
-export async function enqueue({ type, channel = 'email', complaint, recipient, recipientUser, dedupeKey, message, session }) {
+export async function enqueue({ type, channel = 'email', complaint, recipient, recipientUser, cc, bcc, attachments, dedupeKey, message, session }) {
   if (!recipient) throw new Error('Notification recipient is required');
   const existing = await Notification.findOne({ dedupeKey }).session(session ?? null);
   if (existing) return { notification: existing, created: false };
+
+  const toList = (val) => {
+    if (!val) return [];
+    const arr = Array.isArray(val) ? val : String(val).split(/[,;]/);
+    return arr.map((s) => String(s).trim()).filter((s) => s.length > 0);
+  };
+
+  const cleanCc = toList(cc);
+  const cleanBcc = toList(bcc);
+
   const [notification] = await Notification.create(
     [
       {
@@ -51,6 +61,9 @@ export async function enqueue({ type, channel = 'email', complaint, recipient, r
         complaint,
         recipient,
         recipientUser,
+        cc: cleanCc,
+        bcc: cleanBcc,
+        attachments: Array.isArray(attachments) ? attachments : (attachments ? [attachments] : []),
         dedupeKey,
         subject: message.subject,
         bodyText: message.text,
@@ -79,10 +92,30 @@ async function claimNext(now = new Date()) {
 
 async function sendOne(n) {
   try {
-    const { messageId } =
-      n.channel === 'whatsapp'
-        ? await whatsapp().sendText(n.recipient, n.bodyText)
-        : await mailer().send({ to: n.recipient, subject: n.subject, text: n.bodyText, html: n.bodyHtml });
+    let messageId;
+    if (n.channel === 'whatsapp') {
+      const res = await whatsapp().sendText(n.recipient, n.bodyText);
+      messageId = res.messageId;
+    } else {
+      const mailOptions = {
+        to: n.recipient,
+        subject: n.subject,
+        text: n.bodyText,
+        html: n.bodyHtml,
+      };
+      if (n.cc && n.cc.length > 0) mailOptions.cc = n.cc;
+      if (n.bcc && n.bcc.length > 0) mailOptions.bcc = n.bcc;
+      if (n.attachments && n.attachments.length > 0) {
+        mailOptions.attachments = n.attachments.map((a) => ({
+          filename: a.filename,
+          contentType: a.contentType || 'application/pdf',
+          content: a.content,
+          path: a.path,
+        }));
+      }
+      const res = await mailer().send(mailOptions);
+      messageId = res.messageId;
+    }
     await Notification.updateOne(
       { _id: n._id },
       { $set: { status: 'SENT', sentAt: new Date(), providerMessageId: messageId, lastError: null, lockedUntil: null } },

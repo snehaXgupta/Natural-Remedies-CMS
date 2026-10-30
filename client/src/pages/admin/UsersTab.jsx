@@ -13,7 +13,7 @@ import { Pagination } from '../../components/Pagination.jsx';
 import { Loading, ErrorState, EmptyState } from '../../components/States.jsx';
 import { useToast } from '../../components/Toast.jsx';
 
-const EMPTY = { name: '', email: '', employeeId: '', phone: '', designation: '', department: '', roles: [] };
+const EMPTY = { name: '', email: '', employeeId: '', phone: '', designation: '', department: '', manager: '', roles: [] };
 
 function useReferenceData() {
   const [ref, setRef] = useState({ roles: [], departments: [] });
@@ -25,7 +25,7 @@ function useReferenceData() {
   return ref;
 }
 
-function UserForm({ value, onChange, errors, roles, departments, isEdit }) {
+function UserForm({ value, onChange, errors, roles, departments, directory = [], isEdit }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
   const toggleRole = (key) =>
     onChange({ ...value, roles: value.roles.includes(key) ? value.roles.filter((r) => r !== key) : [...value.roles, key] });
@@ -80,7 +80,7 @@ function UserForm({ value, onChange, errors, roles, departments, isEdit }) {
 
 function clean(form) {
   const out = { ...form };
-  for (const k of ['employeeId', 'phone', 'designation', 'department']) if (out[k] === '') out[k] = undefined;
+  for (const k of ['employeeId', 'phone', 'designation', 'department', 'manager']) if (out[k] === '') out[k] = undefined;
   return out;
 }
 
@@ -118,7 +118,7 @@ function TemporaryPassword({ open, info, onClose }) {
 export function UsersTab() {
   const { user: me } = useAuth();
   const notify = useToast();
-  const { roles, departments } = useReferenceData();
+  const { roles, departments, directory } = useReferenceData();
   const roleName = (key) => roles.find((r) => r.key === key)?.name || key;
 
   const [filters, setFilters] = useState({ search: '', role: '', status: 'active', page: 1 });
@@ -265,7 +265,10 @@ export function UsersTab() {
                     <div className="text-sm text-ink-muted">{u.email}</div>
                   </td>
                   <td className="px-4 py-2.5 text-ink-muted">{u.employeeId || '—'}</td>
-                  <td className="px-4 py-2.5">{u.department?.name || <span className="text-ink-faint">—</span>}</td>
+                  <td className="px-4 py-2.5">
+    <div>{u.department?.name || <span className="text-ink-faint">—</span>}</div>
+    {u.manager && <div className="text-xs text-blue-600 font-medium">Mgr: {u.manager.name}</div>}
+  </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {u.roles.map((r) => (
@@ -309,7 +312,7 @@ export function UsersTab() {
         }
       >
         {formError && <p className="mb-4 rounded border border-bad/20 bg-bad-soft px-3 py-2 text-sm text-bad" role="alert">{formError}</p>}
-        {editing && <UserForm value={form} onChange={setForm} errors={errors} roles={roles} departments={departments} isEdit={editing !== 'new'} />}
+        {editing && <UserForm value={form} onChange={setForm} errors={errors} roles={roles} departments={departments} directory={directory} isEdit={editing !== 'new'} />}
       </Modal>
 
       <TemporaryPassword open={Boolean(temp)} info={temp} onClose={() => setTemp(null)} />

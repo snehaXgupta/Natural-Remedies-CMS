@@ -9,11 +9,25 @@ export const NOTIFICATION_TYPES = Object.freeze([
   'D2_COMPLETED',
   'D3_APPROVAL_REQUEST',
   'D3_REJECTED',
+  'CAPA_IMPLEMENTATION_ASSIGNMENT',
+  'CAPA_IMPLEMENTATION_REJECTED',
+  'ERP_ASSIGNMENT',
+  'CAPA_CLOSED',
   'D4_NOTICE',
   'CLOSURE',
   'WHATSAPP_COMPLAINT_REGISTERED',
   'WHATSAPP_STATUS_UPDATE',
 ]);
+
+const attachmentSchema = new Schema(
+  {
+    filename: { type: String, required: true },
+    content: { type: Buffer },
+    path: { type: String },
+    contentType: { type: String, default: 'application/pdf' },
+  },
+  { _id: false },
+);
 
 /**
  * Every outbound email or WhatsApp message. dedupeKey is unique, so the
@@ -28,6 +42,9 @@ const notificationSchema = new Schema(
     channel: { type: String, enum: ['email', 'whatsapp'], required: true },
     recipient: { type: String, required: true },
     recipientUser: { type: Schema.Types.ObjectId, ref: 'User' },
+    cc: [{ type: String }],
+    bcc: [{ type: String }],
+    attachments: [attachmentSchema],
     subject: { type: String },
     // Rendered once at queue time, so every retry sends exactly the same
     // message and the log shows what the recipient received.
