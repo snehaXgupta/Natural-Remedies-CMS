@@ -277,7 +277,7 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           recipient: frp.email,
           recipientUser: frp._id,
           dedupeKey: `D4_NOTICE_FRP:${complaint._id}:${frp.email}`,
-          message: movedToD4Stage(complaint, { recipientName: frp.name }),
+          message: movedToD4Stage(complaint, { recipientName: frp.name, frpName: frp.name, isFrp: true }),
         });
         await inApp.createNotification({
           recipient: frp._id,
@@ -412,7 +412,7 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
         complaint: complaint._id,
         recipient: complaint.requester.email,
         dedupeKey: `CLOSURE_REQUESTER:${complaint._id}`,
-        message: complaintSuccessfullyClosed(complaint, { recipientName: complaint.requester.name, isRequester: true }),
+        message: complaintSuccessfullyClosed(complaint, { recipientName: complaint.requester.name, isHandler: false }),
       });
     }
 
@@ -431,7 +431,7 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
         recipientUser: h._id,
         attachments: closureAttachments,
         dedupeKey: `CLOSURE_HANDLER:${complaint._id}:${h.email}`,
-        message: complaintSuccessfullyClosed(complaint, { recipientName: h.name, isRequester: false }),
+        message: complaintSuccessfullyClosed(complaint, { recipientName: h.name, isHandler: true }),
       });
       await inApp.createNotification({
         recipient: h._id,

@@ -16,16 +16,16 @@ import { useToast } from '../../components/Toast.jsx';
 const EMPTY = { name: '', email: '', employeeId: '', phone: '', designation: '', department: '', manager: '', roles: [] };
 
 function useReferenceData() {
-  const [ref, setRef] = useState({ roles: [], departments: [] });
+  const [ref, setRef] = useState({ roles: [], departments: [], directory: [] });
   useEffect(() => {
-    Promise.all([adminApi.roles(), adminApi.departments()])
-      .then(([r, d]) => setRef({ roles: r.data, departments: d.data }))
+    Promise.all([adminApi.roles(), adminApi.departments(), userApi.directory()])
+      .then(([r, d, dir]) => setRef({ roles: r.data, departments: d.data, directory: dir || [] }))
       .catch(() => {});
   }, []);
   return ref;
 }
 
-function UserForm({ value, onChange, errors, roles, departments, directory = [], isEdit }) {
+function UserForm({ value, onChange, errors, roles, departments, directory = [], editingId, isEdit }) {
   const set = (k) => (e) => onChange({ ...value, [k]: e.target.value });
   const toggleRole = (key) =>
     onChange({ ...value, roles: value.roles.includes(key) ? value.roles.filter((r) => r !== key) : [...value.roles, key] });
@@ -41,6 +41,9 @@ function UserForm({ value, onChange, errors, roles, departments, directory = [],
       <Field label="Employee ID" error={errors.employeeId}>
         {(p) => <input {...p} className="field-input" value={value.employeeId} onChange={set('employeeId')} />}
       </Field>
+      <Field label="Mobile Number" error={errors.phone} hint="e.g. +91 98765 43210">
+        {(p) => <input {...p} type="tel" placeholder="+91 98765 43210" className="field-input" value={value.phone || ''} onChange={set('phone')} />}
+      </Field>
       <Field label="Department" error={errors.department}>
         {(p) => (
           <select {...p} className="field-input" value={value.department} onChange={set('department')}>
@@ -54,8 +57,19 @@ function UserForm({ value, onChange, errors, roles, departments, directory = [],
       <Field label="Designation" error={errors.designation}>
         {(p) => <input {...p} className="field-input" value={value.designation} onChange={set('designation')} />}
       </Field>
-      <Field label="Phone" error={errors.phone} className="sm:col-span-2 sm:w-1/2 sm:pr-2">
-        {(p) => <input {...p} type="tel" className="field-input" value={value.phone} onChange={set('phone')} />}
+      <Field label="Reporting Manager" error={errors.manager} className="sm:col-span-2" hint="Used for automatic D3 RCA approvals and D4 escalation workflows.">
+        {(p) => (
+          <select {...p} className="field-input" value={value.manager || ''} onChange={set('manager')}>
+            <option value="">No manager (Head of org / Independent)</option>
+            {directory
+              .filter((m) => !editingId || String(m._id) !== String(editingId))
+              .map((m) => (
+                <option key={m._id} value={m._id}>
+                  {m.name} {m.designation ? `(${m.designation})` : ''} - {m.email}
+                </option>
+              ))}
+          </select>
+        )}
       </Field>
       <fieldset className="sm:col-span-2">
         <legend className="mb-1.5 text-sm font-medium">
@@ -80,7 +94,8 @@ function UserForm({ value, onChange, errors, roles, departments, directory = [],
 
 function clean(form) {
   const out = { ...form };
-  for (const k of ['employeeId', 'phone', 'designation', 'department', 'manager']) if (out[k] === '') out[k] = undefined;
+  for (const k of ['employeeId', 'phone', 'designation']) if (out[k] === '') out[k] = undefined;
+  for (const k of ['department', 'manager']) if (out[k] === '' || out[k] === undefined) out[k] = null;
   return out;
 }
 
@@ -149,6 +164,7 @@ export function UsersTab() {
       phone: u.phone || '',
       designation: u.designation || '',
       department: u.department?._id || '',
+      manager: u.manager?._id || (typeof u.manager === 'string' ? u.manager : ''),
       roles: u.roles,
     });
     setErrors({});
@@ -248,6 +264,8 @@ export function UsersTab() {
                 <th scope="col" className="px-4 py-2 font-medium">Name</th>
                 <th scope="col" className="px-4 py-2 font-medium">Employee ID</th>
                 <th scope="col" className="px-4 py-2 font-medium">Department</th>
+                <th scope="col" className="px-4 py-2 font-medium">Mobile Number</th>
+                <th scope="col" className="px-4 py-2 font-medium">Manager</th>
                 <th scope="col" className="px-4 py-2 font-medium">Roles</th>
                 <th scope="col" className="px-4 py-2 font-medium">Last sign-in</th>
                 <th scope="col" className="px-4 py-2"><span className="sr-only">Actions</span></th>
@@ -265,10 +283,20 @@ export function UsersTab() {
                     <div className="text-sm text-ink-muted">{u.email}</div>
                   </td>
                   <td className="px-4 py-2.5 text-ink-muted">{u.employeeId || '—'}</td>
+                  <td className="px-4 py-2.5 text-ink-muted">{u.department?.name || <span className="text-ink-faint">—</span>}</td>
+                  <td className="px-4 py-2.5 text-ink-muted">
+                    {u.phone ? <span className="font-mono text-xs text-slate-800">{u.phone}</span> : <span className="text-ink-faint">—</span>}
+                  </td>
                   <td className="px-4 py-2.5">
-    <div>{u.department?.name || <span className="text-ink-faint">—</span>}</div>
-    {u.manager && <div className="text-xs text-blue-600 font-medium">Mgr: {u.manager.name}</div>}
-  </td>
+                    {u.manager ? (
+                      <div>
+                        <div className="font-medium text-slate-800 text-xs">{u.manager.name}</div>
+                        {u.manager.designation && <div className="text-[11px] text-ink-muted">{u.manager.designation}</div>}
+                      </div>
+                    ) : (
+                      <span className="text-ink-faint">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {u.roles.map((r) => (
@@ -312,7 +340,7 @@ export function UsersTab() {
         }
       >
         {formError && <p className="mb-4 rounded border border-bad/20 bg-bad-soft px-3 py-2 text-sm text-bad" role="alert">{formError}</p>}
-        {editing && <UserForm value={form} onChange={setForm} errors={errors} roles={roles} departments={departments} directory={directory} isEdit={editing !== 'new'} />}
+        {editing && <UserForm value={form} onChange={setForm} errors={errors} roles={roles} departments={departments} directory={directory} editingId={editing === 'new' ? null : editing._id} isEdit={editing !== 'new'} />}
       </Modal>
 
       <TemporaryPassword open={Boolean(temp)} info={temp} onClose={() => setTemp(null)} />

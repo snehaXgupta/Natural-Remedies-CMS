@@ -153,8 +153,16 @@ export async function updateUser(id, input, actor, context) {
   if (user.roles.includes('admin') && user.isActive) await assertAdminRemains(user._id, nextRoles, nextActive);
 
   const before = pick(user.toObject(), AUDITED_FIELDS);
-  const editable = ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'roles', 'isActive'];
-  for (const key of editable) if (input[key] !== undefined) user[key] = input[key];
+  const editable = ['name', 'email', 'employeeId', 'phone', 'designation', 'department', 'manager', 'roles', 'isActive'];
+  for (const key of editable) {
+    if (input[key] !== undefined) {
+      if ((key === 'manager' || key === 'department') && (input[key] === '' || input[key] === null)) {
+        user[key] = null;
+      } else {
+        user[key] = input[key];
+      }
+    }
+  }
 
   // Deactivation and role changes end the user's current sessions.
   const rolesChanged = input.roles && JSON.stringify([...before.roles].sort()) !== JSON.stringify([...nextRoles].sort());

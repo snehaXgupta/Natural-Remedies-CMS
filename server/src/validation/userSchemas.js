@@ -16,8 +16,8 @@ const base = {
   employeeId: optionalText(40),
   phone,
   designation: optionalText(120),
-  department: objectId.optional().or(z.literal('').transform(() => undefined)),
-  manager: objectId.optional().or(z.literal('').transform(() => undefined)),
+  department: objectId.nullable().optional().or(z.literal('').transform(() => null)),
+  manager: objectId.nullable().optional().or(z.literal('').transform(() => null)),
   roles: z.array(roleKey).min(1, 'Select at least one role.').max(10),
 };
 

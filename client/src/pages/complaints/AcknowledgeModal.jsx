@@ -17,6 +17,7 @@ const newKey = () => `ack-${crypto.randomUUID()}`;
  */
 export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
   const [preview, setPreview] = useState(null);
+  const [activeEmailTab, setActiveEmailTab] = useState('requester'); // 'requester' | 'handler'
   const [remarks, setRemarks] = useState('');
   const [coordinatorId, setCoordinatorId] = useState(complaint.coordinator?._id || complaint.coordinator || '');
   const [coordinators, setCoordinators] = useState([]);
@@ -91,41 +92,76 @@ export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
         <Loading label="Preparing email" />
       ) : preview ? (
         <div className="space-y-4">
-          <div className="rounded border border-line">
-            <dl className="grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1.5 border-b border-line bg-page/60 px-4 py-2.5 text-sm">
-              <dt className="text-ink-muted">Requester</dt>
-              <dd>{preview.to || <span className="text-bad">No requester email. Add one in D1 before approving.</span>}</dd>
-              <dt className="text-ink-muted">Coordinator</dt>
-              <dd>
-                {coordEmail ? (
-                  <span className="text-slate-800 font-medium">{selectedCoordinator?.name || preview.coordinatorName || ''} &lt;{coordEmail}&gt;</span>
-                ) : (
-                  <span className="text-slate-700 font-medium">{preview?.coordinatorName || 'Mapped Quality Coordinator'} &lt;{preview?.coordinatorTo || 'pooja@naturalremedies.com'}&gt;</span>
-                )}
-              </dd>
-              <dt className="text-ink-muted">Subject</dt>
-              <dd className="font-medium text-slate-900">{preview.subject}</dd>
-            </dl>
-            <pre className="whitespace-pre-wrap px-4 py-3 font-sans text-sm text-slate-800 leading-relaxed">{preview.text}</pre>
+          {/* Tabs for the 2 distinct emails dispatched upon D1 completion (SOP Page 5) */}
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-2xs">
+            <div className="flex border-b border-slate-200 bg-slate-50/80 p-1">
+              <button
+                type="button"
+                onClick={() => setActiveEmailTab('requester')}
+                className={`flex-1 rounded py-1.5 px-3 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeEmailTab === 'requester'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                1. Email to Requester
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveEmailTab('handler')}
+                className={`flex-1 rounded py-1.5 px-3 text-xs font-semibold transition-colors cursor-pointer ${
+                  activeEmailTab === 'handler'
+                    ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                2. Email to Complaint Handler
+              </button>
+            </div>
+
+            {activeEmailTab === 'requester' ? (
+              <div>
+                <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 border-b border-slate-100 bg-slate-50/40 px-4 py-2.5 text-xs">
+                  <dt className="text-slate-500 font-medium">To (Requester)</dt>
+                  <dd>{preview.to || <span className="text-bad">No requester email. Add one in D1 before approving.</span>}</dd>
+                  <dt className="text-slate-500 font-medium">Subject</dt>
+                  <dd className="font-semibold text-slate-900">{preview.subject}</dd>
+                </dl>
+                <pre className="whitespace-pre-wrap px-4 py-3 font-sans text-xs text-slate-800 leading-relaxed max-h-52 overflow-y-auto">{preview.text}</pre>
+              </div>
+            ) : (
+              <div>
+                <dl className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-1.5 border-b border-slate-100 bg-slate-50/40 px-4 py-2.5 text-xs">
+                  <dt className="text-slate-500 font-medium">To (Handler)</dt>
+                  <dd className="font-medium text-slate-800">
+                    {coordEmail ? (
+                      <span>{selectedCoordinator?.name || preview.coordinatorName || 'Chandan'} &lt;{coordEmail}&gt;</span>
+                    ) : (
+                      <span>{preview?.coordinatorName || 'Chandan (Quality Coordinator)'} &lt;{preview?.coordinatorTo || 'chandan@naturalremedies.com'}&gt;</span>
+                    )}
+                  </dd>
+                  <dt className="text-slate-500 font-medium">Subject</dt>
+                  <dd className="font-semibold text-slate-900">{preview.handlerSubject || `Complaint ${complaint.complaintNumber} D1 stage Completion Update`}</dd>
+                </dl>
+                <pre className="whitespace-pre-wrap px-4 py-3 font-sans text-xs text-slate-800 leading-relaxed max-h-52 overflow-y-auto">{preview.handlerText || `Dear ${selectedCoordinator?.name || preview?.coordinatorName || 'Complaint Handler'},\n\nWe are pleased to inform you that complaint ${complaint.complaintNumber} has completed D1 Stage and moved to D2 stage.\n\nPlease proceed with the D2 stage process. If you have any concerns, please feel free to reach out.\n\nView Complaint Record: ${window.location.origin}/complaints/${complaint._id}\n\nBest Regards,\nCustomer Relationship Management Team\n\nNote: This is an auto-generated email. Please do not reply to this email.`}</pre>
+              </div>
+            )}
           </div>
 
-          <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs">
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
-                Coordinator (Complaint Handler)
+          <div className="rounded border border-blue-200 bg-blue-50/50 p-2.5 text-xs">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
+                Assigned Complaint Handler (Database Mapped)
               </span>
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
                 Database Mapped
               </span>
             </div>
-            <p className="font-semibold text-slate-900 text-sm">
-              {selectedCoordinator?.name || preview?.coordinatorName || complaint.coordinator?.name || 'Pooja (Quality Coordinator)'}
-              <span className="ml-1 text-slate-500 font-normal text-xs">
-                &lt;{coordEmail || preview?.coordinatorTo || complaint.coordinator?.email || 'pooja@naturalremedies.com'}&gt;
+            <p className="font-semibold text-slate-900 text-xs">
+              {selectedCoordinator?.name || preview?.coordinatorName || complaint.coordinator?.name || 'Chandan (Quality Coordinator)'}
+              <span className="ml-1 text-slate-500 font-normal text-[11px]">
+                &lt;{coordEmail || preview?.coordinatorTo || complaint.coordinator?.email || 'chandan@naturalremedies.com'}&gt;
               </span>
-            </p>
-            <p className="text-slate-500 text-[11px] mt-1">
-              Automatically assigned from the database based on SBU routing rules. A copy of this acknowledgement email will be sent to this coordinator.
             </p>
           </div>
 

@@ -78,15 +78,15 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
   const result = await mongoose.connection.transaction(async (session) => {
     const complaintDate = input.complaintDate || new Date();
     const complaintNumber = await nextComplaintNumber(complaintDate, session);
-    // Resolve Complaint Handler via Database Mapping (Pooja)
+    // Resolve Complaint Handler via Database Mapping (Chandan)
     const adminUser = await User.findOne({ email: 'admin@naturalremedies.com', isActive: true }).session(session).lean();
     let handler = null;
     if (input.coordinator) {
       handler = await User.findById(input.coordinator).session(session).lean();
     }
     if (!handler) {
-      // Prioritize database-mapped Complaint Handler: Pooja
-      handler = await User.findOne({ name: /Pooja/i, isActive: true }).session(session).lean();
+      // Prioritize database-mapped Complaint Handler: Chandan
+      handler = await User.findOne({ name: /Chandan/i, isActive: true }).session(session).lean();
     }
     if (!handler) {
       handler = await User.findOne({ roles: 'quality_coordinator', isActive: true }).session(session).lean();

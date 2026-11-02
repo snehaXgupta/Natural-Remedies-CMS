@@ -15,6 +15,20 @@ async function setup() {
 
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'AdminPass123!';
 
+  // Remove the previous temporary users (Pooja, Ramesh, Naveen, Narayan, Sivakumar)
+  const removed = await User.deleteMany({
+    email: {
+      $in: [
+        'pooja@naturalremedies.com',
+        'ramesh@naturalremedies.com',
+        'naveen@naturalremedies.com',
+        'narayan@naturalremedies.com',
+        'sivakumar@naturalremedies.com',
+      ],
+    },
+  });
+  console.log(`Removed ${removed.deletedCount} previous temporary users.`);
+
   // Ensure Departments
   const qaDept = await Department.findOneAndUpdate(
     { code: 'QA' },
@@ -28,146 +42,132 @@ async function setup() {
     { upsert: true, returnDocument: 'after' }
   );
 
-  console.log('Departments verified: QA, PROD');
-
-  // 1. Create Managers first (Ramesh & Narayan)
-  // Ramesh: Handler Manager
-  let ramesh = await User.findOne({ email: 'ramesh@naturalremedies.com' });
-  if (!ramesh) {
-    ramesh = new User({
-      name: 'Ramesh',
-      email: 'ramesh@naturalremedies.com',
-      designation: 'QA Head / Handler Manager',
+  // 1. Create Thippeswamy: Both FRP Manager & Handler Manager
+  let thippeswamy = await User.findOne({
+    $or: [{ email: 'thippeswamy@naturalremedies.com' }, { name: /Thippeswamy/i }],
+  });
+  if (!thippeswamy) {
+    thippeswamy = new User({
+      name: 'Thippeswamy',
+      email: 'thippeswamy@naturalremedies.com',
+      designation: 'Manager (FRP Manager & Handler Manager)',
       roles: ['reviewer', 'admin', 'employee'],
       department: qaDept._id,
       isActive: true,
       mustChangePassword: false,
     });
-    await ramesh.setPassword(adminPassword);
-    await ramesh.save();
-    console.log('Created Handler Manager: Ramesh (ramesh@naturalremedies.com)');
+    await thippeswamy.setPassword(adminPassword);
+    await thippeswamy.save();
+    console.log('Created Manager: Thippeswamy (thippeswamy@naturalremedies.com)');
   } else {
-    ramesh.name = 'Ramesh';
-    ramesh.designation = 'QA Head / Handler Manager';
-    ramesh.roles = ['reviewer', 'admin', 'employee'];
-    ramesh.department = qaDept._id;
-    await ramesh.save();
-    console.log('Updated Handler Manager: Ramesh');
+    thippeswamy.name = 'Thippeswamy';
+    thippeswamy.email = 'thippeswamy@naturalremedies.com';
+    thippeswamy.designation = 'Manager (FRP Manager & Handler Manager)';
+    thippeswamy.roles = ['reviewer', 'admin', 'employee'];
+    thippeswamy.department = qaDept._id;
+    await thippeswamy.save();
+    console.log('Updated Manager: Thippeswamy');
   }
 
-  // Set Ramesh as QA Department Manager
-  await Department.updateOne({ _id: qaDept._id }, { $set: { manager: ramesh._id } });
+  // Set Thippeswamy as Department Manager for both QA & PROD
+  await Department.updateOne({ _id: qaDept._id }, { $set: { manager: thippeswamy._id } });
+  await Department.updateOne({ _id: prodDept._id }, { $set: { manager: thippeswamy._id } });
 
-  // Narayan: FRP Manager
-  let narayan = await User.findOne({ email: 'narayan@naturalremedies.com' });
-  if (!narayan) {
-    narayan = new User({
-      name: 'Narayan',
-      email: 'narayan@naturalremedies.com',
-      designation: 'Production Head / FRP Manager',
-      roles: ['reviewer', 'employee'],
-      department: prodDept._id,
-      isActive: true,
-      mustChangePassword: false,
-    });
-    await narayan.setPassword(adminPassword);
-    await narayan.save();
-    console.log('Created FRP Manager: Narayan (narayan@naturalremedies.com)');
-  } else {
-    narayan.name = 'Narayan';
-    narayan.designation = 'Production Head / FRP Manager';
-    narayan.roles = ['reviewer', 'employee'];
-    narayan.department = prodDept._id;
-    await narayan.save();
-    console.log('Updated FRP Manager: Narayan');
-  }
-
-  // Set Narayan as Production Department Manager
-  await Department.updateOne({ _id: prodDept._id }, { $set: { manager: narayan._id } });
-
-  // 2. Create Pooja (Complaint Handler) -> Database Mapped to Ramesh
-  let pooja = await User.findOne({ email: 'pooja@naturalremedies.com' });
-  if (!pooja) {
-    pooja = new User({
-      name: 'Pooja',
-      email: 'pooja@naturalremedies.com',
+  // 2. Create Chandan: Complaint Handler (Database Mapping -> Manager: Thippeswamy)
+  let chandan = await User.findOne({
+    $or: [{ email: 'chandan@naturalremedies.com' }, { name: /Chandan/i }],
+  });
+  if (!chandan) {
+    chandan = new User({
+      name: 'Chandan',
+      email: 'chandan@naturalremedies.com',
       designation: 'Quality Coordinator / Complaint Handler',
       roles: ['quality_coordinator', 'employee'],
       department: qaDept._id,
-      manager: ramesh._id, // Database mapped to Handler Manager (Ramesh)
+      manager: thippeswamy._id, // Database mapped to Handler Manager (Thippeswamy)
       isActive: true,
       mustChangePassword: false,
     });
-    await pooja.setPassword(adminPassword);
-    await pooja.save();
-    console.log('Created Complaint Handler: Pooja (pooja@naturalremedies.com) -> Mapped to Manager: Ramesh');
+    await chandan.setPassword(adminPassword);
+    await chandan.save();
+    console.log('Created Complaint Handler: Chandan (chandan@naturalremedies.com) -> Mapped to Manager: Thippeswamy');
   } else {
-    pooja.name = 'Pooja';
-    pooja.designation = 'Quality Coordinator / Complaint Handler';
-    pooja.roles = ['quality_coordinator', 'employee'];
-    pooja.manager = ramesh._id;
-    pooja.department = qaDept._id;
-    await pooja.save();
-    console.log('Updated Complaint Handler: Pooja -> Mapped to Manager: Ramesh');
+    chandan.name = 'Chandan';
+    chandan.email = 'chandan@naturalremedies.com';
+    chandan.designation = 'Quality Coordinator / Complaint Handler';
+    chandan.roles = ['quality_coordinator', 'employee'];
+    chandan.manager = thippeswamy._id;
+    chandan.department = qaDept._id;
+    await chandan.save();
+    console.log('Updated Complaint Handler: Chandan -> Mapped to Manager: Thippeswamy');
   }
 
-  // 3. Create Naveen (FRP) -> Database Mapped to Narayan
-  let naveen = await User.findOne({ email: 'naveen@naturalremedies.com' });
-  if (!naveen) {
-    naveen = new User({
-      name: 'Naveen',
-      email: 'naveen@naturalremedies.com',
+  // 3. Create Shaikh Abdul K: FRP (System Selection -> Manager: Thippeswamy)
+  let shaikh = await User.findOne({
+    $or: [
+      { email: 'shaikh.abdul.k@naturalremedies.com' },
+      { email: 'shaikh.abdul@naturalremedies.com' },
+      { name: /Shaikh\s*Abdul/i },
+    ],
+  });
+  if (!shaikh) {
+    shaikh = new User({
+      name: 'Shaikh Abdul K',
+      email: 'shaikh.abdul.k@naturalremedies.com',
       designation: 'Production Officer / First Responsible Person (FRP)',
       roles: ['frp', 'employee'],
       department: prodDept._id,
-      manager: narayan._id, // Database mapped to FRP Manager (Narayan)
+      manager: thippeswamy._id, // Database mapped to FRP Manager (Thippeswamy)
       isActive: true,
       mustChangePassword: false,
     });
-    await naveen.setPassword(adminPassword);
-    await naveen.save();
-    console.log('Created FRP: Naveen (naveen@naturalremedies.com) -> Mapped to Manager: Narayan');
+    await shaikh.setPassword(adminPassword);
+    await shaikh.save();
+    console.log('Created FRP: Shaikh Abdul K (shaikh.abdul.k@naturalremedies.com) -> Mapped to Manager: Thippeswamy');
   } else {
-    naveen.name = 'Naveen';
-    naveen.designation = 'Production Officer / First Responsible Person (FRP)';
-    naveen.roles = ['frp', 'employee'];
-    naveen.manager = narayan._id;
-    naveen.department = prodDept._id;
-    await naveen.save();
-    console.log('Updated FRP: Naveen -> Mapped to Manager: Narayan');
+    shaikh.name = 'Shaikh Abdul K';
+    shaikh.email = 'shaikh.abdul.k@naturalremedies.com';
+    shaikh.designation = 'Production Officer / First Responsible Person (FRP)';
+    shaikh.roles = ['frp', 'employee'];
+    shaikh.manager = thippeswamy._id;
+    shaikh.department = prodDept._id;
+    await shaikh.save();
+    console.log('Updated FRP: Shaikh Abdul K -> Mapped to Manager: Thippeswamy');
   }
 
-  // 4. Create Sivakumar (Responsible Person - System Selection)
-  let sivakumar = await User.findOne({ email: 'sivakumar@naturalremedies.com' });
-  if (!sivakumar) {
-    sivakumar = new User({
-      name: 'Sivakumar',
-      email: 'sivakumar@naturalremedies.com',
-      designation: 'Maintenance & Engineering / Responsible Person',
+  // 4. Create Deepak: Responsible Person (System Selection)
+  let deepak = await User.findOne({
+    $or: [{ email: 'deepak@naturalremedies.com' }, { name: /Deepak/i }],
+  });
+  if (!deepak) {
+    deepak = new User({
+      name: 'Deepak',
+      email: 'deepak@naturalremedies.com',
+      designation: 'Maintenance & Engineering Lead / Responsible Person',
       roles: ['employee'],
       department: prodDept._id,
       isActive: true,
       mustChangePassword: false,
     });
-    await sivakumar.setPassword(adminPassword);
-    await sivakumar.save();
-    console.log('Created Responsible Person: Sivakumar (sivakumar@naturalremedies.com)');
+    await deepak.setPassword(adminPassword);
+    await deepak.save();
+    console.log('Created Responsible Person: Deepak (deepak@naturalremedies.com)');
   } else {
-    sivakumar.name = 'Sivakumar';
-    sivakumar.designation = 'Maintenance & Engineering / Responsible Person';
-    sivakumar.roles = ['employee'];
-    sivakumar.department = prodDept._id;
-    await sivakumar.save();
-    console.log('Updated Responsible Person: Sivakumar');
+    deepak.name = 'Deepak';
+    deepak.email = 'deepak@naturalremedies.com';
+    deepak.designation = 'Maintenance & Engineering Lead / Responsible Person';
+    deepak.roles = ['employee'];
+    deepak.department = prodDept._id;
+    await deepak.save();
+    console.log('Updated Responsible Person: Deepak');
   }
 
-  // Summary
-  console.log('\n=== TEAM CONFIGURATION SUMMARY ===');
-  console.log('1. Complaint Handler (Database Mapped)     : Pooja (pooja@naturalremedies.com)');
-  console.log('2. Handler Manager (Database Mapped)       : Ramesh (ramesh@naturalremedies.com) [Pooja.manager]');
-  console.log('3. FRP (System Selection)                  : Naveen (naveen@naturalremedies.com)');
-  console.log('4. FRP Manager (Database Mapped)           : Narayan (narayan@naturalremedies.com) [Naveen.manager]');
-  console.log('5. Responsible Person (System Selection)   : Sivakumar (sivakumar@naturalremedies.com)');
+  console.log('\n=== UPDATED TEAM MAPPING SUMMARY ===');
+  console.log('1. Handler (Database Mapping)              : Chandan (chandan@naturalremedies.com)');
+  console.log('2. FRP (System Selection)                  : Shaikh Abdul K (shaikh.abdul.k@naturalremedies.com)');
+  console.log('3. FRP Manager (Database Mapping)          : Thippeswamy (thippeswamy@naturalremedies.com)');
+  console.log('4. Responsible Person (System Selection)   : Deepak (deepak@naturalremedies.com)');
+  console.log('5. Handler Manager (Database Mapping)      : Thippeswamy (thippeswamy@naturalremedies.com)');
   console.log('All passwords: ' + adminPassword);
 
   await disconnectDatabase();
@@ -177,4 +177,3 @@ setup().catch((err) => {
   console.error('Setup failed:', err);
   process.exit(1);
 });
-

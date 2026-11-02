@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { Complaint, ComplaintStageRecord, User } from '../models/index.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
-import { d1Acknowledgement } from '../mail/templates.js';
+import { d1Acknowledgement, d1CompletionHandler } from '../mail/templates.js';
 import { findVisible, getDetail } from './complaintService.js';
 import * as workflow from './workflowService.js';
 import * as notifications from './notificationService.js';
@@ -19,14 +19,17 @@ export async function acknowledgementPreview(id, user, permissions) {
   if (complaint.coordinator) {
     coordinator = await User.findById(complaint.coordinator).select('name email').lean();
   }
-  const { subject, text } = d1Acknowledgement(complaint);
+  const requesterEmail = d1Acknowledgement(complaint, { recipientName: complaint.requester?.name });
+  const handlerEmail = d1CompletionHandler(complaint, { handlerName: coordinator?.name });
   return {
     to: complaint.requester?.email || null,
     coordinatorTo: coordinator?.email || null,
     coordinatorName: coordinator?.name || null,
     coordinatorId: coordinator?._id ? String(coordinator._id) : null,
-    subject,
-    text,
+    subject: requesterEmail.subject,
+    text: requesterEmail.text,
+    handlerSubject: handlerEmail.subject,
+    handlerText: handlerEmail.text,
   };
 }
 
@@ -92,30 +95,30 @@ export async function acknowledge(id, { remarks, coordinator: coordinatorId, ide
       { session },
     );
 
-    const emailTemplate = d1Acknowledgement(complaint);
-
-    // 1. Acknowledgement email to requester / originator
+    // 1. Acknowledgement email to requester / originator (SOP Page 5, Step 6.b)
+    const requesterEmail = d1Acknowledgement(complaint, { recipientName: complaint.requester?.name });
     const { notification, created } = await notifications.enqueue({
       type: 'D1_ACKNOWLEDGEMENT',
       complaint: complaint._id,
       recipient: complaint.requester.email,
       dedupeKey: `D1_ACK:${complaint._id}`,
-      message: emailTemplate,
+      message: requesterEmail,
       session,
     });
     queued = created ? notification : null;
 
-    // 2. Acknowledgement email to coordinator (if assigned)
+    // 2. D1 completion notification email to Complaint Handler (SOP Page 5, Step 6.a)
     if (effectiveCoordinator) {
       const coordUser = await User.findById(effectiveCoordinator).session(session).lean();
       if (coordUser?.email && coordUser.email.toLowerCase() !== complaint.requester?.email?.toLowerCase()) {
+        const handlerEmail = d1CompletionHandler(complaint, { handlerName: coordUser.name });
         await notifications.enqueue({
-          type: 'D1_ACKNOWLEDGEMENT',
+          type: 'D1_COMPLETION_HANDLER',
           complaint: complaint._id,
           recipient: coordUser.email,
           recipientUser: coordUser._id,
-          dedupeKey: `D1_ACK_COORD:${complaint._id}`,
-          message: emailTemplate,
+          dedupeKey: `D1_COMPLETION_HANDLER:${complaint._id}`,
+          message: handlerEmail,
           session,
         });
       }

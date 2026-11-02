@@ -12,7 +12,7 @@ import {
 import { STATUSES as S } from '../config/workflow.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
-import { d3ApprovalRequest, d3CapaRejected, capaImplementationAssignment } from '../mail/templates.js';
+import { d3ApprovalRequest, d3CapaRejected, capaImplementationAssignment, rootCausesApprovedNotice } from '../mail/templates.js';
 import * as inApp from './inAppNotificationService.js';
 import { findVisible, getDetail } from './complaintService.js';
 import { canEdit, buildTree } from './d3Service.js';
@@ -335,8 +335,57 @@ export async function decide(id, decision, { remarks, idempotencyKey }, { user, 
     );
 
     if (approve) {
-      const capas = await CapaRecord.find({ complaint: updated._id, deletedAt: null, capaRequired: true }).session(session).lean();
-      for (const capa of capas) {
+      const allCapas = await CapaRecord.find({ complaint: updated._id, deletedAt: null }).session(session).lean();
+      const allRootCauses = await RootCause.find({ complaint: updated._id, deletedAt: null }).session(session).lean();
+
+      // 1. Notify FRP confirming all root causes approved by FRP Manager (SOP Page 13, Step 20.n)
+      if (updated.frp) {
+        const frp = await User.findById(updated.frp, { name: 1, email: 1 }).session(session).lean();
+        if (frp?.email) {
+          await notifications.enqueue({
+            type: 'ROOT_CAUSES_APPROVED',
+            complaint: updated._id,
+            recipient: frp.email,
+            recipientUser: frp._id,
+            dedupeKey: `ROOT_CAUSES_APPROVED_FRP:${updated._id}:${analysis.submissionCount}`,
+            message: rootCausesApprovedNotice(updated, {
+              recipientName: frp.name,
+              managerName: user.name,
+              isHandler: false,
+              count: allRootCauses.length || allCapas.length || 1,
+              rootCauses: allCapas,
+            }),
+            session,
+          });
+          queued = true;
+        }
+      }
+
+      // 2. Notify Complaint Handler that root causes have been approved (SOP Page 13, Step 20.o)
+      if (updated.coordinator) {
+        const handler = await User.findById(updated.coordinator, { name: 1, email: 1 }).session(session).lean();
+        if (handler?.email) {
+          await notifications.enqueue({
+            type: 'ROOT_CAUSES_APPROVED',
+            complaint: updated._id,
+            recipient: handler.email,
+            recipientUser: handler._id,
+            dedupeKey: `ROOT_CAUSES_APPROVED_HANDLER:${updated._id}:${analysis.submissionCount}`,
+            message: rootCausesApprovedNotice(updated, {
+              recipientName: handler.name,
+              managerName: user.name,
+              isHandler: true,
+              count: allRootCauses.length || allCapas.length || 1,
+              rootCauses: allCapas,
+            }),
+            session,
+          });
+          queued = true;
+        }
+      }
+
+      // 3. Assign each CAPA to the Responsible Person (SOP Page 14, Step 23)
+      for (const capa of allCapas.filter((c) => c.capaRequired)) {
         if (capa.responsiblePerson) {
           const rpUser = await User.findById(capa.responsiblePerson, { name: 1, email: 1 }).session(session).lean();
           if (rpUser?.email) {
