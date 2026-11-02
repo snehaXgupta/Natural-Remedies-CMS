@@ -41,6 +41,20 @@ export function backoff(attempts) {
  */
 export async function enqueue({ type, channel = 'email', complaint, recipient, recipientUser, cc, bcc, attachments, dedupeKey, message, session }) {
   if (!recipient) throw new Error('Notification recipient is required');
+
+  // Prevent repeated failures: validate recipient email format and reject fake/dummy domains upfront
+  const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  const DUMMY_DOMAINS = ['example.com', 'example.test', 'test.com', 'dummy.com', 'localhost'];
+
+  if (channel === 'email') {
+    const email = String(recipient || '').trim().toLowerCase();
+    const domain = email.split('@')[1] || '';
+    if (!EMAIL_REGEX.test(email) || DUMMY_DOMAINS.includes(domain)) {
+      logger.warn({ recipient, type }, 'Notification blocked: invalid or unroutable email recipient');
+      return { notification: null, created: false };
+    }
+  }
+
   const existing = await Notification.findOne({ dedupeKey }).session(session ?? null);
   if (existing) return { notification: existing, created: false };
 
@@ -142,14 +156,25 @@ async function sendOne(n) {
     return 'SENT';
   } catch (err) {
     const reason = String(err?.message || err).slice(0, 2000);
-    const final = n.attempts >= env.NOTIFY_MAX_ATTEMPTS;
+    const code = err?.responseCode || err?.code;
+
+    // Non-retryable permanent failures:
+    // 1. SMTP 5xx (550 Mailbox not found, 553 Invalid recipient, 501 Syntax error, 554 Transaction failed)
+    // 2. Nodemailer EENVELOPE / ENOTFOUND errors
+    // 3. String patterns matching invalid mailbox or user unknown
+    const isPermanent =
+      (typeof code === 'number' && code >= 500 && code < 600) ||
+      code === 'EENVELOPE' ||
+      /5\d{2}|invalid|mailbox|recipient|user unknown|not found|syntax|rejected|denied|domain|unreachable/i.test(reason);
+
+    const final = isPermanent || n.attempts >= env.NOTIFY_MAX_ATTEMPTS;
     await Notification.updateOne(
       { _id: n._id },
       {
         $set: {
           status: final ? 'FAILED' : 'QUEUED',
-          lastError: reason,
-          lockedUntil: null,
+          lastError: isPermanent ? `Permanent error (no retries): ${reason}` : reason,
+          lockedUntil: final ? new Date(Date.now() + 365 * 24 * 3600 * 1000) : null,
           nextAttemptAt: final ? n.nextAttemptAt : new Date(Date.now() + backoff(n.attempts)),
         },
       },

@@ -1279,6 +1279,7 @@ export function ComplaintDetailPage() {
                   onChanged={() => setHistoryKey((k) => k + 1)}
                   onApprove={() => setDeciding('approve')}
                   onReject={() => setDeciding('reject')}
+                  onSubmitForApproval={() => setSubmitting(true)}
                   onStartD4={handleStartD4}
                 />
               </div>

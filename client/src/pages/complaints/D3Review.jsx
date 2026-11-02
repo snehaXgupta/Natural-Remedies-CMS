@@ -33,7 +33,13 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPr
       .then(([r, c]) => {
         setReady(r.data.issues);
         setReviewers(c.data);
-        setReviewerId((prev) => prev || (c.data.length === 1 ? c.data[0]._id : ''));
+        const mapped = r.data.frpManager;
+        if (mapped) {
+          setMappedManager(mapped);
+          setReviewerId(mapped._id);
+        } else if (c.data.length === 1) {
+          setReviewerId(c.data[0]._id);
+        }
       })
       .catch((err) => setErrors([readError(err).message]));
   }, [open, complaint._id]);
@@ -83,14 +89,26 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPr
       ) : ready ? (
         <div className="space-y-4">
           <p className="flex items-center gap-2 text-ok">✓ The analysis has everything needed for review.</p>
-          <Field label="Reviewer" required hint="The person who will approve or reject this analysis.">
-            {(p) => (
-              <select {...p} className="field-input" value={reviewerId} onChange={(e) => setReviewerId(e.target.value)}>
-                <option value="">Select a reviewer</option>
-                {reviewers.map((r) => <option key={r._id} value={r._id}>{r.name}{r.designation ? `, ${r.designation}` : ''}</option>)}
-              </select>
-            )}
-          </Field>
+          {mappedManager ? (
+            <div className="rounded border border-blue-200 bg-blue-50/70 p-3 space-y-1">
+              <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
+                Assigned FRP Manager (Database Mapped)
+              </span>
+              <p className="text-sm font-medium text-slate-900">
+                {mappedManager.name} {mappedManager.designation ? `(${mappedManager.designation})` : ''}
+              </p>
+              <p className="text-xs text-slate-500">{mappedManager.email}</p>
+            </div>
+          ) : (
+            <Field label="Reviewer" required hint="The person who will approve or reject this analysis.">
+              {(p) => (
+                <select {...p} className="field-input" value={reviewerId} onChange={(e) => setReviewerId(e.target.value)}>
+                  <option value="">Select a reviewer</option>
+                  {reviewers.map((r) => <option key={r._id} value={r._id}>{r.name}{r.designation ? `, ${r.designation}` : ''}</option>)}
+                </select>
+              )}
+            </Field>
+          )}
           {reviewers.length === 0 && <p className="text-sm text-bad">No active user can review D3. An administrator needs to give someone the Reviewer role.</p>}
           <Field label={resubmit ? 'What changed since the rejection' : 'Remarks for the reviewer'} hint="Optional, but helps the reviewer.">
             {(p) => <textarea {...p} rows={3} maxLength={2000} className="field-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />}

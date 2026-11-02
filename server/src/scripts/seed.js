@@ -42,8 +42,8 @@ const DEMO_USERS = [
   { name: 'Sneha', email: 'sneha@naturalremedies.com', designation: 'Quality Coordinator (Omnicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-OMNI' },
   { name: 'Unnati', email: 'unnati@naturalremedies.com', designation: 'Quality Coordinator (Remicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-REMI' },
   { name: 'Shweta', email: 'shweta@naturalremedies.com', designation: 'Quality Coordinator (Packaging & Phytocare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-PHYTO' },
-  { name: 'Demo FRP', email: 'frp@example.test', roles: ['frp'], dept: 'PROD' },
-  { name: 'Demo Reviewer', email: 'reviewer@example.test', roles: ['reviewer'], dept: 'QA' },
+  { name: 'FRP (Sneha)', email: 'snehaa1078@gmail.com', designation: 'Production Executive', roles: ['frp', 'employee'], dept: 'PROD' },
+  { name: 'Demo Reviewer', email: 'snehaagmail.com', roles: ['reviewer'], dept: 'QA' },
   { name: 'Demo Employee', email: 'employee@example.test', roles: ['employee'], dept: 'CRM' },
 ];
 

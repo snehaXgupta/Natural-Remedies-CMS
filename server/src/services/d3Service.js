@@ -46,7 +46,7 @@ async function editable(id, user, permissions) {
   if (!analysis) {
     await RootCauseAnalysis.updateOne(
       { complaint: complaint._id },
-      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: [] } },
+      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: ['WHY_WHY'], problemStatement: complaint.shortDescription || '' } },
       { upsert: true },
     );
     analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id });
@@ -74,7 +74,7 @@ export async function start(id, { idempotencyKey }, { user, permissions, context
     if (replayed) return;
     await RootCauseAnalysis.updateOne(
       { complaint: complaint._id },
-      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: [] } },
+      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: ['WHY_WHY'], problemStatement: complaint.shortDescription || '' } },
       { upsert: true, session },
     );
   });
@@ -103,10 +103,27 @@ export async function getD3(id, user, permissions) {
   if (!analysis && [S.D3_IN_PROGRESS, S.D3_PENDING_APPROVAL, S.D3_REWORK, S.D3_APPROVED, S.D4_IN_PROGRESS, S.CLOSED].includes(complaint.status)) {
     await RootCauseAnalysis.updateOne(
       { complaint: complaint._id },
-      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: [] } },
+      { $setOnInsert: { complaint: complaint._id, status: 'DRAFT', methods: ['WHY_WHY'], problemStatement: complaint.shortDescription || '' } },
       { upsert: true },
     );
     analysis = await RootCauseAnalysis.findOne({ complaint: complaint._id }).populate('updatedBy', 'name').lean();
+  }
+  if (analysis) {
+    let needsUpdate = false;
+    const updateSet = {};
+    if (!analysis.problemStatement?.trim() && complaint.shortDescription?.trim()) {
+      updateSet.problemStatement = complaint.shortDescription.trim();
+      analysis.problemStatement = complaint.shortDescription.trim();
+      needsUpdate = true;
+    }
+    if (!analysis.methods || analysis.methods.length === 0) {
+      updateSet.methods = ['WHY_WHY'];
+      analysis.methods = ['WHY_WHY'];
+      needsUpdate = true;
+    }
+    if (needsUpdate) {
+      await RootCauseAnalysis.updateOne({ _id: analysis._id }, { $set: updateSet });
+    }
   }
   if (!analysis) {
     return { analysis: null, categories: FISHBONE_CATEGORIES, fishbone: buildTree([]), rootCauses: [], canEdit: false };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, CornerDownRight, Lock, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, CornerDownRight, Lock, ChevronDown, X } from 'lucide-react';
 import { d3Api, complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { readError } from '../../api/client.js';
@@ -412,7 +412,7 @@ function CapaModal({ open, initial, people, onClose, onSave }) {
   );
 }
 
-function RootCauses({ complaintId, d3, setData, canEdit, onReload }) {
+function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForApproval }) {
   const notify = useToast();
   const [rcModalOpen, setRcModalOpen] = useState(false);
   const [isEditingTable, setIsEditingTable] = useState(false);
@@ -1027,13 +1027,66 @@ function CapaImplementationSection({ complaint, d3, onReload }) {
 
 /* ---------------- Tab ---------------- */
 
-export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onReject, onStartD4 }) {
+export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onReject, onSubmitForApproval, onStartD4 }) {
   const [latestRejection, setLatestRejection] = useState(null);
   const [activeStage, setActiveStage] = useState('--None--');
   const [state, setState] = useState({ loading: true, error: null, data: null });
+  const [isEditingProblem, setIsEditingProblem] = useState(false);
+  const [problemInput, setProblemInput] = useState('');
+  const [savingProblem, setSavingProblem] = useState(false);
+  const notify = useToast();
+
   const load = () => d3Api.get(complaint._id).then((r) => setState({ loading: false, error: null, data: r.data })).catch((e) => setState({ loading: false, error: readError(e).message, data: null }));
   useEffect(() => { load(); }, [complaint._id, complaint.status]); // eslint-disable-line
   const setData = (data) => { setState({ loading: false, error: null, data }); onChanged?.(); };
+
+  useEffect(() => {
+    if (state.data?.analysis) {
+      setProblemInput(state.data.analysis.problemStatement || complaint.shortDescription || '');
+      if (activeStage === '--None--') {
+        const methods = state.data.analysis.methods || [];
+        const hasWhyWhy = state.data.analysis.whyWhy?.some((w) => w.why || w.because);
+        if (methods.includes('FISHBONE') && !methods.includes('WHY_WHY')) {
+          setActiveStage('Fishbone');
+        } else if (hasWhyWhy || methods.includes('WHY_WHY')) {
+          setActiveStage('Why-Why');
+        }
+      }
+    }
+  }, [state.data, complaint.shortDescription]);
+
+  const handleSaveProblem = async () => {
+    if (!problemInput.trim()) {
+      notify('Please enter a problem statement.', 'bad');
+      return;
+    }
+    setSavingProblem(true);
+    try {
+      const res = await d3Api.updateAnalysis(complaint._id, {
+        version: state.data?.analysis?.__v,
+        problemStatement: problemInput.trim(),
+      });
+      setState((prev) => ({ ...prev, data: res.data }));
+      setIsEditingProblem(false);
+      notify('Problem statement saved.');
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    } finally {
+      setSavingProblem(false);
+    }
+  };
+
+  const handleSelectStage = (val) => {
+    setActiveStage(val);
+    if (!state.data?.canEdit || !state.data?.analysis) return;
+    const method = val === 'Why-Why' ? 'WHY_WHY' : val === 'Fishbone' ? 'FISHBONE' : null;
+    if (method && !state.data.analysis.methods?.includes(method)) {
+      const newMethods = Array.from(new Set([...(state.data.analysis.methods || []), method]));
+      d3Api.updateAnalysis(complaint._id, { version: state.data.analysis.__v, methods: newMethods })
+        .then((r) => setState((prev) => ({ ...prev, data: r.data })))
+        .catch(() => {});
+    }
+  };
 
   if (state.loading) return <Loading label="Loading analysis" />;
   if (state.error) return <ErrorState message={state.error} onRetry={load} />;
@@ -1059,12 +1112,74 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
         Complaint Stage D3 Component
       </h2>
 
+      {/* Problem Statement Card (Matches SOP EQMS Page 9/10) */}
+      <div className="rounded border border-slate-200 bg-white shadow-2xs overflow-hidden">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5">
+          <h3 className="font-bold text-xs text-slate-800 uppercase tracking-wide">
+            Problem Statement
+          </h3>
+          {canEdit && (
+            <div className="flex items-center gap-2">
+              {isEditingProblem ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveProblem}
+                    disabled={savingProblem}
+                    className="rounded bg-[#0176d3] px-3 py-1 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs disabled:opacity-50"
+                  >
+                    {savingProblem ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProblemInput(d3.analysis?.problemStatement || complaint.shortDescription || '');
+                      setIsEditingProblem(false);
+                    }}
+                    className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditingProblem(true)}
+                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="p-3.5">
+          {isEditingProblem ? (
+            <textarea
+              value={problemInput}
+              onChange={(e) => setProblemInput(e.target.value)}
+              rows={2}
+              maxLength={2000}
+              placeholder="State the observed problem or defect clearly..."
+              className="w-full rounded border border-slate-300 p-2 text-xs text-slate-800 focus:border-[#0176d3] focus:outline-none"
+            />
+          ) : (
+            <p className="text-xs text-slate-800 leading-relaxed bg-slate-50/70 p-2.5 rounded border border-slate-200/60">
+              {d3.analysis?.problemStatement || complaint.shortDescription || (
+                <span className="text-slate-400 italic">No problem statement defined yet.</span>
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Select Stage Dropdown matching screenshot media_1793190058282_423d3783.png */}
       <div className="bg-white rounded border border-slate-200 p-3 shadow-2xs">
         <label className="block text-xs font-normal text-slate-700 mb-1">Select Stage</label>
         <select
           value={activeStage}
-          onChange={(e) => setActiveStage(e.target.value)}
+          onChange={(e) => handleSelectStage(e.target.value)}
           className="w-full h-8 rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-[#0176d3] focus:outline-none font-normal"
         >
           <option value="--None--">--None--</option>
@@ -1120,7 +1235,7 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
       {/* Root Causes & CAPA Stage Component - visible below Fishbone & Why-Why (PDF Page 10-14) */}
       {(activeStage === 'Fishbone' || activeStage === 'Why-Why') && (
         <>
-          <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} onReload={load} />
+          <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} onReload={load} onSubmitForApproval={onSubmitForApproval} />
           <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
         </>
       )}

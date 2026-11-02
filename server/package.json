@@ -5,6 +5,7 @@
     "dev": "node --watch --watch-preserve-output src/server.js",
     "start": "node src/server.js",
     "seed": "node src/scripts/seed.js",
+    "clean": "node src/scripts/cleanDatabase.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:indexes": "node src/scripts/syncIndexes.js"

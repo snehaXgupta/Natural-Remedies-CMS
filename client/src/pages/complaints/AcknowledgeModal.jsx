@@ -11,7 +11,7 @@ const newKey = () => `ack-${crypto.randomUUID()}`;
 
 /**
  * Shows exactly what the requester and coordinator will receive before approving.
- * Allows manually selecting or changing the Coordinator on the fly.
+ * Coordinator is database-mapped based on SBU and cannot be manually altered.
  * One idempotency key per dialog: if the request times out and the user
  * presses the button again, the server recognises the repeat.
  */
@@ -100,7 +100,7 @@ export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
                 {coordEmail ? (
                   <span className="text-slate-800 font-medium">{selectedCoordinator?.name || preview.coordinatorName || ''} &lt;{coordEmail}&gt;</span>
                 ) : (
-                  <span className="text-amber-600">None selected (select below to notify coordinator)</span>
+                  <span className="text-slate-700 font-medium">{preview?.coordinatorName || 'Mapped Quality Coordinator'} &lt;{preview?.coordinatorTo || 'pooja@naturalremedies.com'}&gt;</span>
                 )}
               </dd>
               <dt className="text-ink-muted">Subject</dt>
@@ -109,26 +109,25 @@ export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
             <pre className="whitespace-pre-wrap px-4 py-3 font-sans text-sm text-slate-800 leading-relaxed">{preview.text}</pre>
           </div>
 
-          <Field label="Coordinator (Quality Coordinator)" hint="Manually selected coordinator who also receives a copy of this acknowledgement email.">
-            {(p) => (
-              <select
-                {...p}
-                className="field-input"
-                value={coordinatorId}
-                onChange={(e) => setCoordinatorId(e.target.value)}
-              >
-                <option value="">Select Coordinator...</option>
-                {coordinators.map((u) => {
-                  const dept = u.department?.name || u.designation || 'Quality Assurance';
-                  return (
-                    <option key={u._id} value={u._id}>
-                      {u.name} — {dept} ({u.email})
-                    </option>
-                  );
-                })}
-              </select>
-            )}
-          </Field>
+          <div className="rounded border border-slate-200 bg-slate-50 p-3 text-xs">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">
+                Coordinator (Complaint Handler)
+              </span>
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
+                Database Mapped
+              </span>
+            </div>
+            <p className="font-semibold text-slate-900 text-sm">
+              {selectedCoordinator?.name || preview?.coordinatorName || complaint.coordinator?.name || 'Pooja (Quality Coordinator)'}
+              <span className="ml-1 text-slate-500 font-normal text-xs">
+                &lt;{coordEmail || preview?.coordinatorTo || complaint.coordinator?.email || 'pooja@naturalremedies.com'}&gt;
+              </span>
+            </p>
+            <p className="text-slate-500 text-[11px] mt-1">
+              Automatically assigned from the database based on SBU routing rules. A copy of this acknowledgement email will be sent to this coordinator.
+            </p>
+          </div>
 
           <Field label="Internal remarks" hint="Optional. Recorded in the complaint history; never sent to the requester.">
             {(p) => <textarea {...p} rows={2} maxLength={2000} className="field-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} />}

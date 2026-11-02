@@ -38,8 +38,30 @@ import * as audit from './auditService.js';
 
 /** Everything that must be true before submitting, as plain-language messages. */
 export async function readinessIssues(complaintId) {
-  const analysis = await RootCauseAnalysis.findOne({ complaint: complaintId }).lean();
+  let analysis = await RootCauseAnalysis.findOne({ complaint: complaintId }).lean();
   if (!analysis) return ['Start the analysis first.'];
+
+  // Auto-backfill problem statement from complaint.shortDescription if missing
+  if (!analysis.problemStatement?.trim()) {
+    const complaint = await mongoose.model('Complaint').findById(complaintId).lean();
+    if (complaint?.shortDescription?.trim()) {
+      await RootCauseAnalysis.updateOne(
+        { _id: analysis._id },
+        { $set: { problemStatement: complaint.shortDescription.trim() } }
+      );
+      analysis.problemStatement = complaint.shortDescription.trim();
+    }
+  }
+
+  // Auto-default methods to WHY_WHY if empty
+  if (!analysis.methods?.length) {
+    await RootCauseAnalysis.updateOne(
+      { _id: analysis._id },
+      { $set: { methods: ['WHY_WHY'] } }
+    );
+    analysis.methods = ['WHY_WHY'];
+  }
+
   const issues = [];
   if (!analysis.methods?.length) issues.push('Choose an analysis method: Why-Why, Fishbone or both.');
   if (!analysis.problemStatement?.trim()) issues.push('Enter the problem statement.');
@@ -91,7 +113,16 @@ export async function getFrpManager(complaint) {
 
 export async function readiness(id, user, permissions) {
   const complaint = await findVisible(id, user, permissions, { lean: true });
-  return { issues: await readinessIssues(complaint._id) };
+  const frpManager = await getFrpManager(complaint);
+  return {
+    issues: await readinessIssues(complaint._id),
+    frpManager: frpManager ? {
+      _id: frpManager._id,
+      name: frpManager.name,
+      email: frpManager.email,
+      designation: frpManager.designation,
+    } : null,
+  };
 }
 
 /** Active users who may review D3, excluding the person asking. */
