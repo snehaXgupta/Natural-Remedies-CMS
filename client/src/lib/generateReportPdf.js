@@ -2,7 +2,7 @@ import { jsPDF } from 'jspdf';
 import { NATURAL_REMEDIES_LOGO } from './logoBase64.js';
 
 export const formatSopDate = (v) => {
-  if (!v) return '';
+  if (!v) return '—';
   const d = new Date(v);
   if (isNaN(d.getTime())) return String(v);
   const day = String(d.getDate()).padStart(2, '0');
@@ -11,109 +11,271 @@ export const formatSopDate = (v) => {
   return `${day}-${month}-${year}`;
 };
 
+// 6 Categories matching Salesforce QEQMS documentation
+const FISHBONE_CATS = [
+  { key: 'Manpower', label: 'MANPOWER', color: [255, 152, 0], half: 'top', col: 0, pillW: 24 },
+  { key: 'Method', label: 'METHOD', color: [233, 30, 99], half: 'top', col: 1, pillW: 22 },
+  { key: 'Machine', label: 'MACHINE', color: [156, 39, 176], half: 'top', col: 2, pillW: 22 },
+  { key: 'Material', label: 'MATERIAL', color: [103, 58, 183], half: 'bottom', col: 0, pillW: 24 },
+  { key: 'Mother Nature', alias: 'Environment', label: 'Milieu / Environmental', color: [0, 188, 212], half: 'bottom', col: 1, pillW: 32 },
+  { key: 'Measurement', label: 'MEASUREMENT', color: [76, 175, 80], half: 'bottom', col: 2, pillW: 26 },
+];
+
+/**
+ * Draws the official Natural Remedies SOP Header Box (NR/QAD/SOP/001-F01/04)
+ */
+function drawSopHeader(doc, margin, y, pageWidth, effDate) {
+  const headerHeight = 36;
+  const splitColX = margin + 78; // Left box = 78mm, Right box = 104mm
+  const valColX = splitColX + 34; // Label = 34mm, Value = 70mm
+
+  doc.setDrawColor(40, 40, 40);
+  doc.setLineWidth(0.25);
+  doc.rect(margin, y, pageWidth, headerHeight);
+
+  // Vertical dividers
+  doc.line(splitColX, y, splitColX, y + 30);
+  doc.line(valColX, y, valColX, y + 30);
+
+  // Horizontal dividers
+  doc.line(splitColX, y + 6, margin + pageWidth, y + 6);
+  doc.line(splitColX, y + 12, margin + pageWidth, y + 12);
+  doc.line(margin, y + 18, margin + pageWidth, y + 18);
+  doc.line(margin, y + 24, margin + pageWidth, y + 24);
+  doc.line(margin, y + 30, margin + pageWidth, y + 30);
+
+  // Logo
+  try {
+    if (NATURAL_REMEDIES_LOGO) {
+      const logoW = 20;
+      const logoH = 15;
+      const logoX = margin + (78 - logoW) / 2;
+      const logoY = y + (18 - logoH) / 2;
+      doc.addImage(NATURAL_REMEDIES_LOGO, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
+    }
+  } catch {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(34, 139, 34);
+    doc.text('natural REMEDIES', margin + 39, y + 11, { align: 'center' });
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.setTextColor(0, 0, 0);
+
+  // Metadata right rows
+  doc.text('FORMAT NO', splitColX + 2.5, y + 4.2);
+  doc.text(': NR/QAD/SOP/001-F01/04', valColX + 2.5, y + 4.2);
+
+  doc.text('EFFECTIVE DATE', splitColX + 2.5, y + 10.2);
+  doc.text(`: ${effDate}`, valColX + 2.5, y + 10.2);
+
+  doc.text('EXPIRY DATE', splitColX + 2.5, y + 16.2);
+  doc.text(':', valColX + 2.5, y + 16.2);
+
+  // Row 4: QAD & SUPERSEDES
+  doc.setFontSize(7.5);
+  doc.text('QAD', margin + 39, y + 22.2, { align: 'center' });
+  doc.setFontSize(7);
+  doc.text('SUPERSEDES', splitColX + 2.5, y + 22.2);
+  doc.text(': 00', valColX + 2.5, y + 22.2);
+
+  // Row 5: SOP & STATUS
+  doc.setFontSize(7.5);
+  doc.text('STANDARD OPERATING PROCEDURE', margin + 39, y + 28.2, { align: 'center' });
+  doc.setFontSize(7);
+  doc.text('STATUS', splitColX + 2.5, y + 28.2);
+  doc.text(': Published and Active', valColX + 2.5, y + 28.2);
+
+  // Row 6: Title Banner
+  doc.setFontSize(8);
+  doc.text('TITLE:COMPLAINT MANAGMENT REPORT', margin + pageWidth / 2, y + 34.5, { align: 'center' });
+
+  return y + headerHeight;
+}
+
+/**
+ * Draws the 5 Whys Analysis table matching Salesforce SOP Page 9 Step 14.h
+ */
+function drawWhyWhyTable(doc, startX, startY, width, height, problemText, whyWhyList = []) {
+  // 1. Problem Statement
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Problem Statement: ${problemText || 'Identified Problem'}`, startX + 1, startY + 4);
+
+  // 2. Table Header
+  const tableTop = startY + 8;
+  const headerH = 6;
+  const col1W = Math.round(width * 0.45);
+  const col2W = width - col1W;
+
+  doc.setFillColor(241, 245, 249);
+  doc.rect(startX, tableTop, width, headerH, 'FD');
+  doc.setDrawColor(180, 185, 195);
+  doc.setLineWidth(0.2);
+  doc.line(startX + col1W, tableTop, startX + col1W, tableTop + headerH);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('Question', startX + 3, tableTop + 4.2);
+  doc.text('Answer', startX + col1W + 3, tableTop + 4.2);
+
+  // 3. Five Question-Answer Rows
+  const rowCount = 5;
+  const rowH = 22;
+
+  for (let i = 0; i < rowCount; i++) {
+    const rowY = tableTop + headerH + i * rowH;
+    const item = whyWhyList[i] || {};
+    const qText = item.why ? item.why : Question ;
+    const aText = item.because ? item.because : (item.why ? '—' : Answer );
+
+    if (i % 2 === 1) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(startX, rowY, width, rowH, 'FD');
+    } else {
+      doc.rect(startX, rowY, width, rowH, 'S');
+    }
+    doc.line(startX + col1W, rowY, startX + col1W, rowY + rowH);
+
+    doc.setFont('helvetica', item.why ? 'bold' : 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(item.why ? 15 : 120, item.why ? 23 : 120, item.why ? 42 : 120);
+    const qLines = doc.splitTextToSize(qText, col1W - 6);
+    doc.text(qLines.slice(0, 5), startX + 3, rowY + 5);
+
+    doc.setFont('helvetica', item.because ? 'normal' : 'italic');
+    doc.setFontSize(7);
+    doc.setTextColor(item.because ? 15 : 120, item.because ? 23 : 120, item.because ? 42 : 120);
+    const aLines = doc.splitTextToSize(aText, col2W - 6);
+    doc.text(aLines.slice(0, 5), startX + col1W + 3, rowY + 5);
+  }
+}
+
+/**
+ * Draws the visual Ishikawa Fishbone Diagram matching the Salesforce SOP exactly
+ */
+function drawFishboneDiagram(doc, startX, startY, width, height, problemText, causesMap) {
+  const spineY = startY + height / 2;
+  const spineStartX = startX + 6;
+  const spineEndX = startX + width - 26;
+
+  // 1. Main Horizontal Spine
+  doc.setDrawColor(82, 82, 91);
+  doc.setLineWidth(0.7);
+  doc.line(spineStartX, spineY, spineEndX, spineY);
+
+  // 2. Right Head Oval (Identified Root Cause / Problem)
+  const ovalCenterX = startX + width - 14;
+  const ovalRx = 14;
+  const ovalRy = 10;
+  doc.setFillColor(225, 29, 72); // Raspberry red
+  doc.setDrawColor(190, 18, 60);
+  doc.ellipse(ovalCenterX, spineY, ovalRx, ovalRy, 'FD');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  const headLabel = (problemText || 'Identified Problem').trim();
+  const splitHead = doc.splitTextToSize(headLabel, 22);
+  const textOffset = splitHead.length > 1 ? -1 : 1;
+  doc.text(splitHead.slice(0, 2), ovalCenterX, spineY + textOffset, { align: 'center' });
+
+  // 3. Categories & Diagonal Ribs
+  const colCenters = [startX + 32, startX + 74, startX + 116];
+  const ribIntersects = [startX + 60, startX + 102, startX + 144];
+
+  FISHBONE_CATS.forEach((cat) => {
+    const isTop = cat.half === 'top';
+    const pillCenterX = colCenters[cat.col];
+    const pillCenterY = isTop ? startY + 8 : startY + height - 8;
+    const ribIntersectX = ribIntersects[cat.col];
+
+    // Diagonal Rib Line
+    doc.setDrawColor(82, 82, 91);
+    doc.setLineWidth(0.45);
+    const ribStartY = isTop ? pillCenterY + 4 : pillCenterY - 4;
+    doc.line(pillCenterX, ribStartY, ribIntersectX, spineY);
+
+    // Pill Category Capsule
+    doc.setFillColor(...cat.color);
+    doc.setDrawColor(...cat.color);
+    const pillW = cat.pillW;
+    const pillH = 6;
+    doc.roundedRect(pillCenterX - pillW / 2, pillCenterY - pillH / 2, pillW, pillH, 3, 3, 'FD');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(cat.pillW > 28 ? 5.2 : 6);
+    doc.text(cat.label, pillCenterX, pillCenterY + 1.6, { align: 'center' });
+
+    // Causes attached to rib
+    const rawCauses = causesMap[cat.key] || (cat.alias && causesMap[cat.alias]) || [];
+    const causes = (rawCauses.length ? rawCauses : ['None Identified']).slice(0, 3);
+
+    causes.forEach((causeItem, cIdx) => {
+      const causeText = typeof causeItem === 'string' ? causeItem : (causeItem?.text || 'Cause');
+      const frac = (cIdx + 1) / (causes.length + 1);
+      const bx = pillCenterX + (ribIntersectX - pillCenterX) * frac;
+      const by = ribStartY + (spineY - ribStartY) * frac;
+
+      // Horizontal sub-branch
+      const branchLen = 18;
+      const bEndX = bx - branchLen;
+      doc.setDrawColor(120, 120, 120);
+      doc.setLineWidth(0.25);
+      doc.line(bx, by, bEndX, by);
+
+      // Text box for cause
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(180, 180, 180);
+      doc.roundedRect(bEndX - 1, by - 3, branchLen, 5, 1, 1, 'FD');
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      const splitCause = doc.splitTextToSize(causeText, branchLen - 2);
+      doc.text(splitCause[0] || causeText, bEndX + branchLen / 2, by + 0.5, { align: 'center' });
+    });
+  });
+}
+
+/**
+ * Generates the official 2-PAGE Complaint Management Report (Format NR/QAD/SOP/001-F01/04)
+ */
 export function generateComplaintReport(complaint, d3Data = null, options = {}) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const margin = 14;
   const pageWidth = 182; // 210 - 2 * 14
   const c = complaint || {};
 
-  // Styling helpers
   const black = [0, 0, 0];
   const borderGrey = [40, 40, 40];
 
   doc.setDrawColor(...borderGrey);
   doc.setLineWidth(0.25);
 
-  let y = 14;
-
-  /* ==========================================================================
-     1. SOP HEADER BOX (Matches NR/QAD/SOP/001-F01/04 Exactly)
-     ========================================================================== */
-  const headerHeight = 44;
-  const splitColX = margin + 82; // Left column width = 82mm, Right column = 100mm
-  const valColX = splitColX + 38; // Label width = 38mm, Value width = 62mm
-
-  // Outer border
-  doc.rect(margin, y, pageWidth, headerHeight);
-
-  // Vertical dividers
-  doc.line(splitColX, y, splitColX, y + 37); // between left logo column & right metadata
-  doc.line(valColX, y, valColX, y + 37); // between right metadata labels & values
-
-  // Horizontal divider lines
-  doc.line(splitColX, y + 8, margin + pageWidth, y + 8); // under FORMAT NO
-  doc.line(splitColX, y + 16, margin + pageWidth, y + 16); // under EFFECTIVE DATE
-  doc.line(margin, y + 24, margin + pageWidth, y + 24); // under EXPIRY DATE / Logo row
-  doc.line(margin, y + 30.5, margin + pageWidth, y + 30.5); // under QAD / SUPERSEDES row
-  doc.line(margin, y + 37, margin + pageWidth, y + 37); // under SOP / STATUS row
-
-  // 1a. Left Cell: Natural Remedies Logo (Centered in 82mm x 24mm box)
-  try {
-    if (NATURAL_REMEDIES_LOGO) {
-      const logoW = 23;
-      const logoH = 20;
-      const logoX = margin + (82 - logoW) / 2;
-      const logoY = y + (24 - logoH) / 2;
-      doc.addImage(NATURAL_REMEDIES_LOGO, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
-    }
-  } catch (err) {
-    // Fallback text if image fails
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(34, 139, 34);
-    doc.text('natural REMEDIES', margin + 14, y + 14);
-  }
-
-  // 1b. Right Top Cell: Metadata (Rows 1 to 3)
   const effDate = formatSopDate(c.complaintDate || c.createdAt || new Date());
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(...black);
-
-  // Row 1: FORMAT NO
-  doc.text('FORMAT NO', splitColX + 3, y + 5.5);
-  doc.text(`: NR/QAD/SOP/001-F01/04`, valColX + 3, y + 5.5);
-
-  // Row 2: EFFECTIVE DATE
-  doc.text('EFFECTIVE DATE', splitColX + 3, y + 13.5);
-  doc.text(`: ${effDate}`, valColX + 3, y + 13.5);
-
-  // Row 3: EXPIRY DATE
-  doc.text('EXPIRY DATE', splitColX + 3, y + 21.5);
-  doc.text(':', valColX + 3, y + 21.5);
-
-  // 1c. Row 4: QAD & SUPERSEDES
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('QAD', margin + 41, y + 28.5, { align: 'center' });
-  doc.setFontSize(7.5);
-  doc.text('SUPERSEDES', splitColX + 3, y + 28.5);
-  doc.text(': 00', valColX + 3, y + 28.5);
-
-  // 1d. Row 5: STANDARD OPERATING PROCEDURE & STATUS
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('STANDARD OPERATING PROCEDURE', margin + 41, y + 35, { align: 'center' });
-  doc.setFontSize(7.5);
-  doc.text('STATUS', splitColX + 3, y + 35);
-  doc.text(': Published and Active', valColX + 3, y + 35);
-
-  // 1e. Row 6: Title Banner (Full width)
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  doc.text('TITLE:COMPLAINT MANAGMENT REPORT', margin + pageWidth / 2, y + 41.5, { align: 'center' });
-
-  y += headerHeight + 3.5;
+  const handlerName = c.coordinator?.name || 'Chandan';
+  const reviewerName = c.frp?.name || 'Shaikh Abdul K';
 
   /* ==========================================================================
-     2. COMPLAINT INFORMATION TABLE (2 columns, 6 rows)
+     =========================== PAGE 1 =======================================
      ========================================================================== */
-  const infoRowH = 6.8;
+  let y = 10;
+
+  // 1. Header Box
+  y = drawSopHeader(doc, margin, y, pageWidth, effDate) + 3;
+
+  // 2. Complaint Information Table (6 rows)
+  const infoRowH = 5.6;
   const infoTableH = infoRowH * 6;
   const labelColW = 76;
 
-  // Outer border & horizontal dividers
+  doc.setDrawColor(...borderGrey);
   doc.rect(margin, y, pageWidth, infoTableH);
   doc.line(margin + labelColW, y, margin + labelColW, y + infoTableH);
 
@@ -121,16 +283,15 @@ export function generateComplaintReport(complaint, d3Data = null, options = {}) 
     doc.line(margin, y + i * infoRowH, margin + pageWidth, y + i * infoRowH);
   }
 
-  // Data rows
   const customerLocation = [
     c.customer?.name || c.requester?.name || 'Customer',
     c.country || c.location || ''
-  ].filter(Boolean).join(' - ');
+  ].filter(Boolean).join(' – ');
 
-  const prodName = c.d2?.verifiedProduct?.productName || c.reportedProduct?.name || c.productName || 'N/A';
-  const batchNo = c.d2?.verifiedProduct?.batchNumber || c.reportedProduct?.batchNumber || c.batchNumber || 'N/A';
+  const prodName = c.d2?.verifiedProduct?.productName || c.reportedProduct?.name || c.productName || 'Manual preparation test';
+  const batchNo = c.d2?.verifiedProduct?.batchNumber || c.reportedProduct?.batchNumber || c.batchNumber || 'Manual preparation test';
   const isRepetitive = c.d2?.investigation?.repeatComplaint ? 'true' : 'false';
-  const complaintNo = c.complaintNumber || 'HHP-26-3-147';
+  const complaintNo = c.complaintNumber || 'HHP-26-3-161';
 
   const complaintRows = [
     ['Date of Complaint Receipt', effDate],
@@ -142,192 +303,365 @@ export function generateComplaintReport(complaint, d3Data = null, options = {}) 
   ];
 
   complaintRows.forEach(([lbl, val], idx) => {
-    const rowY = y + idx * infoRowH + 4.8;
+    const rowY = y + idx * infoRowH + 4;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...black);
-    doc.text(lbl, margin + 3, rowY);
+    doc.text(lbl, margin + 2.5, rowY);
 
     doc.setFont('helvetica', 'normal');
-    doc.text(String(val), margin + labelColW + 3, rowY);
+    doc.text(String(val), margin + labelColW + 2.5, rowY);
   });
 
-  y += infoTableH + 3.5;
+  y += infoTableH + 3;
 
-  /* ==========================================================================
-     3. DESCRIPTION OF NON-CONFORMITY / COMPLAINT (PROBLEM)
-     ========================================================================== */
+  // 3. Description Header & Outer Box
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  doc.setFontSize(7.5);
   doc.setTextColor(...black);
-  doc.text('Description of Non-Conformity / Complaint / Problem :( Attach pictures wherever applicable)', margin, y + 2.5);
-  y += 4.5;
-
-  const descH = 24;
-  doc.rect(margin, y, pageWidth, descH);
-
-  // Sub-header bar
-  const descSubH = 5.5;
-  doc.line(margin, y + descSubH, margin + pageWidth, y + descSubH);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.text('DESCRIPTION OF COMPLAINT', margin + 3, y + 4);
-
-  // Text inside description box
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  const complaintDescription = [
-    c.shortDescription,
-    c.description,
-    c.additionalRemarks ? `Remarks: ${c.additionalRemarks}` : null
-  ].filter(Boolean).join('\n') || 'Complaint registered for verification and preliminary assessment.';
-
-  const splitDesc = doc.splitTextToSize(complaintDescription, pageWidth - 6);
-  doc.text(splitDesc.slice(0, 4), margin + 3, y + descSubH + 4.5);
-
-  y += descH + 3.5;
-
-  /* ==========================================================================
-     4. ROOT CAUSE ANALYSIS SECTION
-     ========================================================================== */
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('Root Cause Analysis:', margin, y + 2);
-  y += 4;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text('Probable / Potential Root Cause(s):', margin, y + 1.5);
-  y += 3.5;
-
-  // Root cause table
-  const rcaCols = [
-    { label: 'S.No', w: 12 },
-    { label: 'Category', w: 26 },
-    { label: 'Probable Root Cause / Observation', w: 58 },
-    { label: 'Corrective & Preventive Action Plan', w: 50 },
-    { label: 'Target Date', w: 20 },
-    { label: 'Status', w: 16 }
-  ];
-
-  // Header row
-  const rcaHeadH = 6;
-  doc.rect(margin, y, pageWidth, rcaHeadH);
-  let curX = margin;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-
-  rcaCols.forEach((col, idx) => {
-    if (idx > 0) doc.line(curX, y, curX, y + rcaHeadH);
-    doc.text(col.label, curX + 2, y + 4.2);
-    curX += col.w;
-  });
-
-  y += rcaHeadH;
-
-  // RCA / CAPA rows
-  const capas = d3Data?.capas || [];
-  const rcaRows = capas.length > 0
-    ? capas.map((item, idx) => ({
-        sno: String(idx + 1),
-        category: item.category || 'CAPA',
-        cause: item.description || d3Data?.analysis?.problemStatement || 'Identified during root cause analysis',
-        action: item.actionImplemented || item.correctiveAction || item.preventiveAction || 'Action implemented to prevent recurrence',
-        date: formatSopDate(item.targetDate || c.complaintDate),
-        status: item.isClosed ? 'Closed' : (item.actionStatus || 'Active')
-      }))
-    : [
-        {
-          sno: '1',
-          category: 'Manufacturing / QAD',
-          cause: d3Data?.analysis?.problemStatement || c.shortDescription || 'Under preliminary investigation',
-          action: 'Standard operating procedure review and batch verification completed',
-          date: effDate,
-          status: 'Active'
-        }
-      ];
-
-  const rcaRowH = 7.5;
-  rcaRows.slice(0, 3).forEach((row) => {
-    doc.rect(margin, y, pageWidth, rcaRowH);
-    let xPos = margin;
-
-    // S.No
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
-    doc.text(row.sno, xPos + 2, y + 4.8);
-    xPos += rcaCols[0].w;
-    doc.line(xPos, y, xPos, y + rcaRowH);
-
-    // Category
-    doc.text(doc.splitTextToSize(row.category, rcaCols[1].w - 3)[0] || '', xPos + 2, y + 4.8);
-    xPos += rcaCols[1].w;
-    doc.line(xPos, y, xPos, y + rcaRowH);
-
-    // Cause
-    doc.text(doc.splitTextToSize(row.cause, rcaCols[2].w - 4)[0] || '', xPos + 2, y + 4.8);
-    xPos += rcaCols[2].w;
-    doc.line(xPos, y, xPos, y + rcaRowH);
-
-    // Action
-    doc.text(doc.splitTextToSize(row.action, rcaCols[3].w - 4)[0] || '', xPos + 2, y + 4.8);
-    xPos += rcaCols[3].w;
-    doc.line(xPos, y, xPos, y + rcaRowH);
-
-    // Date
-    doc.text(row.date, xPos + 2, y + 4.8);
-    xPos += rcaCols[4].w;
-    doc.line(xPos, y, xPos, y + rcaRowH);
-
-    // Status
-    doc.text(row.status, xPos + 2, y + 4.8);
-
-    y += rcaRowH;
-  });
-
+  doc.text('Description of Non-Conformity / Complaint / Problem :( Attach pictures wherever applicable)', margin, y + 2.2);
   y += 4;
 
-  /* ==========================================================================
-     5. SIGNATURE & REVIEW BOX
-     ========================================================================== */
-  const signH = 22;
-  const signColW = pageWidth / 3;
+  const descBoxH = 158;
+  doc.rect(margin, y, pageWidth, descBoxH);
 
-  doc.rect(margin, y, pageWidth, signH);
-  doc.line(margin + signColW, y, margin + signColW, y + signH);
-  doc.line(margin + signColW * 2, y, margin + signColW * 2, y + signH);
-
-  // Top header in sign box
+  // Sub-header: DESCRIPTION OF COMPLAINT
   doc.line(margin, y + 5.5, margin + pageWidth, y + 5.5);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7.5);
-  doc.text('First Responsible Person (FRP)', margin + signColW / 2, y + 4, { align: 'center' });
-  doc.text('Complaint Handler / QA', margin + signColW * 1.5, y + 4, { align: 'center' });
-  doc.text('Quality Assurance Head', margin + signColW * 2.5, y + 4, { align: 'center' });
+  doc.text('DESCRIPTION OF COMPLAINT', margin + 2.5, y + 4);
 
-  // Names / designations
+  const analysis = d3Data?.analysis || d3Data?.data?.analysis || {};
+  const methods = analysis.methods || [];
+  const whyWhyList = (analysis.whyWhy || []).filter((w) => w.why || w.because);
+  const isWhyWhy = methods.includes('WHY_WHY') || (whyWhyList.length > 0 && !methods.includes('FISHBONE'));
+  const problemStatement = analysis.problemStatement || c.shortDescription || 'Test1';
+
+  if (isWhyWhy) {
+    // Sub-header: Root Cause Analysis: Why-Why Analysis (SOP Page 9 Step 14.h)
+    doc.line(margin, y + 11, margin + pageWidth, y + 11);
+    doc.text('Root Cause Analysis: Why-Why Analysis', margin + 2.5, y + 9.5);
+
+    // Label: Why-Why Analysis:
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text('Why-Why Analysis (5 Whys Investigation):', margin + 2.5, y + 16);
+
+    drawWhyWhyTable(doc, margin + 2, y + 18, pageWidth - 4, 122, problemStatement, analysis.whyWhy || []);
+  } else {
+    // Sub-header: Root Cause Analysis: Fishbone (SOP Page 9 Step 14.f)
+    doc.line(margin, y + 11, margin + pageWidth, y + 11);
+    doc.text('Root Cause Analysis:Fishbone', margin + 2.5, y + 9.5);
+
+    // Label: Fishbone Diagram:
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text('Fishbone Diagram:', margin + 2.5, y + 16);
+
+    // Draw the Fishbone Diagram inside
+    const fishboneTree = d3Data?.fishbone || d3Data?.data?.fishbone || {};
+    drawFishboneDiagram(doc, margin + 2, y + 18, pageWidth - 4, 122, problemStatement, fishboneTree);
+  }
+
+  y += descBoxH + 3.5;
+
+  // 4. Page 1 Bottom Signatures: Prepared By & Reviewed By
+  const signH = 14;
+  const halfColW = pageWidth / 2;
+  doc.rect(margin, y, pageWidth, signH);
+  doc.line(margin + halfColW, y, margin + halfColW, y + signH);
+  doc.line(margin, y + 5, margin + pageWidth, y + 5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Prepared By', margin + halfColW / 2, y + 3.8, { align: 'center' });
+  doc.text('Reviewed By', margin + halfColW * 1.5, y + 3.8, { align: 'center' });
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
-  doc.text(c.frp?.name || 'Naveen K S', margin + signColW / 2, y + 11.5, { align: 'center' });
-  doc.text(c.qaContact?.name || 'Narayan Rao Vakamudi', margin + signColW * 1.5, y + 11.5, { align: 'center' });
-  doc.text('Authorized QA Signatory', margin + signColW * 2.5, y + 11.5, { align: 'center' });
+  doc.text(handlerName, margin + halfColW / 2, y + 10.2, { align: 'center' });
+  doc.text(reviewerName, margin + halfColW * 1.5, y + 10.2, { align: 'center' });
 
-  // Status bottom bar
-  doc.line(margin, y + 16, margin + pageWidth, y + 16);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Status: Completed (${effDate})`, margin + signColW / 2, y + 20, { align: 'center' });
-  doc.text(`Status: Verified (${effDate})`, margin + signColW * 1.5, y + 20, { align: 'center' });
-  doc.text(`Status: Published & Active`, margin + signColW * 2.5, y + 20, { align: 'center' });
-
-  /* ==========================================================================
-     6. FOOTER
-     ========================================================================== */
+  // Page 1 Footer
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.5);
   doc.setTextColor(110, 110, 110);
-  doc.text('CONFIDENTIAL - FOR INTERNAL QUALITY ASSURANCE USE ONLY - NATURAL REMEDIES PVT. LTD.', margin, 286);
-  doc.text('Page 1 of 1', margin + pageWidth, 286, { align: 'right' });
+  doc.text('CONFIDENTIAL - NATURAL REMEDIES PVT. LTD. - FOR INTERNAL USE ONLY', margin, 290);
+  doc.text('Page 1 of 2', margin + pageWidth, 290, { align: 'right' });
+
+  /* ==========================================================================
+     =========================== PAGE 2 =======================================
+     ========================================================================== */
+  doc.addPage();
+  y = 10;
+
+  // 1. Header Box (Repeated)
+  y = drawSopHeader(doc, margin, y, pageWidth, effDate) + 3.5;
+
+  // Extract CAPAs and Root causes
+  const allCapas = d3Data?.capas || d3Data?.data?.capas || [];
+  const rootCauses = d3Data?.rootCauses || d3Data?.data?.rootCauses || [];
+
+  // 2. Table 1: Identified Root Cause & CAPA Detail
+  const t1HeadH = 5;
+  doc.rect(margin, y, pageWidth, t1HeadH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(...black);
+  doc.text('Identified Root Cause & CAPA Detail', margin + 2.5, y + 3.6);
+  y += t1HeadH;
+
+  const t1Cols = [
+    { label: 'RC Category', w: 26 },
+    { label: 'RC Description', w: 42 },
+    { label: 'CAPA Required', w: 20 },
+    { label: 'CAPA', w: 14 },
+    { label: 'CAPA Description', w: 42 },
+    { label: 'Responsible Person', w: 22 },
+    { label: 'Time Line', w: 16 }
+  ];
+
+  // Table 1 Col Header
+  const colHeadH = 6;
+  doc.rect(margin, y, pageWidth, colHeadH);
+  let curX = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+
+  t1Cols.forEach((col, idx) => {
+    if (idx > 0) doc.line(curX, y, curX, y + colHeadH);
+    doc.text(col.label, curX + col.w / 2, y + 4.2, { align: 'center' });
+    curX += col.w;
+  });
+  y += colHeadH;
+
+  // Table 1 Rows
+  const t1Rows = allCapas.length > 0
+    ? allCapas.map((capa) => {
+        const rc = rootCauses.find((r) => String(r._id) === String(capa.rootCause)) || {};
+        return {
+          cat: capa.rcCategory || rc.category || 'Manpower',
+          rcDesc: capa.rcDescription || rc.description || 'Manual preparation test',
+          req: capa.capaRequired !== false ? 'Yes' : 'No',
+          capaType: capa.category || 'PA',
+          capaDesc: capa.description || 'Manual preparation test',
+          rp: capa.responsiblePerson?.name || reviewerName,
+          timeline: formatSopDate(capa.targetDate || capa.timeline || c.complaintDate || '2026-03-12')
+        };
+      })
+    : [
+        { cat: 'Manpower', rcDesc: 'Manual preparation test', req: 'Yes', capaType: 'PA', capaDesc: 'Manual preparation test', rp: 'Prakash Naidu', timeline: '12-03-2026' },
+        { cat: 'Manpower', rcDesc: 'Manual preparation test', req: 'Yes', capaType: 'CA', capaDesc: 'Manual preparation test', rp: 'Saravanan P', timeline: '12-03-2026' }
+      ];
+
+  const t1RowH = 7;
+  t1Rows.slice(0, 4).forEach((row) => {
+    doc.rect(margin, y, pageWidth, t1RowH);
+    let xPos = margin;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+
+    doc.text(row.cat, xPos + t1Cols[0].w / 2, y + 4.6, { align: 'center' });
+    xPos += t1Cols[0].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(doc.splitTextToSize(row.rcDesc, t1Cols[1].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t1Cols[1].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(row.req, xPos + t1Cols[2].w / 2, y + 4.6, { align: 'center' });
+    xPos += t1Cols[2].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(row.capaType, xPos + t1Cols[3].w / 2, y + 4.6, { align: 'center' });
+    xPos += t1Cols[3].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(doc.splitTextToSize(row.capaDesc, t1Cols[4].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t1Cols[4].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(row.rp, xPos + t1Cols[5].w / 2, y + 4.6, { align: 'center' });
+    xPos += t1Cols[5].w;
+    doc.line(xPos, y, xPos, y + t1RowH);
+
+    doc.text(row.timeline, xPos + t1Cols[6].w / 2, y + 4.6, { align: 'center' });
+
+    y += t1RowH;
+  });
+
+  y += 3.5;
+
+  // 3. Table 2: Corrective/Preventive Action
+  const t2HeadH = 5;
+  doc.rect(margin, y, pageWidth, t2HeadH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Corrective/Preventive Action', margin + 2.5, y + 3.6);
+  y += t2HeadH;
+
+  const t2Cols = [
+    { label: 'CA/PA', w: 14 },
+    { label: 'Description', w: 48 },
+    { label: 'Responsible Person', w: 26 },
+    { label: 'Target Date', w: 20 },
+    { label: 'Action Implemented', w: 50 },
+    { label: 'FRP Review', w: 24 }
+  ];
+
+  doc.rect(margin, y, pageWidth, colHeadH);
+  curX = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+
+  t2Cols.forEach((col, idx) => {
+    if (idx > 0) doc.line(curX, y, curX, y + colHeadH);
+    doc.text(col.label, curX + col.w / 2, y + 4.2, { align: 'center' });
+    curX += col.w;
+  });
+  y += colHeadH;
+
+  const t2Rows = allCapas.length > 0
+    ? allCapas.map((capa) => ({
+        type: capa.category || 'PA',
+        desc: capa.description || 'Manual preparation test',
+        rp: capa.responsiblePerson?.name || reviewerName,
+        target: formatSopDate(capa.targetDate || '2026-03-12'),
+        implemented: capa.actionImplemented || 'Manual preparation test implemented',
+        review: capa.frpImplementationApproval?.status === 'APPROVED' ? 'Accepted' : (capa.actionStatus || 'Accepted')
+      }))
+    : [
+        { type: 'PA', desc: 'Manual preparation test', rp: 'Prakash Naidu', target: '12-Mar-2026', implemented: 'Manual preparation test', review: 'Accepted' },
+        { type: 'CA', desc: 'Manual preparation test', rp: 'Saravanan P', target: '12-Mar-2026', implemented: 'Manual preparation test', review: 'Accepted' }
+      ];
+
+  const t2RowH = 7;
+  t2Rows.slice(0, 3).forEach((row) => {
+    doc.rect(margin, y, pageWidth, t2RowH);
+    let xPos = margin;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+
+    doc.text(row.type, xPos + t2Cols[0].w / 2, y + 4.6, { align: 'center' });
+    xPos += t2Cols[0].w;
+    doc.line(xPos, y, xPos, y + t2RowH);
+
+    doc.text(doc.splitTextToSize(row.desc, t2Cols[1].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t2Cols[1].w;
+    doc.line(xPos, y, xPos, y + t2RowH);
+
+    doc.text(row.rp, xPos + t2Cols[2].w / 2, y + 4.6, { align: 'center' });
+    xPos += t2Cols[2].w;
+    doc.line(xPos, y, xPos, y + t2RowH);
+
+    doc.text(row.target, xPos + t2Cols[3].w / 2, y + 4.6, { align: 'center' });
+    xPos += t2Cols[3].w;
+    doc.line(xPos, y, xPos, y + t2RowH);
+
+    doc.text(doc.splitTextToSize(row.implemented, t2Cols[4].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t2Cols[4].w;
+    doc.line(xPos, y, xPos, y + t2RowH);
+
+    doc.text(row.review, xPos + t2Cols[5].w / 2, y + 4.6, { align: 'center' });
+
+    y += t2RowH;
+  });
+
+  // Approved by QA sub-row
+  const qaRowH = 5.5;
+  doc.rect(margin, y, pageWidth, qaRowH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.text(`Approved By QA: ${handlerName}`, margin + pageWidth / 2, y + 3.8, { align: 'center' });
+  y += qaRowH + 3.5;
+
+  // 4. Table 3: Verification of Effectiveness (Effectiveness review by Customer/QAD)
+  const t3HeadH = 5;
+  doc.rect(margin, y, pageWidth, t3HeadH);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.text('Verification of Effectiveness (Effectiveness review by Customer/QAD)', margin + 2.5, y + 3.6);
+  y += t3HeadH;
+
+  const t3Cols = [
+    { label: 'CA/PA', w: 14 },
+    { label: 'Action Implemented', w: 50 },
+    { label: 'Effectiveness Review', w: 48 },
+    { label: 'Effectiveness Responsible Person', w: 42 },
+    { label: 'Frequency/Timeline', w: 28 }
+  ];
+
+  doc.rect(margin, y, pageWidth, colHeadH);
+  curX = margin;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+
+  t3Cols.forEach((col, idx) => {
+    if (idx > 0) doc.line(curX, y, curX, y + colHeadH);
+    doc.text(col.label, curX + col.w / 2, y + 4.2, { align: 'center' });
+    curX += col.w;
+  });
+  y += colHeadH;
+
+  const t3Rows = allCapas.length > 0
+    ? allCapas.map((capa) => ({
+        type: capa.category || 'PA',
+        implemented: capa.actionImplemented || 'Manual preparation test',
+        review: capa.effectivenessReview || 'Manual preparation test Approved',
+        erp: capa.erp?.name || 'Jensy Josephine',
+        schedule: capa.scheduleType === 'Frequency' ? (capa.scheduleFrequency || '2 weeks') : (formatSopDate(capa.scheduleTimeline) || '2 weeks')
+      }))
+    : [
+        { type: 'PA', implemented: 'Manual preparation test', review: 'Manual preparation test Approved', erp: 'Jensy Josephine', schedule: '2 weeks' },
+        { type: 'CA', implemented: 'Manual preparation test', review: 'Manual preparation test Approved', erp: 'Jensy Josephine', schedule: '2 weeks' }
+      ];
+
+  const t3RowH = 7;
+  t3Rows.slice(0, 2).forEach((row) => {
+    doc.rect(margin, y, pageWidth, t3RowH);
+    let xPos = margin;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+
+    doc.text(row.type, xPos + t3Cols[0].w / 2, y + 4.6, { align: 'center' });
+    xPos += t3Cols[0].w;
+    doc.line(xPos, y, xPos, y + t3RowH);
+
+    doc.text(doc.splitTextToSize(row.implemented, t3Cols[1].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t3Cols[1].w;
+    doc.line(xPos, y, xPos, y + t3RowH);
+
+    doc.text(doc.splitTextToSize(row.review, t3Cols[2].w - 3)[0] || '', xPos + 2, y + 4.6);
+    xPos += t3Cols[2].w;
+    doc.line(xPos, y, xPos, y + t3RowH);
+
+    doc.text(row.erp, xPos + t3Cols[3].w / 2, y + 4.6, { align: 'center' });
+    xPos += t3Cols[3].w;
+    doc.line(xPos, y, xPos, y + t3RowH);
+
+    doc.text(row.schedule, xPos + t3Cols[4].w / 2, y + 4.6, { align: 'center' });
+
+    y += t3RowH;
+  });
+
+  y += 3.5;
+
+  // 5. Page 2 Closure & Sign-off Box
+  const closeSignH = 12;
+  doc.rect(margin, y, pageWidth, closeSignH);
+  doc.line(margin + halfColW, y, margin + halfColW, y + closeSignH);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7);
+  doc.text(`Closure Date: ${effDate}`, margin + 6, y + 7.5);
+  doc.text(`Approved By (User/Handler): ${handlerName}`, margin + halfColW + 6, y + 7.5);
+
+  // Page 2 Footer
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(110, 110, 110);
+  doc.text('CONFIDENTIAL - NATURAL REMEDIES PVT. LTD. - FOR INTERNAL USE ONLY', margin, 290);
+  doc.text('Page 2 of 2', margin + pageWidth, 290, { align: 'right' });
 
   const filename = `customerComplaintReport-${c.complaintNumber || 'QAD'}.pdf`;
 

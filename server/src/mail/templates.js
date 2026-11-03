@@ -133,8 +133,6 @@ export function newComplaintHandler(complaint, handler = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -170,8 +168,6 @@ export function d1Acknowledgement(complaint, { recipientName } = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -206,8 +202,6 @@ export function d1CompletionHandler(complaint, { handlerName } = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -259,8 +253,6 @@ export function d2FrpAssigned(complaint, frp = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -271,6 +263,7 @@ export function d2FrpAssigned(complaint, frp = {}) {
 ${details.html}
 ${button(link, 'View Complaint Record')}
 <p style="margin:14px 0 0;font-size:12px;color:#475569;"><strong>Note:</strong> The complaint owner has flagged this for your immediate attention. Please prioritize this investigation and complete the D2 stage analysis.</p>`,
+    footnote: null,
   });
 
   return { subject, text, html };
@@ -308,8 +301,6 @@ export function d2SlaExtensionRequest(complaint, { managerName, frpName, hours, 
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -326,20 +317,24 @@ ${button(link, 'View Complaint Record')}
 }
 
 /**
- * 6. D2 Completion -> Sent to Complaint Handler & FRP (SOP Page 8, Step 13)
+ * 6. D2 Completion -> Sent to Complaint Handler & FRP (SOP Page 7-8, Step 13)
  * Subject: Complaint [number] D2 stage Completion Update
  */
 export function d2Completed(complaint, { recipientName, frpName } = {}) {
   const number = complaint.complaintNumber;
-  const subject = `Complaint ${number} D2 stage Completion Update`;
   const link = complaintLink(complaint._id);
-  const name = recipientName || complaint.coordinator?.name || 'Complaint Handler';
+  const name = recipientName || complaint.coordinator?.name || 'User';
+  const subject = `Complaint ${number} D2 stage Completion Update`;
+
+  const failureType = complaint.d2?.investigation?.typeOfFailure || 'Analytical Difference';
+  const location = complaint.d2?.investigation?.manufacturingLocation || 'Inhouse';
+  const assignedFrp = frpName || complaint.frp?.name || 'Assigned FRP';
 
   const details = detailsBlock([
     ['Complaint Number', number],
-    ['Type of Failure', complaint.d2?.investigation?.typeOfFailure || '—'],
-    ['Manufacturing Location', complaint.d2?.investigation?.manufacturingLocation || '—'],
-    ['FRP Assigned', frpName || complaint.frp?.name || 'Assigned FRP'],
+    ['Type of Failure', failureType],
+    ['Manufacturing Location', location],
+    ['FRP Assigned', assignedFrp],
   ]);
 
   const text = [
@@ -358,8 +353,6 @@ export function d2Completed(complaint, { recipientName, frpName } = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -369,8 +362,8 @@ export function d2Completed(complaint, { recipientName, frpName } = {}) {
 <p style="margin:0 0 6px;font-weight:700;color:#1e293b;">Complaint Details:</p>
 ${details.html}
 ${button(link, 'View Complaint Record')}
-<p style="margin:14px 0 10px;">The assigned investigation team has initiated a comprehensive analysis of the complaint. You will be notified of any significant developments throughout the process.</p>
-<p style="margin:0;">We appreciate your attention to this matter.</p>`,
+<p style="margin:14px 0 0;color:#475569;">The assigned investigation team has initiated a comprehensive analysis of the complaint. You will be notified of any significant developments throughout the process.</p>
+<p style="margin:10px 0 0;color:#475569;">We appreciate your attention to this matter.</p>`,
   });
 
   return { subject, text, html };
@@ -443,8 +436,6 @@ export function rootCauseApprovalRequest(complaint, { managerName, frpName, coun
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -510,8 +501,6 @@ export function d3CapaRejected(complaint, capa, rootCause, { recipientName, reje
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -615,8 +604,6 @@ ${button(link, 'View CAPA Record')}
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -668,8 +655,6 @@ export function capaImplementationAssignment(complaint, capa, { rpName } = {}) {
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -747,8 +732,6 @@ export function capaReviewRequired(complaint, capa, { reviewerName, reviewerRole
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -816,8 +799,6 @@ export function capaImplementationRejected(complaint, capa, { recipientName, rej
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -911,8 +892,6 @@ ${button(link, 'View Complaint Record')}
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -969,8 +948,6 @@ export function erpAssignment(complaint, capa, { erpName, scheduleType, schedule
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -1026,8 +1003,6 @@ export function capaClosedNotice(complaint, capa, { recipientName, frpName, rpNa
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({
@@ -1078,8 +1053,6 @@ export function complaintSuccessfullyClosed(complaint, { recipientName, frpName,
     '',
     'Best Regards,',
     'Customer Relationship Management Team',
-    '',
-    AUTO_FOOTNOTE,
   ].join('\n');
 
   const html = layout({

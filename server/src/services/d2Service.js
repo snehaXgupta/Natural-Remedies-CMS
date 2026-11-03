@@ -33,7 +33,7 @@ const EDITABLE_STATUSES = [S.D2_IN_PROGRESS];
  * complaint.d2.edit. Dropdown values are checked against the admin lists.
  * The version guard refuses a save based on stale data.
  */
-export async function update(id, { version, verifiedProduct, investigation, priority, sendMailToFrp }, { user, permissions, context }) {
+export async function update(id, { version, verifiedProduct, investigation, priority, sendMailToFrp, assigneeId }, { user, permissions, context }) {
   if (!permissions.has(P.COMPLAINT_D2_EDIT)) throw AppError.forbidden();
   const complaint = await findVisible(id, user, permissions);
   if (!EDITABLE_STATUSES.includes(complaint.status)) {
@@ -67,8 +67,51 @@ export async function update(id, { version, verifiedProduct, investigation, prio
   }
   if (priority !== undefined) complaint.priority = priority || undefined;
   if (sendMailToFrp !== undefined) complaint.set('d2.sendMailToFrp', Boolean(sendMailToFrp));
+
+  let newlyAssignedUser = null;
+  if (assigneeId && String(assigneeId) !== String(complaint.frp)) {
+    const candidates = await frpCandidates();
+    const assignee = candidates.find((u) => String(u._id) === String(assigneeId));
+    if (assignee) {
+      const now = new Date();
+      await ComplaintAssignment.findOneAndUpdate(
+        { complaint: complaint._id, role: 'FRP', active: true },
+        { $set: { active: false, endedAt: now, endedBy: user._id } },
+      );
+      await ComplaintAssignment.create([
+        { complaint: complaint._id, role: 'FRP', assignee: assignee._id, assignedBy: user._id, assignedAt: now, reason: 'Assigned during D2 update' }
+      ]);
+      complaint.frp = assignee._id;
+      newlyAssignedUser = assignee;
+    }
+  }
+
   complaint.lastActivityAt = new Date();
   await complaint.save();
+
+  // If sendMailToFrp is selected/true, dispatch the Step 8.b FRP assignment email!
+  if (Boolean(sendMailToFrp) && complaint.frp) {
+    const targetFrp = newlyAssignedUser || (await User.findById(complaint.frp).lean());
+    if (targetFrp?.email) {
+      await notifications.enqueue({
+        type: 'D2_FRP_ASSIGNED',
+        complaint: complaint._id,
+        recipient: targetFrp.email,
+        recipientUser: targetFrp._id,
+        dedupeKey: `FRP_ASSIGNED:${complaint._id}:${targetFrp._id}:${Date.now()}`,
+        message: d2FrpAssigned(complaint, targetFrp),
+      });
+      notifications.nudge();
+
+      await inApp.createNotification({
+        recipient: targetFrp._id,
+        complaint: complaint._id,
+        title: 'You Have Been Assigned as First Responsible Person',
+        message: `You have been designated as the First Responsible Person (FRP) for complaint ${complaint.complaintNumber}. Kindly review and initiate the required actions.`,
+        link: `/complaints/${complaint._id}?tab=D2`,
+      });
+    }
+  }
 
   const after = { d2: complaint.toObject().d2, priority: complaint.priority };
   const flat = (o) => ({
@@ -119,11 +162,10 @@ const ASSIGNABLE = [S.D2_IN_PROGRESS, S.D2_COMPLETED, S.D3_IN_PROGRESS, S.D3_PEN
  *
  * One transaction: end the current assignment (kept for history), create the
  * new one, set complaint.frp, queue the assignment email to the new FRP and
- * write the audit entry. Assigning the person who already holds the role is
- * a no-op (no new row, no email), so a double click is harmless. The unique
- * "one active FRP" index makes two simultaneous assignments impossible.
+ * write the audit entry. If sendMailToFrp is selected, the Step 8.b email is
+ * dispatched informing them of their assignment.
  */
-export async function assignFrp(id, { assigneeId, reason }, { user, permissions, context }) {
+export async function assignFrp(id, { assigneeId, reason, sendMail = true, sendMailToFrp }, { user, permissions, context }) {
   if (!permissions.has(P.COMPLAINT_ASSIGN)) throw AppError.forbidden();
   const visible = await findVisible(id, user, permissions, { lean: true });
   if (!ASSIGNABLE.includes(visible.status)) {
@@ -131,6 +173,8 @@ export async function assignFrp(id, { assigneeId, reason }, { user, permissions,
       visible.status === S.CLOSED ? 'A closed complaint cannot be reassigned.' : 'Start D2 before assigning the First Responsible Person.',
     );
   }
+
+  const shouldSendMail = sendMailToFrp !== undefined ? Boolean(sendMailToFrp) : Boolean(sendMail);
 
   const candidates = await frpCandidates();
   const assignee = candidates.find((u) => String(u._id) === String(assigneeId));
@@ -140,7 +184,30 @@ export async function assignFrp(id, { assigneeId, reason }, { user, permissions,
 
   const reassigning = Boolean(visible.frp);
   if (reassigning && String(visible.frp) === String(assignee._id)) {
-    return { ...(await getDetail(id, user, permissions)), unchanged: true };
+    if (shouldSendMail) {
+      const complaintDoc = await Complaint.findById(visible._id);
+      complaintDoc.set('d2.sendMailToFrp', true);
+      await complaintDoc.save();
+
+      await notifications.enqueue({
+        type: 'D2_FRP_ASSIGNED',
+        complaint: complaintDoc._id,
+        recipient: assignee.email,
+        recipientUser: assignee._id,
+        dedupeKey: `FRP_ASSIGNED:${complaintDoc._id}:${assignee._id}:${Date.now()}`,
+        message: d2FrpAssigned(complaintDoc, assignee),
+      });
+      notifications.nudge();
+
+      await inApp.createNotification({
+        recipient: assignee._id,
+        complaint: visible._id,
+        title: 'You Have Been Assigned as First Responsible Person',
+        message: `You have been designated as the First Responsible Person (FRP) for complaint ${visible.complaintNumber}. Kindly review and initiate the required actions.`,
+        link: `/complaints/${visible._id}?tab=D2`,
+      });
+    }
+    return { ...(await getDetail(id, user, permissions)), unchanged: true, mailSent: shouldSendMail };
   }
   const note = reason?.trim();
   if (reassigning && !note) {
@@ -164,21 +231,23 @@ export async function assignFrp(id, { assigneeId, reason }, { user, permissions,
       // Conditional on the FRP we read, so a parallel reassignment cannot be lost.
       const complaint = await Complaint.findOneAndUpdate(
         { _id: visible._id, frp: visible.frp ?? null },
-        { $set: { frp: assignee._id, lastActivityAt: now }, $inc: { __v: 1 } },
+        { $set: { frp: assignee._id, 'd2.sendMailToFrp': shouldSendMail, lastActivityAt: now }, $inc: { __v: 1 } },
         { session, returnDocument: 'after' },
       );
       if (!complaint) throw AppError.conflict('Someone else changed the assignment at the same moment. Reload and try again.');
 
-      await notifications.enqueue({
-        type: 'D2_FRP_ASSIGNED',
-        complaint: complaint._id,
-        recipient: assignee.email,
-        recipientUser: assignee._id,
-        dedupeKey: `FRP_ASSIGNED:${assignment._id}`,
-        message: d2FrpAssigned(complaint, assignee),
-        session,
-      });
-      queued = true;
+      if (shouldSendMail) {
+        await notifications.enqueue({
+          type: 'D2_FRP_ASSIGNED',
+          complaint: complaint._id,
+          recipient: assignee.email,
+          recipientUser: assignee._id,
+          dedupeKey: `FRP_ASSIGNED:${assignment._id}`,
+          message: d2FrpAssigned(complaint, assignee),
+          session,
+        });
+        queued = true;
+      }
 
       const previousUser = previous ? await User.findById(previous.assignee, { name: 1 }).session(session).lean() : null;
       await audit.record({
@@ -264,15 +333,17 @@ export async function complete(id, { idempotencyKey, remarks }, { user, permissi
       [{ complaint: complaint._id, stage: 'D2', kind: 'COMPLETION', actor: user._id, at: now, remarks: remarks?.trim() || undefined, snapshot: { d2: complaint.toObject().d2, frp: complaint.frp, priority: complaint.priority } }],
       { session },
     );
-    const frp = await User.findById(complaint.frp, { name: 1 }).session(session).lean();
+    const frp = await User.findById(complaint.frp, { name: 1, email: 1 }).session(session).lean();
     for (const r of await completionRecipients(complaint, user)) {
+      const message = d2Completed(complaint, { recipientName: r.name, frpName: frp?.name });
+
       await notifications.enqueue({
         type: 'D2_COMPLETED',
         complaint: complaint._id,
         recipient: r.email,
         recipientUser: r.userId,
-        dedupeKey: `D2_COMPLETED:${complaint._id}:${r.email}`,
-        message: d2Completed(complaint, { recipientName: r.name, frpName: frp?.name }),
+        dedupeKey: `D2_COMPLETED:${complaint._id}:${r.email}:${Date.now()}`,
+        message,
         session,
       });
       queued = true;
@@ -304,64 +375,34 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
   });
   await complaint.save();
 
-  const frp = await User.findById(complaint.frp, { name: 1, email: 1 }).lean();
+  // Look up FRP and their manager (SOP Page 7, Step 12)
+  const frp = await User.findById(complaint.frp).populate('manager', 'name email').lean();
+  let frpManager = frp?.manager;
 
-  // Find who assigned the FRP so they can be notified by email
-  const activeAssignment = await ComplaintAssignment.findOne({
-    complaint: complaint._id,
-    role: 'FRP',
-    active: true,
-  }).populate('assignedBy', 'name email').lean();
-
-  const assigner = activeAssignment?.assignedBy;
-  const managers = await User.find({ roles: { $in: ['admin', 'quality_coordinator', 'reviewer'] } }, { _id: 1, email: 1, name: 1 }).lean();
-
-  // Build recipient list for email notification (priority to the person who assigned the FRP)
-  const recipientMap = new Map();
-  if (assigner?.email) {
-    recipientMap.set(assigner.email.toLowerCase(), {
-      email: assigner.email,
-      name: assigner.name,
-      userId: assigner._id,
-    });
-  }
-  for (const m of managers) {
-    if (m.email && !recipientMap.has(m.email.toLowerCase())) {
-      recipientMap.set(m.email.toLowerCase(), { email: m.email, name: m.name, userId: m._id });
+  // Fallback if no manager directly linked to FRP: look for FRP Manager role (reviewer) or assigner
+  if (!frpManager || !frpManager.email) {
+    frpManager = await User.findOne({ roles: 'reviewer', isActive: true }, { _id: 1, email: 1, name: 1 }).lean();
+    if (!frpManager) {
+      const activeAssignment = await ComplaintAssignment.findOne({
+        complaint: complaint._id,
+        role: 'FRP',
+        active: true,
+      }).populate('assignedBy', 'name email').lean();
+      frpManager = activeAssignment?.assignedBy;
     }
   }
 
-  // In-app notifications
-  for (const m of managers) {
-    await inApp.createNotification({
-      recipient: m._id,
-      complaint: complaint._id,
-      title: 'D2 SLA Extension Request',
-      message: `${frp?.name || user.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
-      link: `/complaints/${complaint._id}?tab=D2`,
-    });
-  }
-  if (assigner && !managers.some((m) => String(m._id) === String(assigner._id))) {
-    await inApp.createNotification({
-      recipient: assigner._id,
-      complaint: complaint._id,
-      title: 'D2 SLA Extension Request',
-      message: `${frp?.name || user.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
-      link: `/complaints/${complaint._id}?tab=D2`,
-    });
-  }
-
-  // Enqueue email notifications
+  // Enqueue email notification to the FRP's manager
   let queued = false;
-  for (const r of recipientMap.values()) {
+  if (frpManager?.email) {
     await notifications.enqueue({
       type: 'D2_SLA_EXTENSION',
       complaint: complaint._id,
-      recipient: r.email,
-      recipientUser: r.userId,
-      dedupeKey: `D2_SLA_EXTENSION:${complaint._id}:${r.email}:${Date.now()}`,
+      recipient: frpManager.email,
+      recipientUser: frpManager._id,
+      dedupeKey: `D2_SLA_EXTENSION:${complaint._id}:${frpManager.email}:${Date.now()}`,
       message: d2SlaExtensionRequest(complaint, {
-        managerName: r.name,
+        managerName: frpManager.name,
         frpName: frp?.name || user.name,
         hours,
         reason,
@@ -370,6 +411,17 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
     queued = true;
   }
   if (queued) notifications.nudge();
+
+  // Send in-app notification strictly to the FRP's manager
+  if (frpManager?._id) {
+    await inApp.createNotification({
+      recipient: frpManager._id,
+      complaint: complaint._id,
+      title: 'D2 SLA Extension Request',
+      message: `${frp?.name || user.name || 'FRP'} requested ${hours} hours extension for ${complaint.complaintNumber}: ${reason || 'No reason specified'}`,
+      link: `/complaints/${complaint._id}?tab=D2`,
+    });
+  }
 
   return getDetail(id, user, permissions);
 }
@@ -397,4 +449,59 @@ export async function frpAcknowledge(id, { comments }, { user, permissions, cont
     // Ignore transition conflict
   }
   return getDetail(id, user, permissions);
+}
+
+/**
+ * Manually trigger or re-send the Step 8.b assignment email to the assigned FRP.
+ */
+export async function sendFrpEmail(id, { user, permissions, context }) {
+  const complaint = await findVisible(id, user, permissions);
+  if (!complaint.frp) {
+    throw AppError.badRequest('No First Responsible Person assigned to this complaint yet.');
+  }
+  const assignee = await User.findById(complaint.frp).lean();
+  if (!assignee || !assignee.email) {
+    throw AppError.badRequest('Assigned First Responsible Person does not have a valid email address.');
+  }
+
+  complaint.set('d2.sendMailToFrp', true);
+  complaint.lastActivityAt = new Date();
+  await complaint.save();
+
+  await notifications.enqueue({
+    type: 'D2_FRP_ASSIGNED',
+    complaint: complaint._id,
+    recipient: assignee.email,
+    recipientUser: assignee._id,
+    dedupeKey: `FRP_ASSIGNED:${complaint._id}:${assignee._id}:${Date.now()}`,
+    message: d2FrpAssigned(complaint, assignee),
+  });
+  notifications.nudge();
+
+  await inApp.createNotification({
+    recipient: assignee._id,
+    complaint: complaint._id,
+    title: 'First Responsible Person Assignment Notification',
+    message: `You have been notified as First Responsible Person for complaint ${complaint.complaintNumber}.`,
+    link: `/complaints/${complaint._id}?tab=D2`,
+  });
+
+  return getDetail(id, user, permissions);
+}
+
+/**
+ * Live preview of the Step 8.b FRP assignment email for the given complaint and candidate FRP.
+ */
+export async function frpEmailPreview(id, { assigneeId } = {}, { user, permissions }) {
+  const complaint = await findVisible(id, user, permissions);
+  const targetId = assigneeId || complaint.frp;
+  const assignee = targetId ? await User.findById(targetId).lean() : null;
+  const msg = d2FrpAssigned(complaint, assignee || { name: 'First Responsible Person' });
+  return {
+    to: assignee?.email || '',
+    assigneeName: assignee?.name || '',
+    subject: msg.subject,
+    text: msg.text,
+    html: msg.html,
+  };
 }

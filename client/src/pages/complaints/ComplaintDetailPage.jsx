@@ -1058,13 +1058,15 @@ export function ComplaintDetailPage() {
                 Edit
               </button>
               {c.stage === 'D2' ? (
-                <button
-                  type="button"
-                  onClick={() => setExtensionModal(true)}
-                  className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
-                >
-                  D2 SLA Extension
-                </button>
+                Boolean(c.d2?.sendMailToFrp) && (
+                  <button
+                    type="button"
+                    onClick={() => setExtensionModal(true)}
+                    className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+                  >
+                    D2 SLA Extension
+                  </button>
+                )
               ) : (
                 <button
                   type="button"
@@ -1107,11 +1109,11 @@ export function ComplaintDetailPage() {
                 >
                   Printable View / PDF
                 </button>
-                {c.stage === 'D2' && (
+                {c.stage === 'D2' && Boolean(c.d2?.sendMailToFrp) && (
                   <button
                     type="button"
                     onClick={() => { setActionsDropdown(false); setExtensionModal(true); }}
-                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700"
+                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 cursor-pointer"
                   >
                     D2 SLA Extension
                   </button>
@@ -1310,15 +1312,25 @@ export function ComplaintDetailPage() {
         </div>
       </div>
 
-      {/* D2 SLA Extension Pop-up Modal */}
+      {/* D2 SLA Extension Pop-up Modal (SOP Page 7, Step 11) */}
       {extensionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="bg-white rounded-lg p-5 max-w-md w-full shadow-overlay space-y-4 text-xs">
-            <h3 className="text-sm font-bold text-slate-900">Request D2 SLA Extension</h3>
-            <form onSubmit={handleRequestExtension} className="space-y-4">
+          <div className="bg-white rounded-md shadow-2xl max-w-lg w-full overflow-hidden border border-slate-300 text-xs">
+            <div className="relative border-b border-slate-200 px-6 py-4">
+              <h3 className="text-base font-medium text-slate-800 text-center">Request D2 SLA Extension</h3>
+              <button
+                type="button"
+                onClick={() => setExtensionModal(false)}
+                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={handleRequestExtension} className="p-6 space-y-4">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Extension Hours Requested <span className="text-red-500">*</span>
+                <label className="block text-xs font-normal text-slate-700 mb-1">
+                  <span className="text-red-600 font-bold mr-0.5">*</span>D2 SLA Extension Hours
                 </label>
                 <input
                   type="number"
@@ -1327,29 +1339,38 @@ export function ComplaintDetailPage() {
                   placeholder="e.g. 52"
                   value={extHours}
                   onChange={(e) => setExtHours(e.target.value)}
-                  className="w-full rounded border border-slate-300 p-2.5 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded border border-[#0176d3] p-2 text-xs focus:ring-1 focus:ring-[#0176d3] focus:outline-none"
+                  autoFocus
                 />
               </div>
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Reason for Extension <span className="text-red-500">*</span>
+                <label className="block text-xs font-normal text-slate-700 mb-1">
+                  <span className="text-red-600 font-bold mr-0.5">*</span>Reason for SLA Extension D2
                 </label>
                 <textarea
                   rows={3}
                   required
-                  placeholder="e.g. laboratory analysis requires additional incubation..."
+                  placeholder="Enter reason for SLA extension..."
                   value={extReason}
                   onChange={(e) => setExtReason(e.target.value)}
-                  className="w-full rounded border border-slate-300 p-2.5 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded border border-slate-300 p-2 text-xs focus:border-[#0176d3] focus:outline-none resize-y"
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <Button variant="secondary" size="sm" onClick={() => setExtensionModal(false)}>
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setExtensionModal(false)}
+                  className="rounded border border-slate-300 bg-white px-5 py-1.5 text-xs font-medium text-[#0176d3] hover:bg-slate-50 transition-colors cursor-pointer"
+                >
                   Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={savingExt || !extHours}>
-                  {savingExt ? 'Submitting...' : 'Submit Request'}
-                </Button>
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingExt || !extHours}
+                  className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-medium text-white hover:bg-[#015ba5] disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {savingExt ? 'Submitting...' : 'Submit'}
+                </button>
               </div>
             </form>
           </div>

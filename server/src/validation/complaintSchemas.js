@@ -132,6 +132,7 @@ export const updateD2Body = z.object({
   version: z.number().int().min(0),
   priority: z.preprocess(blankToNull, z.enum(['Low', 'Medium', 'High', 'Critical']).nullable().optional()),
   sendMailToFrp: yesNo,
+  assigneeId: z.preprocess(blankToNull, objectId.nullable().optional()),
   verifiedProduct: z
     .object({
       performanceRelated: yesNo,
@@ -162,6 +163,8 @@ export const updateD2Body = z.object({
 export const assignFrpBody = z.object({
   assigneeId: objectId,
   reason: z.string().trim().max(1000).optional(),
+  sendMail: yesNo.optional(),
+  sendMailToFrp: yesNo.optional(),
 });
 
 export const stageActionBody = z.object({
@@ -196,7 +199,7 @@ export const causePatch = z
 
 export const rootCauseBody = z.object({
   category,
-  description: z.string().trim().min(5, 'Describe the root cause in at least 5 characters.').max(2000),
+  description: z.string().trim().min(1, 'Describe the root cause.').max(2000),
   sourceCause: objectId.optional(),
 });
 export const rootCausePatch = rootCauseBody.omit({ sourceCause: true }).partial().refine((v) => Object.keys(v).length, 'Nothing to update.');

@@ -90,9 +90,9 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPr
         <div className="space-y-4">
           <p className="flex items-center gap-2 text-ok">✓ The analysis has everything needed for review.</p>
           {mappedManager ? (
-            <div className="rounded border border-blue-200 bg-blue-50/70 p-3 space-y-1">
-              <span className="text-xs font-semibold text-blue-900 uppercase tracking-wide">
-                Assigned FRP Manager (Database Mapped)
+            <div className="rounded border border-slate-200 bg-slate-50/70 p-3 space-y-1">
+              <span className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+                Assigned Reviewer (FRP Manager)
               </span>
               <p className="text-sm font-medium text-slate-900">
                 {mappedManager.name} {mappedManager.designation ? `(${mappedManager.designation})` : ''}

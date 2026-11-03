@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink } from 'lucide-react';
+import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send } from 'lucide-react';
 import { complaintApi, lookupApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
 import { useAsync } from '../../lib/useAsync.js';
@@ -38,6 +38,7 @@ function toForm(c) {
       typeOfFailure: str(inv.typeOfFailure),
       slaHoursD3D4: str(slaD3D4),
     },
+    assigneeId: str(c.frp?._id || c.frp || ''),
     sendMailToFrp: Boolean(c.d2?.sendMailToFrp),
   };
 }
@@ -71,6 +72,7 @@ function toBody(f) {
       slaHoursD4: sla,
       slaHoursD3D4: sla,
     },
+    assigneeId: f.assigneeId || null,
     sendMailToFrp: Boolean(f.sendMailToFrp),
   };
 }
@@ -148,7 +150,7 @@ function SfCheckboxDisplay({ checked }) {
 
 /* ---------------- Read-only view matching screenshot ---------------- */
 
-function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp }) {
+function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp, onSendMailToFrp, sendingFrpMail }) {
   const vp = c.d2?.verifiedProduct || {};
   const inv = c.d2?.investigation || {};
 
@@ -380,7 +382,28 @@ function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp }) {
               <SfFieldItem
                 label="Send Mail To FRP"
                 apiName="Send_Mail_To_FRP__c"
-                customValue={<SfCheckboxDisplay checked={Boolean(c.d2?.sendMailToFrp)} />}
+                customValue={
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <SfCheckboxDisplay checked={Boolean(c.d2?.sendMailToFrp)} />
+                      <span className="text-slate-600 font-normal text-xs">
+                        {c.d2?.sendMailToFrp ? 'Selected' : 'Not selected'}
+                      </span>
+                    </div>
+                    {c.frp && (
+                      <button
+                        type="button"
+                        onClick={onSendMailToFrp}
+                        disabled={sendingFrpMail}
+                        className="inline-flex items-center gap-1.5 rounded-xs border border-[#0176d3] bg-[#0176d3]/10 hover:bg-[#0176d3]/20 px-2.5 py-1 text-xs font-semibold text-[#0176d3] transition-colors cursor-pointer disabled:opacity-50"
+                        title="Dispatch First Responsible Person assignment email (SOP Step 8.b)"
+                      >
+                        <Mail className="h-3 w-3" />
+                        <span>{sendingFrpMail ? 'Sending...' : 'Send Mail to FRP'}</span>
+                      </button>
+                    )}
+                  </div>
+                }
                 canEdit={canEdit}
                 onEdit={onEdit}
               />
@@ -401,7 +424,7 @@ function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp }) {
 
 /* ---------------- Edit form matching layout ---------------- */
 
-function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
+function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates = [] }) {
   const setVp = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((prev) => ({
@@ -704,32 +727,35 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
       <SfSection title="First Responsible Person" defaultOpen={true}>
         <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200/60 text-xs">
           <div className="divide-y divide-slate-200/60">
-            <div className="px-4 py-2.5 flex items-center justify-between">
-              <div>
-                <label className="block text-slate-600 font-medium text-xs mb-1">
-                  First Responsible Person <span className="text-[10px] text-slate-400 font-normal">(First_Responsible_Person__c)</span>
-                </label>
-                {c.frp ? (
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
-                      <User className="h-3.5 w-3.5" />
-                    </span>
-                    <span className="text-[#0176d3] font-medium">{c.frp.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-slate-400 italic">Not assigned yet</span>
-                )}
+            <div className="px-4 py-2.5">
+              <label className="block text-slate-600 font-medium text-xs mb-1">
+                First Responsible Person <span className="text-[10px] text-slate-400 font-normal">(First_Responsible_Person__c)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <select
+                  value={form.assigneeId || ''}
+                  onChange={(e) => setForm((prev) => ({ ...prev, assigneeId: e.target.value }))}
+                  className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
+                >
+                  <option value="">{c.frp ? `${c.frp.name} (Current FRP)` : 'Select FRP...'}</option>
+                  {candidates.map((u) => (
+                    <option key={u._id} value={u._id}>
+                      {u.name} {u.email ? `(${u.email})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={onAssignFrp}
+                  className="rounded-xs border border-[#0176d3] px-2.5 py-1.5 text-xs font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap"
+                  title="View workload & assign with note"
+                >
+                  Workload View
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={onAssignFrp}
-                className="rounded-xs border border-[#0176d3] px-2.5 py-1 text-xs font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors"
-              >
-                {c.frp ? 'Change FRP' : 'Assign FRP'}
-              </button>
             </div>
 
-            <div className="px-4 py-2.5">
+            <div className="px-4 py-2.5 bg-slate-50/50">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -737,10 +763,13 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp }) {
                   onChange={(e) => setForm((prev) => ({ ...prev, sendMailToFrp: e.target.checked }))}
                   className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
                 />
-                <span className="text-slate-700 font-medium text-xs">
+                <span className="text-slate-800 font-semibold text-xs">
                   Send Mail To FRP <span className="text-[10px] text-slate-400 font-normal">(Send_Mail_To_FRP__c)</span>
                 </span>
               </label>
+              <p className="text-[11px] text-slate-500 mt-1 ml-6">
+                When selected, saving D2 will dispatch the assignment notification email (<strong>First Responsible Person for the complaint {c.complaintNumber}</strong>) to the assigned FRP.
+              </p>
             </div>
           </div>
           <div className="px-4 py-2.5 text-slate-400 italic min-h-[38px]">&nbsp;</div>
@@ -756,25 +785,31 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
   const candidates = useAsync(() => (open ? complaintApi.frpCandidates() : Promise.resolve({ data: [] })), [open]);
   const [selected, setSelected] = useState('');
   const [reason, setReason] = useState('');
+  const [sendMail, setSendMail] = useState(true);
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const reassigning = Boolean(complaint.frp);
 
   useEffect(() => {
     if (open) {
-      setSelected('');
+      setSelected(complaint.frp?._id || '');
       setReason('');
+      setSendMail(true);
       setErrors({});
     }
-  }, [open]);
+  }, [open, complaint.frp]);
 
   const save = async () => {
     setBusy(true);
     setErrors({});
     try {
-      const res = await complaintApi.assignFrp(complaint._id, { assigneeId: selected, reason: reason || undefined });
-      const person = candidates.data.find((u) => u._id === selected);
-      onDone(res.data, person);
+      const res = await complaintApi.assignFrp(complaint._id, {
+        assigneeId: selected,
+        reason: reason || undefined,
+        sendMailToFrp: sendMail,
+      });
+      const person = (candidates.data || []).find((u) => u._id === selected);
+      onDone(res.data, person, sendMail);
     } catch (err) {
       const e = readError(err);
       setErrors(Object.keys(e.fields).length ? e.fields : { _: e.message });
@@ -783,7 +818,8 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
     }
   };
 
-  const options = (candidates.data || []).filter((u) => u._id !== complaint.frp?._id);
+  const options = candidates.data || [];
+  const selectedPerson = options.find((u) => u._id === selected);
 
   return (
     <Modal
@@ -819,7 +855,7 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
           <legend className="mb-1.5 text-xs font-medium text-slate-700">
             Select Employee<span className="ml-0.5 text-red-500">*</span>
           </legend>
-          <div className="max-h-64 divide-y divide-slate-200 overflow-y-auto rounded-xs border border-slate-200">
+          <div className="max-h-56 divide-y divide-slate-200 overflow-y-auto rounded-xs border border-slate-200">
             {options.map((u) => (
               <label
                 key={u._id}
@@ -836,6 +872,11 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
                 />
                 <span className="flex-1">
                   <span className="font-semibold text-slate-900">{u.name}</span>
+                  {u._id === complaint.frp?._id && (
+                    <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-700">
+                      Currently Assigned
+                    </span>
+                  )}
                   <span className="block text-[11px] text-slate-500">
                     {[u.designation, u.department?.name].filter(Boolean).join(', ') || u.email}
                   </span>
@@ -847,7 +888,90 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
           {errors.assigneeId && <p className="mt-1 text-xs text-red-500">{errors.assigneeId}</p>}
         </fieldset>
       )}
-      {reassigning && (
+
+      {/* Send Mail to FRP Checkbox */}
+      <div className="mt-3 p-2.5 rounded border border-blue-100 bg-blue-50/60">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={sendMail}
+            onChange={(e) => setSendMail(e.target.checked)}
+            className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
+          />
+          <span className="text-xs font-bold text-slate-800">
+            Send Mail To FRP <span className="font-normal text-slate-600">(Send_Mail_To_FRP__c)</span>
+          </span>
+        </label>
+        <p className="text-[11px] text-slate-600 mt-1 ml-6">
+          SOP Step 8.b: Dispatches email notification (<code className="text-blue-700">First Responsible Person for the complaint {complaint.complaintNumber}</code>) to the assigned FRP.
+        </p>
+      </div>
+
+      {/* Live Email Preview matching SOP Page 6 Step 8.b */}
+      {selectedPerson && sendMail && (
+        <div className="mt-3 rounded border border-slate-200 bg-slate-50 overflow-hidden text-xs">
+          <div className="bg-slate-100 px-3 py-1.5 border-b border-slate-200 text-[11px] font-bold text-slate-700 flex items-center justify-between">
+            <span>Email Preview: SOP Step 8.b Notification</span>
+            <span className="text-[#0176d3] font-semibold">{selectedPerson.email}</span>
+          </div>
+          <div className="p-3 space-y-2 bg-white font-sans">
+            <div className="text-slate-700 font-mono text-[11px] border-b border-slate-100 pb-1.5">
+              <strong>Subject:</strong> First Responsible Person for the complaint {complaint.complaintNumber}
+            </div>
+            <p className="text-slate-800">Dear {selectedPerson.name},</p>
+            <p className="text-slate-700">
+              You have been assigned as the <strong>First Responsible Person (FRP)</strong> for the following complaint. Please review the details and take necessary action.
+            </p>
+            <div className="font-semibold text-slate-800 pt-0.5">Complaint Details:</div>
+            <table className="w-full border-collapse border border-slate-200 text-[11px]">
+              <tbody>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 w-44 text-slate-700">Complaint Number</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.complaintNumber}</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Current Stage</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">D2 - Investigation & Analysis</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Type of Failure</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.d2?.investigation?.typeOfFailure || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Manufacturing Location</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.d2?.investigation?.manufacturingLocation || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Product Name</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.d2?.verifiedProduct?.productName || complaint.reportedProduct?.name || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Batch Number</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.d2?.verifiedProduct?.batchNumber || complaint.reportedProduct?.batchNumber || '—'}</td>
+                </tr>
+                <tr>
+                  <td className="border border-slate-200 bg-slate-50 font-bold p-1.5 text-slate-700">Short Description</td>
+                  <td className="border border-slate-200 p-1.5 text-slate-900">{complaint.shortDescription || '—'}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div className="py-1">
+              <span className="inline-block bg-[#0176d3] text-white font-semibold text-xs px-3 py-1.5 rounded-xs">
+                View Complaint Record
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 italic pt-1">
+              Note: The complaint owner has flagged this for your immediate attention. Please prioritize this investigation and complete the D2 stage analysis.
+            </p>
+            <div className="text-[11px] text-slate-600 pt-1">
+              <p>Best Regards,</p>
+              <p className="font-bold text-slate-800">Customer Relationship Management Team</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reassigning && selected !== complaint.frp?._id && (
         <div className="mt-3">
           <label className="block text-xs font-medium text-slate-700 mb-1">
             Reason for reassignment <span className="text-red-500">*</span>
@@ -879,6 +1003,15 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
   const [busy, setBusy] = useState(false);
   const [lists, setLists] = useState(null);
   const [assignFrpOpen, setAssignFrpOpen] = useState(false);
+  const [candidates, setCandidates] = useState([]);
+  const [sendingFrpMail, setSendingFrpMail] = useState(false);
+
+  useEffect(() => {
+    complaintApi
+      .frpCandidates()
+      .then((r) => setCandidates(r.data || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if ((editing || assignFrpOpen) && !lists) {
@@ -904,13 +1037,27 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
     setEditing(true);
   };
 
+  const handleSendMailToFrp = async () => {
+    if (!c.frp) return;
+    setSendingFrpMail(true);
+    try {
+      const res = await complaintApi.sendMailToFrp(c._id);
+      notify(`Assignment email dispatched to First Responsible Person (${c.frp.name || ''}).`);
+      onSaved(res.data);
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    } finally {
+      setSendingFrpMail(false);
+    }
+  };
+
   const save = async () => {
     setBusy(true);
     setErrors({});
     setMessage(null);
     try {
       const res = await complaintApi.updateD2(c._id, { version: c.__v, ...toBody(form) });
-      notify('D2 information saved.');
+      notify(form.sendMailToFrp ? 'D2 information saved and assignment email sent to FRP.' : 'D2 information saved.');
       setEditing(false);
       onSaved(res.data);
     } catch (err) {
@@ -965,6 +1112,7 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
               errors={errors}
               lists={lists}
               c={c}
+              candidates={candidates}
               onAssignFrp={() => setAssignFrpOpen(true)}
             />
           ) : (
@@ -985,6 +1133,8 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
           canEdit={can.editD2 || c.status === 'D2_IN_PROGRESS' || c.status === 'D1_ACKNOWLEDGED'}
           onEdit={startEdit}
           onAssignFrp={() => setAssignFrpOpen(true)}
+          onSendMailToFrp={handleSendMailToFrp}
+          sendingFrpMail={sendingFrpMail}
         />
       )}
 
@@ -1068,11 +1218,16 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
         open={assignFrpOpen}
         complaint={c}
         onClose={() => setAssignFrpOpen(false)}
-        onDone={(next, person) => {
+        onDone={(next, person, sentMail) => {
           setAssignFrpOpen(false);
           onSaved(next);
-          if (next.unchanged) notify(`${person?.name} is already the First Responsible Person.`);
-          else notify(`${person?.name} assigned as FRP.`);
+          if (sentMail) {
+            notify(`Assignment email dispatched to First Responsible Person (${person?.name || ''}).`);
+          } else if (next.unchanged) {
+            notify(`${person?.name} is already the First Responsible Person.`);
+          } else {
+            notify(`${person?.name} assigned as FRP.`);
+          }
         }}
       />
     </div>

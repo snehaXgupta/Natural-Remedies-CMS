@@ -63,6 +63,8 @@ r.get('/:id/notifications', canView, validate({ params: idParams }), n.forCompla
 r.post('/:id/start-d2', canView, requirePermission(P.COMPLAINT_D2_EDIT), validate({ params: idParams, body: stageActionBody }), d2.start);
 r.patch('/:id/d2', canView, requirePermission(P.COMPLAINT_D2_EDIT), validate({ params: idParams, body: updateD2Body }), d2.update);
 r.post('/:id/frp', canView, requirePermission(P.COMPLAINT_ASSIGN), validate({ params: idParams, body: assignFrpBody }), d2.assignFrp);
+r.post('/:id/d2/send-mail-to-frp', canView, requireAnyPermission(P.COMPLAINT_ASSIGN, P.COMPLAINT_D2_EDIT), validate({ params: idParams }), d2.sendFrpEmail);
+r.get('/:id/d2/frp-email-preview', canView, validate({ params: idParams }), d2.frpEmailPreview);
 r.get('/:id/assignments', canView, validate({ params: idParams }), d2.assignments);
 r.post('/:id/complete-d2', canView, requirePermission(P.COMPLAINT_D2_EDIT), validate({ params: idParams, body: stageActionBody }), d2.complete);
 

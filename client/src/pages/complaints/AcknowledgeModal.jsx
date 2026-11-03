@@ -148,15 +148,10 @@ export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
             )}
           </div>
 
-          <div className="rounded border border-blue-200 bg-blue-50/50 p-2.5 text-xs">
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="font-bold text-slate-800 text-[11px] uppercase tracking-wider">
-                Assigned Complaint Handler (Database Mapped)
-              </span>
-              <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">
-                Database Mapped
-              </span>
-            </div>
+          <div className="rounded border border-slate-200 bg-slate-50/70 p-2.5 text-xs">
+            <span className="font-bold text-slate-700 text-[11px] uppercase tracking-wider block mb-0.5">
+              Assigned Complaint Handler
+            </span>
             <p className="font-semibold text-slate-900 text-xs">
               {selectedCoordinator?.name || preview?.coordinatorName || complaint.coordinator?.name || 'Chandan (Quality Coordinator)'}
               <span className="ml-1 text-slate-500 font-normal text-[11px]">

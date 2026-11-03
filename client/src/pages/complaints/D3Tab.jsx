@@ -431,6 +431,8 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
     responsiblePerson: '',
     timeline: new Date().toISOString().slice(0, 10),
   });
+  const [rcErrors, setRcErrors] = useState({});
+  const [savingRc, setSavingRc] = useState(false);
 
   useEffect(() => {
     d3Api.people().then((r) => setPeople(r.data)).catch(() => {});
@@ -440,6 +442,7 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
   const allCapas = rootCauses.flatMap((rc) => (rc.capas || []).map((c) => ({ ...c, rootCause: rc })));
 
   const handleOpenAdd = () => {
+    setRcErrors({});
     setRcForm({
       category: 'Manpower',
       description: '',
@@ -454,10 +457,13 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
 
   const handleSaveRootCause = async (e) => {
     e.preventDefault();
+    setRcErrors({});
     if (!rcForm.description.trim()) {
+      setRcErrors({ description: 'Please enter a root cause description.' });
       notify('Please enter a root cause description.', 'bad');
       return;
     }
+    setSavingRc(true);
     try {
       // 1. Add root cause
       const rcRes = await d3Api.addRootCause(complaintId, {
@@ -483,7 +489,13 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
       if (onReload) onReload();
       else d3Api.get(complaintId).then((r) => setData(r.data));
     } catch (err) {
-      notify(readError(err).message, 'bad');
+      const errObj = readError(err);
+      const fieldErrors = errObj.fields || {};
+      setRcErrors(fieldErrors);
+      const msgs = Object.values(fieldErrors);
+      notify(msgs.length ? msgs.join('. ') : errObj.message, 'bad');
+    } finally {
+      setSavingRc(false);
     }
   };
 
@@ -682,9 +694,15 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                   rows={2}
                   value={rcForm.description}
                   placeholder="e.g. manual preparation test"
-                  onChange={(e) => setRcForm({ ...rcForm, description: e.target.value })}
-                  className="w-full rounded border border-slate-300 p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                  onChange={(e) => {
+                    setRcForm({ ...rcForm, description: e.target.value });
+                    if (rcErrors.description) setRcErrors((prev) => ({ ...prev, description: undefined }));
+                  }}
+                  className={`w-full rounded border ${rcErrors.description ? 'border-red-500' : 'border-slate-300'} p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
                 />
+                {rcErrors.description && (
+                  <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.description}</p>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -720,17 +738,26 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                       rows={2}
                       value={rcForm.capaDescription}
                       placeholder="e.g. manual preparation test"
-                      onChange={(e) => setRcForm({ ...rcForm, capaDescription: e.target.value })}
-                      className="w-full rounded border border-slate-300 p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                      onChange={(e) => {
+                        setRcForm({ ...rcForm, capaDescription: e.target.value });
+                        if (rcErrors.correctiveAction) setRcErrors((prev) => ({ ...prev, correctiveAction: undefined }));
+                      }}
+                      className={`w-full rounded border ${rcErrors.correctiveAction ? 'border-red-500' : 'border-slate-300'} p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
                     />
+                    {rcErrors.correctiveAction && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.correctiveAction}</p>
+                    )}
                   </div>
 
                   <div>
                     <label className="block font-medium text-slate-700 mb-1">Responsible Person</label>
                     <select
                       value={rcForm.responsiblePerson}
-                      onChange={(e) => setRcForm({ ...rcForm, responsiblePerson: e.target.value })}
-                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                      onChange={(e) => {
+                        setRcForm({ ...rcForm, responsiblePerson: e.target.value });
+                        if (rcErrors.responsiblePerson) setRcErrors((prev) => ({ ...prev, responsiblePerson: undefined }));
+                      }}
+                      className={`w-full h-8 rounded border ${rcErrors.responsiblePerson ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
                     >
                       <option value="">Select a responsible person</option>
                       {people.map((p) => (
@@ -739,6 +766,9 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                         </option>
                       ))}
                     </select>
+                    {rcErrors.responsiblePerson && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.responsiblePerson}</p>
+                    )}
                   </div>
 
                   <div>
@@ -746,9 +776,15 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                     <input
                       type="date"
                       value={rcForm.timeline}
-                      onChange={(e) => setRcForm({ ...rcForm, timeline: e.target.value })}
-                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                      onChange={(e) => {
+                        setRcForm({ ...rcForm, timeline: e.target.value });
+                        if (rcErrors.targetDate) setRcErrors((prev) => ({ ...prev, targetDate: undefined }));
+                      }}
+                      className={`w-full h-8 rounded border ${rcErrors.targetDate ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
                     />
+                    {rcErrors.targetDate && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.targetDate}</p>
+                    )}
                   </div>
                 </>
               )}
@@ -763,9 +799,10 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                 </button>
                 <button
                   type="submit"
-                  className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] transition-colors cursor-pointer shadow-xs"
+                  disabled={savingRc}
+                  className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] disabled:opacity-60 transition-colors cursor-pointer shadow-xs"
                 >
-                  Save
+                  {savingRc ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
@@ -1080,9 +1117,8 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
     setActiveStage(val);
     if (!state.data?.canEdit || !state.data?.analysis) return;
     const method = val === 'Why-Why' ? 'WHY_WHY' : val === 'Fishbone' ? 'FISHBONE' : null;
-    if (method && !state.data.analysis.methods?.includes(method)) {
-      const newMethods = Array.from(new Set([...(state.data.analysis.methods || []), method]));
-      d3Api.updateAnalysis(complaint._id, { version: state.data.analysis.__v, methods: newMethods })
+    if (method) {
+      d3Api.updateAnalysis(complaint._id, { version: state.data.analysis.__v, methods: [method] })
         .then((r) => setState((prev) => ({ ...prev, data: r.data })))
         .catch(() => {});
     }
