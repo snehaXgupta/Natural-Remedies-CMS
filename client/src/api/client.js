@@ -35,5 +35,9 @@ export function readError(error) {
   for (const d of body?.details || []) {
     if (d.field && !fields[d.field]) fields[d.field] = d.message;
   }
-  return { message: body?.message || 'Something went wrong. Try again.', fields, code: body?.code };
+  const detailMessages = (body?.details || []).map((d) => d.message).filter(Boolean);
+  const message = detailMessages.length
+    ? detailMessages.join('. ')
+    : (body?.message || 'Something went wrong. Try again.');
+  return { message, fields, code: body?.code };
 }

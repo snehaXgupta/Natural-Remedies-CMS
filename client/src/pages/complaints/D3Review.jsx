@@ -37,8 +37,9 @@ export function SubmitD3Modal({ open, complaint, resubmit, onClose, onDone, onPr
         if (mapped) {
           setMappedManager(mapped);
           setReviewerId(mapped._id);
-        } else if (c.data.length === 1) {
-          setReviewerId(c.data[0]._id);
+        } else {
+          const fallback = (c.data || []).find((u) => /thippeswamy/i.test(u.name)) || (c.data?.length === 1 ? c.data[0] : null);
+          if (fallback) setReviewerId(fallback._id);
         }
       })
       .catch((err) => setErrors([readError(err).message]));

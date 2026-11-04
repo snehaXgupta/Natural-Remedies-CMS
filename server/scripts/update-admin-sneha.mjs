@@ -12,7 +12,7 @@ async function main() {
 
   const admin = await User.findOne({ email: 'admin@naturalremedies.com' });
   if (admin) {
-    admin.name = 'Sneha';
+    admin.name = 'Admin';
     admin.designation = 'Complaint Handler / Admin';
     if (!admin.roles.includes('quality_coordinator')) {
       admin.roles.push('quality_coordinator');

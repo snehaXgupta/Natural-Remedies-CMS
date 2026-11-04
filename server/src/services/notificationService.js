@@ -239,7 +239,7 @@ export function stopWorker() {
 
 /** Send soon after a business action instead of waiting for the next poll. */
 export function nudge() {
-  if (timer) setImmediate(tick);
+  setImmediate(tick);
 }
 
 /* ---------------- Reading and manual retry ---------------- */

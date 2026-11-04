@@ -234,12 +234,22 @@ export async function deleteCause(id, causeId, { user, permissions, context }) {
 
 /* ---------------- Root causes ---------------- */
 
-export async function addRootCause(id, { category, description, sourceCause }, { user, permissions, context }) {
+export async function addRootCause(id, { category, description, sourceCause, capa }, { user, permissions, context }) {
   const { complaint, analysis } = await editable(id, user, permissions);
   if (sourceCause && !(await FishboneCause.exists({ _id: sourceCause, analysis: analysis._id, deletedAt: null }))) {
     throw AppError.validation([{ field: 'sourceCause', message: 'The linked fishbone cause no longer exists.' }]);
   }
-  await RootCause.create({ complaint: complaint._id, analysis: analysis._id, category, description, sourceCause, createdBy: user._id });
+  let capaData = null;
+  if (capa) {
+    capaData = { ...pick(capa) };
+    if (!capaData.capaRequired) capaData.actionStatus = 'NOT_REQUIRED';
+    await checkCapa(capaData, { isNew: true });
+  }
+  const rc = await RootCause.create({ complaint: complaint._id, analysis: analysis._id, category, description, sourceCause, createdBy: user._id });
+  if (capaData) {
+    const capaNumber = await nextCapaNumber(complaint.complaintNumber);
+    await CapaRecord.create({ ...capaData, capaNumber, complaint: complaint._id, rootCause: rc._id, createdBy: user._id });
+  }
   await touch(complaint._id);
   await record(user, context, complaint, 'complaint.d3.rootcause.add', `Recorded root cause (${category}): ${description}`, { after: { category, description } });
   return getD3(id, user, permissions);
@@ -287,8 +297,12 @@ async function checkCapa(input, { isNew }) {
     if (!input.correctiveAction) issues.push({ field: 'correctiveAction', message: 'Describe the corrective action.' });
     if (!input.responsiblePerson) issues.push({ field: 'responsiblePerson', message: 'Choose who is responsible.' });
     if (!input.targetDate) issues.push({ field: 'targetDate', message: 'Set a target completion date.' });
-    else if (isNew && input.targetDate < new Date(new Date().toDateString())) {
-      issues.push({ field: 'targetDate', message: 'The target date cannot be in the past.' });
+    else if (isNew) {
+      const targetStr = new Date(input.targetDate).toISOString().slice(0, 10);
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (targetStr < todayStr) {
+        issues.push({ field: 'targetDate', message: 'The target date cannot be in the past.' });
+      }
     }
     if (input.actionStatus === 'NOT_REQUIRED') issues.push({ field: 'actionStatus', message: '“Not required” is only for records where CAPA is not required.' });
   } else if (!input.description) {

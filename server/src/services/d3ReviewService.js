@@ -90,24 +90,51 @@ export async function readinessIssues(complaintId) {
 
 /**
  * Automatically resolve the FRP's Manager from database mapping.
- * Strategy: FRP direct manager (user.manager) -> Department manager (department.manager).
+ * Strategy: FRP direct manager (user.manager) -> Department manager (department.manager) -> Designated FRP Manager (Thippeswamy).
  */
 export async function getFrpManager(complaint) {
-  if (!complaint?.frp) return null;
-  const frpUser = await User.findById(complaint.frp)
-    .populate('manager', 'name email designation roles isActive')
-    .populate({
-      path: 'department',
-      populate: { path: 'manager', select: 'name email designation roles isActive' },
-    })
-    .lean();
+  if (complaint?.frp) {
+    const frpUser = await User.findById(complaint.frp)
+      .populate('manager', 'name email designation roles isActive')
+      .populate({
+        path: 'department',
+        populate: { path: 'manager', select: 'name email designation roles isActive' },
+      })
+      .lean();
 
-  if (frpUser?.manager && frpUser.manager.isActive) {
-    return frpUser.manager;
+    if (frpUser?.manager && frpUser.manager.isActive && frpUser.manager.email?.includes('@')) {
+      return frpUser.manager;
+    }
+    if (frpUser?.department?.manager && frpUser.department.manager.isActive && frpUser.department.manager.email?.includes('@')) {
+      return frpUser.department.manager;
+    }
   }
-  if (frpUser?.department?.manager && frpUser.department.manager.isActive) {
-    return frpUser.department.manager;
+
+  // Fallback 1: Specifically designated FRP Manager (Thippeswamy)
+  const designated = await User.findOne(
+    {
+      $or: [{ email: 'thippeswamy@naturalremedies.com' }, { name: /Thippeswamy/i }],
+      isActive: true,
+    },
+    { _id: 1, name: 1, email: 1, designation: 1, roles: 1 }
+  ).lean();
+  if (designated && designated.email?.includes('@')) {
+    return designated;
   }
+
+  // Fallback 2: Any active reviewer with a naturalremedies email
+  const reviewer = await User.findOne(
+    {
+      roles: 'reviewer',
+      isActive: true,
+      email: /@naturalremedies\.com$/i,
+    },
+    { _id: 1, name: 1, email: 1, designation: 1, roles: 1 }
+  ).lean();
+  if (reviewer && reviewer.email?.includes('@')) {
+    return reviewer;
+  }
+
   return null;
 }
 
@@ -128,7 +155,7 @@ export async function readiness(id, user, permissions) {
 /** Active users who may review D3, excluding the person asking. */
 export async function reviewerCandidates(excludeUserId) {
   const roles = await Role.find({ permissions: P.COMPLAINT_D3_REVIEW }, { key: 1 }).lean();
-  const filter = { isActive: true, roles: { $in: roles.map((r) => r.key) } };
+  const filter = { isActive: true, roles: { $in: roles.map((r) => r.key) }, email: /@/ };
   if (excludeUserId) filter._id = { $ne: excludeUserId };
   return User.find(
     filter,
@@ -195,7 +222,13 @@ export async function submit(id, { reviewerId, remarks, idempotencyKey }, { user
 
   const issues = await readinessIssues(complaint._id);
   const isAdmin = permissions.has(P.USERS_MANAGE) || user.roles?.includes('admin');
-  const reviewer = (await reviewerCandidates(isAdmin ? null : user._id)).find((u) => String(u._id) === String(reviewerId));
+  let reviewer = null;
+  if (reviewerId) {
+    reviewer = (await reviewerCandidates(isAdmin ? null : user._id)).find((u) => String(u._id) === String(reviewerId));
+  }
+  if (!reviewer) {
+    reviewer = await getFrpManager(complaint);
+  }
   if (!reviewer) {
     issues.push(
       String(reviewerId) === String(user._id) && !isAdmin
@@ -206,10 +239,15 @@ export async function submit(id, { reviewerId, remarks, idempotencyKey }, { user
   if (issues.length) throw AppError.validation(issues.map((message) => ({ field: null, message })));
 
   let queued = false;
+  let submissionComplaint = null;
+  let assignedReviewer = null;
+
   await mongoose.connection.transaction(async (session) => {
     queued = false;
     const { complaint: updated, replayed } = await workflow.perform(id, action, { actor: user, permissions, remarks, idempotencyKey, context, session });
     if (replayed) return;
+    submissionComplaint = updated;
+    assignedReviewer = reviewer;
     const now = new Date();
     const analysis = await RootCauseAnalysis.findOneAndUpdate(
       { complaint: updated._id },
@@ -270,7 +308,20 @@ export async function submit(id, { reviewerId, remarks, idempotencyKey }, { user
       session,
     });
   });
+
   if (queued) notifications.nudge();
+
+  // Send Salesforce Bell In-App Notification to the Reviewer (FRP Manager)
+  if (assignedReviewer?._id && submissionComplaint?._id) {
+    await inApp.createNotification({
+      recipient: assignedReviewer._id,
+      complaint: submissionComplaint._id,
+      title: 'D3 Root Cause & CAPA Submitted for Approval',
+      message: `${user.name} submitted D3 root cause analysis and CAPA plan for complaint ${submissionComplaint.complaintNumber} for your review and approval.`,
+      link: `/complaints/${submissionComplaint._id}?tab=D3`,
+    });
+  }
+
   return getDetail(id, user, permissions);
 }
 

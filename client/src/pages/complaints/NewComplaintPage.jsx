@@ -16,7 +16,7 @@ import {
   ArrowLeft,
   Paperclip,
 } from 'lucide-react';
-import { complaintApi } from '../../api/endpoints.js';
+import { complaintApi, userApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
 import { useToast } from '../../components/Toast.jsx';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -44,21 +44,21 @@ export function NewComplaintPage() {
 
   const [form, setForm] = useState({
     requester: {
-      name: user?.name || 'ANANDHANARAYANAN S',
-      email: user?.email || 'anandha.n@naturalremedy.com.invalid',
-      mobile: user?.phone || '09876543321',
+      name: '',
+      email: '',
+      mobile: '',
       type: 'Customer',
     },
-    sbu: 'HHP',
-    country: 'Afghanistan',
-    headQuarter: '--None--',
+    sbu: '',
+    country: '',
+    headQuarter: '',
     origin: 'Call',
-    shortDescription: 'Manual preparation test',
+    shortDescription: '',
     customer: {
-      name: 'Manual preparation test',
+      name: '',
     },
     reportedProduct: {
-      name: 'Manual preparation test',
+      name: '',
       batchNumber: '',
     },
   });
@@ -73,20 +73,72 @@ export function NewComplaintPage() {
   const [postUploadFiles, setPostUploadFiles] = useState([]);
   const [uploadingDocs, setUploadingDocs] = useState(false);
 
-  // Update initial user info when auth loaded
+  // Employee directory searchable dropdown state
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [empDropdownOpen, setEmpDropdownOpen] = useState(false);
+  const empDropdownRef = useRef(null);
+
+  // Fetch all employees for "Requested By" dropdown
   useEffect(() => {
-    if (user?.name) {
-      setForm((prev) => ({
-        ...prev,
-        requester: {
-          ...prev.requester,
-          name: prev.requester.name || user.name,
-          email: prev.requester.email || user.email || '',
-          mobile: prev.requester.mobile || user.phone || '09876543321',
-        },
-      }));
+    let active = true;
+    setLoadingEmployees(true);
+    userApi
+      .directory()
+      .then((data) => {
+        if (active) setEmployees(Array.isArray(data) ? data : []);
+      })
+      .catch((err) => {
+        console.error('Failed to load employee directory:', err);
+      })
+      .finally(() => {
+        if (active) setLoadingEmployees(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Click outside listener to close employee dropdown
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (empDropdownRef.current && !empDropdownRef.current.contains(e.target)) {
+        setEmpDropdownOpen(false);
+      }
     }
-  }, [user]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSelectEmployee = (emp) => {
+    setForm((prev) => ({
+      ...prev,
+      requester: {
+        ...prev.requester,
+        name: emp.name || '',
+        email: emp.email || '',
+        mobile: emp.phone || prev.requester.mobile || '',
+      },
+    }));
+    setEmpDropdownOpen(false);
+    if (errors['requester.name']) {
+      setErrors((prev) => ({ ...prev, 'requester.name': undefined }));
+    }
+    if (errors['requester.email']) {
+      setErrors((prev) => ({ ...prev, 'requester.email': undefined }));
+    }
+  };
+
+  const query = (form.requester.name || '').trim().toLowerCase();
+  const filteredEmployees = employees.filter((emp) => {
+    if (!query) return true;
+    const nameMatch = emp.name?.toLowerCase().includes(query);
+    const emailMatch = emp.email?.toLowerCase().includes(query);
+    const designationMatch = emp.designation?.toLowerCase().includes(query);
+    const dept = typeof emp.department === 'string' ? emp.department : emp.department?.name;
+    const deptMatch = dept?.toLowerCase().includes(query);
+    return nameMatch || emailMatch || designationMatch || deptMatch;
+  });
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -121,6 +173,45 @@ export function NewComplaintPage() {
     setErrors({});
     setMessage(null);
 
+    const clientErrors = {};
+    if (!form.requester.name?.trim()) {
+      clientErrors['requester.name'] = 'Enter the requester’s name.';
+    }
+    if (!form.requester.email?.trim()) {
+      clientErrors['requester.email'] = 'Enter a valid email address.';
+    }
+    if (!form.requester.mobile?.trim()) {
+      clientErrors['requester.mobile'] = 'Enter a valid mobile number.';
+    }
+    if (!form.sbu) {
+      clientErrors.sbu = 'Enter the SBU.';
+    }
+    if (!form.country) {
+      clientErrors.country = 'Enter the country.';
+    }
+    if (!form.headQuarter || form.headQuarter === '--None--') {
+      clientErrors.headQuarter = 'Select the Complaint Head Quarter.';
+    }
+    if (!form.shortDescription?.trim()) {
+      clientErrors.shortDescription = 'Describe the complaint in at least 5 characters.';
+    }
+    if (!form.customer.name?.trim()) {
+      clientErrors['customer.name'] = 'Enter the Distributor / Retailer Name.';
+    }
+    if (!form.reportedProduct.name?.trim()) {
+      clientErrors['reportedProduct.name'] = 'Enter the Product Name.';
+    }
+    if (!form.reportedProduct.batchNumber?.trim()) {
+      clientErrors['reportedProduct.batchNumber'] = 'Enter the Batch Number.';
+    }
+
+    if (Object.keys(clientErrors).length > 0) {
+      setErrors(clientErrors);
+      setMessage('Please check the required fields highlighted below.');
+      setBusy(false);
+      return;
+    }
+
     let complaintDate;
     try {
       complaintDate = new Date(`${dateOnly}T${timeOnly || '12:00'}:00`).toISOString();
@@ -131,23 +222,23 @@ export function NewComplaintPage() {
     const payload = {
       complaintDate,
       origin: form.origin || 'Call',
-      sbu: form.sbu || 'HHP',
-      country: form.country || 'Afghanistan',
-      headQuarter: form.headQuarter === '--None--' ? undefined : form.headQuarter,
+      sbu: form.sbu,
+      country: form.country,
+      headQuarter: form.headQuarter?.trim(),
       coordinator: undefined,
-      shortDescription: form.shortDescription,
+      shortDescription: form.shortDescription?.trim(),
       requester: {
-        name: form.requester.name,
-        email: form.requester.email,
-        mobile: form.requester.mobile,
+        name: form.requester.name?.trim(),
+        email: form.requester.email?.trim(),
+        mobile: form.requester.mobile?.trim(),
         type: form.requester.type || 'Customer',
       },
       customer: {
-        name: form.customer.name,
+        name: form.customer.name?.trim(),
       },
       reportedProduct: {
-        name: form.reportedProduct.name,
-        batchNumber: form.reportedProduct.batchNumber || undefined,
+        name: form.reportedProduct.name?.trim(),
+        batchNumber: form.reportedProduct.batchNumber?.trim(),
       },
     };
 
@@ -286,35 +377,92 @@ export function NewComplaintPage() {
               </div>
             </div>
 
-            {/* Requested By */}
+            {/* Requested By - Searchable Employee Dropdown */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
                 <span className="text-red-600 mr-0.5">*</span>Requested By
               </label>
-              <div className="flex-1">
+              <div className="flex-1 relative" ref={empDropdownRef}>
                 <div className="relative flex items-center">
                   <div className="pointer-events-none absolute left-2 flex h-4.5 w-4.5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
                     <User className="h-3 w-3" />
                   </div>
                   <input
                     type="text"
-                    placeholder="Enter requester name..."
+                    placeholder="Type to search employee..."
                     value={form.requester.name}
-                    onChange={(e) => setForm({ ...form, requester: { ...form.requester, name: e.target.value } })}
-                    className="h-8 w-full rounded border border-slate-300 bg-white pl-8 pr-7 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                    onFocus={() => setEmpDropdownOpen(true)}
+                    onChange={(e) => {
+                      setForm({ ...form, requester: { ...form.requester, name: e.target.value } });
+                      setEmpDropdownOpen(true);
+                    }}
+                    className="h-8 w-full rounded border border-slate-300 bg-white pl-8 pr-14 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
                   />
-                  {form.requester.name && (
+                  <div className="absolute right-1 flex items-center">
+                    {form.requester.name && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm({
+                            ...form,
+                            requester: { ...form.requester, name: '', email: '', mobile: '' },
+                          });
+                          setEmpDropdownOpen(true);
+                        }}
+                        className="rounded p-1 text-slate-400 hover:text-slate-600"
+                        title="Clear"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setForm({ ...form, requester: { ...form.requester, name: '' } })}
-                      className="absolute right-2 rounded p-0.5 text-slate-400 hover:text-slate-600"
-                      title="Clear"
+                      onClick={() => setEmpDropdownOpen((prev) => !prev)}
+                      className="rounded p-1 text-slate-400 hover:text-slate-600"
+                      title="Toggle employee list"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <ChevronDown className="h-3.5 w-3.5" />
                     </button>
-                  )}
+                  </div>
                 </div>
                 {errors['requester.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['requester.name']}</p>}
+
+                {/* Searchable Dropdown List */}
+                {empDropdownOpen && (
+                  <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl z-50 divide-y divide-slate-100">
+                    {loadingEmployees ? (
+                      <div className="flex items-center justify-center p-3 text-xs text-slate-500 gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-[#0176d3]" />
+                        <span>Loading employees...</span>
+                      </div>
+                    ) : filteredEmployees.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-400">
+                        No employees found matching &quot;{form.requester.name}&quot;
+                      </div>
+                    ) : (
+                      filteredEmployees.map((emp) => (
+                        <div
+                          key={emp._id || emp.email}
+                          onClick={() => handleSelectEmployee(emp)}
+                          className="p-2 hover:bg-blue-50 cursor-pointer flex flex-col text-left transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-900 text-xs">{emp.name}</span>
+                            {emp.department?.name && (
+                              <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded">
+                                {emp.department.name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span>{emp.email}</span>
+                            {emp.designation && <span>• {emp.designation}</span>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -329,6 +477,7 @@ export function NewComplaintPage() {
                   onChange={(e) => setForm({ ...form, sbu: e.target.value })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
+                  <option value="">--None--</option>
                   {SBUS.map((s) => (
                     <option key={s} value={s}>
                       {s}
@@ -348,9 +497,10 @@ export function NewComplaintPage() {
               <div className="flex-1">
                 <input
                   type="email"
+                  placeholder="Email"
                   value={form.requester.email}
                   onChange={(e) => setForm({ ...form, requester: { ...form.requester, email: e.target.value } })}
-                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                  className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none"
                 />
                 {errors['requester.email'] && <p className="text-[10px] text-red-600 mt-1">{errors['requester.email']}</p>}
               </div>
@@ -366,15 +516,16 @@ export function NewComplaintPage() {
                   value={form.country}
                   onChange={(e) => {
                     const nextCountry = e.target.value;
-                    const hqs = getHqOptionsForCountry(nextCountry);
                     setForm((prev) => ({
                       ...prev,
                       country: nextCountry,
-                      headQuarter: hqs[0] || '--None--',
+                      headQuarter: '',
                     }));
+                    if (errors.country) setErrors((prev) => ({ ...prev, country: undefined }));
                   }}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
+                  <option value="">--None--</option>
                   {COUNTRIES.map((c) => (
                     <option key={c} value={c}>
                       {c}
@@ -405,22 +556,26 @@ export function NewComplaintPage() {
             {/* Complaint Head Quarter */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Complaint Head Quarter
+                <span className="text-red-600 mr-0.5">*</span>Complaint Head Quarter
               </label>
               <div className="flex-1 relative">
                 <select
                   value={form.headQuarter}
-                  onChange={(e) => setForm({ ...form, headQuarter: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, headQuarter: e.target.value });
+                    if (errors.headQuarter) setErrors((prev) => ({ ...prev, headQuarter: undefined }));
+                  }}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
                 >
-                  <option value="--None--">--None--</option>
-                  {getHqOptionsForCountry(form.country).map((h) => (
+                  <option value="">--None--</option>
+                  {(form.country ? getHqOptionsForCountry(form.country) : []).map((h) => (
                     <option key={h} value={h}>
                       {h}
                     </option>
                   ))}
                 </select>
                 <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
+                {errors.headQuarter && <p className="text-[10px] text-red-600 mt-1">{errors.headQuarter}</p>}
               </div>
             </div>
 
@@ -514,12 +669,12 @@ export function NewComplaintPage() {
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
               <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                Batch Number
+                <span className="text-red-600 mr-0.5">*</span>Batch Number
               </label>
               <div className="flex-1">
                 <input
                   type="text"
-                  placeholder="e.g. 26T006 (optional)"
+                  placeholder="Enter Batch Number..."
                   value={form.reportedProduct.batchNumber}
                   onChange={(e) => setForm({ ...form, reportedProduct: { ...form.reportedProduct, batchNumber: e.target.value } })}
                   className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"

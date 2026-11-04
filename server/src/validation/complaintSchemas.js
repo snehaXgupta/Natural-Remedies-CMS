@@ -49,7 +49,9 @@ const d1Fields = (empty) => ({
   }),
   sbu: text(80).min(1, 'Enter the SBU.'),
   country: text(80).min(1, 'Enter the country.'),
-  headQuarter: optional(120, empty),
+  headQuarter: empty === null
+    ? optional(120, null)
+    : text(120).min(1, 'Select the Complaint Head Quarter.'),
   shortDescription: text(500).min(5, 'Describe the complaint in at least 5 characters.'),
   additionalRemarks: optional(4000, empty),
   category: optional(120, empty),
@@ -58,7 +60,7 @@ const d1Fields = (empty) => ({
     : z.object({ name: text(200).min(1, 'Enter the Distributor / Retailer Name.'), code: optional(60, empty) }),
   reportedProduct: empty === null
     ? z.object({ name: optional(200, null), batchNumber: optional(60, null) }).optional()
-    : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: optional(60, empty) }),
+    : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: text(60).min(1, 'Enter the Batch Number.') }),
   coordinator: z.preprocess((v) => (v === '' ? null : v), z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid coordinator ID.').nullable().optional()),
 });
 
@@ -197,15 +199,8 @@ export const causePatch = z
   .partial()
   .refine((v) => Object.keys(v).length, 'Nothing to update.');
 
-export const rootCauseBody = z.object({
-  category,
-  description: z.string().trim().min(1, 'Describe the root cause.').max(2000),
-  sourceCause: objectId.optional(),
-});
-export const rootCausePatch = rootCauseBody.omit({ sourceCause: true }).partial().refine((v) => Object.keys(v).length, 'Nothing to update.');
-
 const optionalLong = (max) => z.preprocess((v) => (typeof v === 'string' && v.trim() === '' ? undefined : v), z.string().trim().max(max).optional());
-const capaFields = {
+export const capaFields = {
   capaRequired: z.boolean('Say whether CAPA is required.'),
   category: optionalLong(120),
   description: optionalLong(2000),
@@ -220,6 +215,14 @@ export const capaPatch = z
   .object({ ...capaFields, version: z.number().int().min(0) })
   .partial()
   .refine((v) => Object.keys(v).length, 'Nothing to update.');
+
+export const rootCauseBody = z.object({
+  category,
+  description: z.string().trim().min(1, 'Describe the root cause.').max(2000),
+  sourceCause: objectId.optional(),
+  capa: z.object(capaFields).optional(),
+});
+export const rootCausePatch = rootCauseBody.omit({ sourceCause: true, capa: true }).partial().refine((v) => Object.keys(v).length, 'Nothing to update.');
 
 export const subIdParams = (name) => z.object({ id: objectId, [name]: objectId });
 

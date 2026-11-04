@@ -69,9 +69,12 @@ async function setup() {
     console.log('Updated Manager: Thippeswamy');
   }
 
-  // Set Thippeswamy as Department Manager for both QA & PROD
-  await Department.updateOne({ _id: qaDept._id }, { $set: { manager: thippeswamy._id } });
-  await Department.updateOne({ _id: prodDept._id }, { $set: { manager: thippeswamy._id } });
+  // Set Thippeswamy as Department Manager for all departments
+  await Department.updateMany({}, { $set: { manager: thippeswamy._id } });
+  // Remove Demo Reviewer with bad email if present
+  await User.deleteMany({ email: /snehaagmail\.com/i });
+  // Set Thippeswamy as default manager for any active employee without a manager
+  await User.updateMany({ _id: { $ne: thippeswamy._id }, manager: null }, { $set: { manager: thippeswamy._id } });
 
   // 2. Create Chandan: Complaint Handler (Database Mapping -> Manager: Thippeswamy)
   let chandan = await User.findOne({

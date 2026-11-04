@@ -334,7 +334,10 @@ export function generateComplaintReport(complaint, d3Data = null, options = {}) 
   const analysis = d3Data?.analysis || d3Data?.data?.analysis || {};
   const methods = analysis.methods || [];
   const whyWhyList = (analysis.whyWhy || []).filter((w) => w.why || w.because);
-  const isWhyWhy = methods.includes('WHY_WHY') || (whyWhyList.length > 0 && !methods.includes('FISHBONE'));
+  const fishboneTree = d3Data?.fishbone || d3Data?.data?.fishbone || {};
+  const fishboneCauseCount = Object.values(fishboneTree).reduce((acc, curr) => acc + (Array.isArray(curr) ? curr.length : 0), 0);
+  // If Why-Why method is chosen or Why-Why questions are recorded, always display Why-Why Analysis table (SOP Page 9 Step 14.h)
+  const isWhyWhy = methods.includes('WHY_WHY') || whyWhyList.length > 0 || fishboneCauseCount === 0;
   const problemStatement = analysis.problemStatement || c.shortDescription || 'Test1';
 
   if (isWhyWhy) {

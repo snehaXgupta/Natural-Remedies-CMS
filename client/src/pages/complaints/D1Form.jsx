@@ -99,7 +99,7 @@ export function D1Form({
           {(p) => <input {...p} className="field-input" {...field('requester.name')} />}
         </Field>
         <Field label="Requestor E-mail" required error={err('requester.email')} hint="Needed to send the acknowledgement email.">
-          {(p) => <input {...p} type="email" className="field-input" {...field('requester.email')} />}
+          {(p) => <input {...p} type="email" placeholder="Email" className="field-input" {...field('requester.email')} />}
         </Field>
         <Field label="Requestor Mobile Number" required error={err('requester.mobile')}>
           {(p) => <input {...p} type="tel" className="field-input" {...field('requester.mobile')} />}
@@ -133,8 +133,7 @@ export function D1Form({
               value={value.country || ''}
               onChange={(e) => {
                 const nextCountry = e.target.value;
-                const hqs = getHqOptionsForCountry(nextCountry);
-                onChange({ ...value, country: nextCountry, headQuarter: hqs[0] || '' });
+                onChange({ ...value, country: nextCountry, headQuarter: '' });
               }}
             >
               <option value="">Select Country...</option>
@@ -146,7 +145,7 @@ export function D1Form({
             </select>
           )}
         </Field>
-        <Field label="Complaint Head Quarter" error={err('headQuarter')}>
+        <Field label="Complaint Head Quarter" required error={err('headQuarter')}>
           {(p) => {
             const hqOptions = getHqOptionsForCountry(value.country);
             return (
@@ -181,8 +180,8 @@ export function D1Form({
         <Field label="Product Name" required error={err('reportedProduct.name')}>
           {(p) => <input {...p} placeholder="Enter product name..." className="field-input" {...field('reportedProduct.name')} />}
         </Field>
-        <Field label="Batch Number" error={err('reportedProduct.batchNumber')} hint="Optional at registration. Verified in D2.">
-          {(p) => <input {...p} placeholder="e.g. 26T006 (optional)" className="field-input" {...field('reportedProduct.batchNumber')} />}
+        <Field label="Batch Number" required error={err('reportedProduct.batchNumber')} hint="Mandatory at registration. Verified in D2.">
+          {(p) => <input {...p} placeholder="Enter Batch Number..." className="field-input" {...field('reportedProduct.batchNumber')} />}
         </Field>
       </Section>
 

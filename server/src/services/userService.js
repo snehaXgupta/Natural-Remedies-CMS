@@ -92,9 +92,9 @@ export async function directory({ role, search }) {
   const filter = { isActive: true };
   if (role) filter.roles = role;
   if (search) filter.name = new RegExp(escapeRegex(search.trim()), 'i');
-  const users = await User.find(filter, { name: 1, email: 1, designation: 1, department: 1, roles: 1 })
+  const users = await User.find(filter, { name: 1, email: 1, phone: 1, designation: 1, department: 1, roles: 1 })
     .sort({ name: 1 })
-    .limit(50)
+    .limit(100)
     .populate('department', 'name')
     .lean();
   return users;

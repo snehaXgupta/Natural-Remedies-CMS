@@ -1,4 +1,4 @@
-import { InAppNotification } from '../models/index.js';
+import { InAppNotification, Complaint, ComplaintAssignment, User } from '../models/index.js';
 
 export async function createNotification({ recipient, complaint, title, message, link }) {
   if (!recipient) return null;
@@ -65,7 +65,66 @@ export async function cleanupDuplicatesForUser(userId) {
   }
 }
 
+export async function syncPendingForManager(userId) {
+  try {
+    const user = await User.findById(userId).lean();
+    if (!user) return;
+    const isReviewer = user.roles?.includes('reviewer') || user.roles?.includes('admin') || /Thippeswamy/i.test(user.name);
+    if (!isReviewer) return;
+
+    // 1. Any complaint currently in D3_PENDING_APPROVAL
+    const pendingD3 = await Complaint.find({ status: 'D3_PENDING_APPROVAL' }).lean();
+    for (const c of pendingD3) {
+      const activeReviewer = await ComplaintAssignment.findOne({ complaint: c._id, role: 'REVIEWER', active: true }).lean();
+      const isTarget = activeReviewer ? String(activeReviewer.assignee) === String(userId) : isReviewer;
+      if (isTarget) {
+        const notifExists = await InAppNotification.findOne({
+          recipient: userId,
+          complaint: c._id,
+          title: 'D3 Root Cause & CAPA Submitted for Approval',
+        }).lean();
+        if (!notifExists) {
+          const frpUser = c.frp ? await User.findById(c.frp, { name: 1 }).lean() : null;
+          await InAppNotification.create({
+            recipient: userId,
+            complaint: c._id,
+            title: 'D3 Root Cause & CAPA Submitted for Approval',
+            message: `${frpUser?.name || 'FRP'} submitted D3 root cause analysis and CAPA plan for complaint ${c.complaintNumber} for your review and approval.`,
+            link: `/complaints/${c._id}?tab=D3`,
+            read: false,
+          });
+        }
+      }
+    }
+
+    // 2. Any complaint with pending D2 SLA Extension
+    const pendingExt = await Complaint.find({ 'd2.slaExtension.status': 'PENDING' }).lean();
+    for (const c of pendingExt) {
+      const notifExists = await InAppNotification.findOne({
+        recipient: userId,
+        complaint: c._id,
+        title: 'D2 SLA Extension Request',
+      }).lean();
+      if (!notifExists) {
+        const frpUser = c.frp ? await User.findById(c.frp, { name: 1 }).lean() : null;
+        const ext = c.d2?.slaExtension;
+        await InAppNotification.create({
+          recipient: userId,
+          complaint: c._id,
+          title: 'D2 SLA Extension Request',
+          message: `${frpUser?.name || 'FRP'} requested ${ext?.requestedHours || 24} hours extension for ${c.complaintNumber}: ${ext?.reason || 'No reason specified'}`,
+          link: `/complaints/${c._id}?tab=D2`,
+          read: false,
+        });
+      }
+    }
+  } catch (err) {
+    // Non-blocking sync
+  }
+}
+
 export async function listForUser(userId, limit = 20) {
+  await syncPendingForManager(userId);
   await cleanupDuplicatesForUser(userId);
   const notifications = await InAppNotification.find({ recipient: userId })
     .sort({ createdAt: -1 })

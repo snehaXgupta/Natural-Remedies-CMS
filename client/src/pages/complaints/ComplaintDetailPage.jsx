@@ -34,7 +34,7 @@ import { FilesTab } from './FilesTab.jsx';
 import { HistoryPanel } from './HistoryPanel.jsx';
 import { EmailHistoryPanel } from './EmailHistoryPanel.jsx';
 import { AcknowledgeModal } from './AcknowledgeModal.jsx';
-import { D2Tab } from './D2Tab.jsx';
+import { D2Tab, AssignFrpModal } from './D2Tab.jsx';
 import { D3Tab } from './D3Tab.jsx';
 import { SubmitD3Modal } from './D3Review.jsx';
 import { d3Api } from '../../api/endpoints.js';
@@ -167,8 +167,7 @@ function SfFieldItem({ label, apiName, value, onEdit, canEdit = true, customValu
     <div className="flex items-center justify-between px-4 py-2 hover:bg-slate-50/80 group transition-colors min-h-[38px]">
       <div className="flex items-start sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <div className="w-44 sm:w-52 shrink-0 text-slate-600 font-medium text-xs truncate">
-          <span>{label}</span>{' '}
-          {apiName && <span className="text-[10px] text-slate-400 font-normal">({apiName})</span>}
+          <span>{label}</span>
         </div>
         <div className={`text-slate-900 font-normal text-xs flex-1 min-w-0 ${customValue ? '' : 'truncate'}`}>
           {customValue ? customValue : (value || <span className="text-slate-300 font-light">&nbsp;</span>)}
@@ -862,6 +861,9 @@ export function ComplaintDetailPage() {
   const [extReason, setExtReason] = useState('');
   const [savingExt, setSavingExt] = useState(false);
   const [editD1Trigger, setEditD1Trigger] = useState(0);
+  const [editD2Trigger, setEditD2Trigger] = useState(0);
+  const [assignFrpModalOpen, setAssignFrpModalOpen] = useState(false);
+  const [sendingFrpMailTop, setSendingFrpMailTop] = useState(false);
   const [actionsDropdown, setActionsDropdown] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [newTaskModal, setNewTaskModal] = useState(false);
@@ -954,10 +956,24 @@ export function ComplaintDetailPage() {
     if (tab === 'D1') {
       setEditD1Trigger((t) => t + 1);
     } else if (tab === 'D2') {
-      setParams({ tab: 'D2' }, { replace: true });
+      setEditD2Trigger((t) => t + 1);
     } else {
       setParams({ tab: 'D1' }, { replace: true });
       setEditD1Trigger((t) => t + 1);
+    }
+  };
+
+  const handleSendMailToFrpTopBar = async () => {
+    if (!c.frp) return;
+    setSendingFrpMailTop(true);
+    try {
+      const res = await complaintApi.sendMailToFrp(c._id);
+      notify(`Assignment email dispatched to First Responsible Person (${c.frp.name || ''}).`);
+      refreshed(res.data);
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    } finally {
+      setSendingFrpMailTop(false);
     }
   };
 
@@ -1028,7 +1044,6 @@ export function ComplaintDetailPage() {
             <div>
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500 font-medium">
                 <span>Complaint</span>
-                <span className="text-slate-400">(Complaint_Management__c)</span>
                 <span className="text-slate-400">({sfRecordId})</span>
               </div>
               <div className="flex items-center gap-2.5">
@@ -1058,15 +1073,36 @@ export function ComplaintDetailPage() {
                 Edit
               </button>
               {c.stage === 'D2' ? (
-                Boolean(c.d2?.sendMailToFrp) && (
-                  <button
-                    type="button"
-                    onClick={() => setExtensionModal(true)}
-                    className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
-                  >
-                    D2 SLA Extension
-                  </button>
-                )
+                <>
+                  {!c.frp && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignFrpModalOpen(true)}
+                      className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+                    >
+                      Assign FRP
+                    </button>
+                  )}
+                  {c.frp && !c.d2?.sendMailToFrp && (
+                    <button
+                      type="button"
+                      disabled={sendingFrpMailTop}
+                      onClick={handleSendMailToFrpTopBar}
+                      className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer disabled:opacity-50"
+                    >
+                      {sendingFrpMailTop ? 'Sending...' : 'Send Mail to FRP'}
+                    </button>
+                  )}
+                  {Boolean(c.d2?.sendMailToFrp) && (
+                    <button
+                      type="button"
+                      onClick={() => setExtensionModal(true)}
+                      className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+                    >
+                      D2 SLA Extension
+                    </button>
+                  )}
+                </>
               ) : (
                 <button
                   type="button"
@@ -1109,6 +1145,24 @@ export function ComplaintDetailPage() {
                 >
                   Printable View / PDF
                 </button>
+                {c.stage === 'D2' && !c.frp && (
+                  <button
+                    type="button"
+                    onClick={() => { setActionsDropdown(false); setAssignFrpModalOpen(true); }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 cursor-pointer"
+                  >
+                    Assign FRP
+                  </button>
+                )}
+                {c.stage === 'D2' && c.frp && !c.d2?.sendMailToFrp && (
+                  <button
+                    type="button"
+                    onClick={() => { setActionsDropdown(false); handleSendMailToFrpTopBar(); }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-slate-50 text-slate-700 cursor-pointer"
+                  >
+                    Send Mail to FRP
+                  </button>
+                )}
                 {c.stage === 'D2' && Boolean(c.d2?.sendMailToFrp) && (
                   <button
                     type="button"
@@ -1269,7 +1323,7 @@ export function ComplaintDetailPage() {
             )}
             {tab === 'D2' && (
               <div className="bg-white rounded border border-slate-200 p-4 sm:p-5 shadow-2xs">
-                <D2Tab key={c.__v} detail={detail} onSaved={refreshed} refreshKey={historyKey} />
+                <D2Tab key={c.__v} detail={detail} onSaved={refreshed} refreshKey={historyKey} editTrigger={editD2Trigger} />
               </div>
             )}
             {tab === 'D3' && (
@@ -1515,6 +1569,17 @@ export function ComplaintDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Assign FRP Modal */}
+      <AssignFrpModal
+        open={assignFrpModalOpen}
+        complaint={c}
+        onClose={() => setAssignFrpModalOpen(false)}
+        onDone={(next) => {
+          setAssignFrpModalOpen(false);
+          refreshed(next);
+        }}
+      />
 
       {/* Complaint Management Report Preview Modal */}
       <ComplaintReportModal

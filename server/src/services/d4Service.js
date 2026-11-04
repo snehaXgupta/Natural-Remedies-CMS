@@ -28,12 +28,32 @@ import { generateComplaintPdfBuffer } from './pdfReportService.js';
  * Automatically resolve the Complaint Handler's Manager from database mapping.
  */
 export async function getHandlerManager(complaint) {
-  if (!complaint?.coordinator) return null;
-  const coord = await User.findById(complaint.coordinator)
-    .populate('manager', 'name email designation roles isActive')
-    .lean();
-  if (coord?.manager && coord.manager.isActive) {
-    return coord.manager;
+  if (complaint?.coordinator) {
+    const coord = await User.findById(complaint.coordinator)
+      .populate('manager', 'name email designation roles isActive')
+      .populate({
+        path: 'department',
+        populate: { path: 'manager', select: 'name email designation roles isActive' },
+      })
+      .lean();
+    if (coord?.manager && coord.manager.isActive && coord.manager.email?.includes('@')) {
+      return coord.manager;
+    }
+    if (coord?.department?.manager && coord.department.manager.isActive && coord.department.manager.email?.includes('@')) {
+      return coord.department.manager;
+    }
+  }
+
+  // Fallback to designated manager (Thippeswamy: Both FRP Manager & Handler Manager)
+  const designated = await User.findOne(
+    {
+      $or: [{ email: 'thippeswamy@naturalremedies.com' }, { name: /Thippeswamy/i }],
+      isActive: true,
+    },
+    { _id: 1, name: 1, email: 1, designation: 1, roles: 1 }
+  ).lean();
+  if (designated && designated.email?.includes('@')) {
+    return designated;
   }
   return null;
 }
@@ -120,9 +140,36 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
   if (!capa) throw AppError.notFound('CAPA record not found.');
   const complaint = await Complaint.findById(capa.complaint);
   const now = new Date();
-  const isApproved = decision === 'APPROVED';
+  const isApproved = String(decision || '').toUpperCase() === 'APPROVED';
+  const isRejected = String(decision || '').toUpperCase() === 'REJECTED';
+  const newStatus = isApproved ? 'APPROVED' : isRejected ? 'REJECTED' : 'PENDING';
 
-  // Normalize tier name (handle 'FRP_MANAGER' or 'FRP')
+  // If FRP Manager review from Identified Root Cause table
+  if (tier === 'FRP_MANAGER') {
+    capa.approvalStatus = newStatus;
+    capa.frpManagerApproval = {
+      status: newStatus,
+      comments: comments || '',
+      approver: user._id,
+      date: now,
+    };
+    capa.frpImplementationApproval = { status: newStatus, comments, approver: user._id, date: now };
+    capa.approvalHistory.push({
+      step: 'FRP Manager Root Cause & CAPA Review',
+      status: isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending',
+      assignedTo: user.name,
+      actualApprover: user.name,
+      date: now,
+      comments: comments || '',
+    });
+    if (isApproved) {
+      capa.reviewStatus = 'REVIEWED';
+    }
+    await capa.save();
+    return capa;
+  }
+
+  // Normalize tier name (handle 'FRP')
   const normalizedTier = tier === 'FRP_MANAGER' ? 'FRP' : tier;
 
   if (normalizedTier === 'FRP') {

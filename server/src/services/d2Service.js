@@ -12,6 +12,7 @@ import * as notifications from './notificationService.js';
 import * as audit from './auditService.js';
 import * as inApp from './inAppNotificationService.js';
 import { d2SlaExtensionRequest } from '../mail/templates.js';
+import { getFrpManager } from './d3ReviewService.js';
 
 const who = (user, permissions, context) => ({ actor: user, permissions, context });
 
@@ -89,6 +90,19 @@ export async function update(id, { version, verifiedProduct, investigation, prio
   complaint.lastActivityAt = new Date();
   await complaint.save();
 
+  // In Salesforce D2 stage:
+  // 1. A Salesforce in-app notification is ALWAYS sent to the designated FRP user upon assignment.
+  // 2. If "Send Mail to FRP" is selected, an email notification is also sent to the FRP.
+  if (newlyAssignedUser) {
+    await inApp.createNotification({
+      recipient: newlyAssignedUser._id,
+      complaint: complaint._id,
+      title: 'You Have Been Assigned as First Responsible Person',
+      message: `You have been designated as the First Responsible Person (FRP) for complaint ${complaint.complaintNumber}. Kindly review and initiate the required actions.`,
+      link: `/complaints/${complaint._id}?tab=D2`,
+    });
+  }
+
   // If sendMailToFrp is selected/true, dispatch the Step 8.b FRP assignment email!
   if (Boolean(sendMailToFrp) && complaint.frp) {
     const targetFrp = newlyAssignedUser || (await User.findById(complaint.frp).lean());
@@ -103,13 +117,15 @@ export async function update(id, { version, verifiedProduct, investigation, prio
       });
       notifications.nudge();
 
-      await inApp.createNotification({
-        recipient: targetFrp._id,
-        complaint: complaint._id,
-        title: 'You Have Been Assigned as First Responsible Person',
-        message: `You have been designated as the First Responsible Person (FRP) for complaint ${complaint.complaintNumber}. Kindly review and initiate the required actions.`,
-        link: `/complaints/${complaint._id}?tab=D2`,
-      });
+      if (!newlyAssignedUser) {
+        await inApp.createNotification({
+          recipient: targetFrp._id,
+          complaint: complaint._id,
+          title: 'You Have Been Assigned as First Responsible Person',
+          message: `You have been designated as the First Responsible Person (FRP) for complaint ${complaint.complaintNumber}. Kindly review and initiate the required actions.`,
+          link: `/complaints/${complaint._id}?tab=D2`,
+        });
+      }
     }
   }
 
@@ -271,14 +287,15 @@ export async function assignFrp(id, { assigneeId, reason, sendMail = true, sendM
   }
   if (queued) {
     notifications.nudge();
-    await inApp.createNotification({
-      recipient: assignee._id,
-      complaint: visible._id,
-      title: 'You Have Been Assigned as First Responsible Person',
-      message: `You have been designated as the First Responsible Person (FRP) for complaint ${visible.complaintNumber}. Kindly review and initiate the required actions.`,
-      link: `/complaints/${visible._id}?tab=D2`,
-    });
   }
+  // Salesforce notification to FRP is always sent upon assignment (SOP Step 8.a)
+  await inApp.createNotification({
+    recipient: assignee._id,
+    complaint: visible._id,
+    title: 'You Have Been Assigned as First Responsible Person',
+    message: `You have been designated as the First Responsible Person (FRP) for complaint ${visible.complaintNumber}. Kindly review and initiate the required actions.`,
+    link: `/complaints/${visible._id}?tab=D2`,
+  });
   return getDetail(id, user, permissions);
 }
 
@@ -294,15 +311,23 @@ export async function assignmentHistory(id, user, permissions) {
 
 /* ---------------- Complete D2 ---------------- */
 
-/** Resolve D2_COMPLETED_NOTIFY into { email, name, userId } recipients. */
+/** Resolve D2_COMPLETED_NOTIFY into { email, name, userId } recipients (SOP Step 13: Handler and FRP). */
 async function completionRecipients(complaint, completer) {
   const out = new Map();
-  for (const token of env.D2_COMPLETED_NOTIFY.split(',').map((t) => t.trim()).filter(Boolean)) {
-    if (token === 'frp' && complaint.frp) {
-      const frp = await User.findById(complaint.frp, { name: 1, email: 1 }).lean();
-      if (frp) out.set(frp.email, { email: frp.email, name: frp.name, userId: frp._id });
-    } else if (token === 'completer') {
-      out.set(completer.email, { email: completer.email, name: completer.name, userId: completer._id });
+  // 1. FRP
+  if (complaint.frp) {
+    const frp = await User.findById(complaint.frp, { name: 1, email: 1 }).lean();
+    if (frp?.email) out.set(frp.email.toLowerCase(), { email: frp.email, name: frp.name, userId: frp._id });
+  }
+  // 2. Complaint Handler (Coordinator)
+  if (complaint.coordinator) {
+    const handler = await User.findById(complaint.coordinator, { name: 1, email: 1 }).lean();
+    if (handler?.email) out.set(handler.email.toLowerCase(), { email: handler.email, name: handler.name, userId: handler._id });
+  }
+  // 3. Completer or extra env emails
+  for (const token of (env.D2_COMPLETED_NOTIFY || '').split(',').map((t) => t.trim()).filter(Boolean)) {
+    if (token === 'completer' && completer?.email) {
+      out.set(completer.email.toLowerCase(), { email: completer.email, name: completer.name, userId: completer._id });
     } else if (token.includes('@')) {
       out.set(token.toLowerCase(), { email: token.toLowerCase() });
     }
@@ -318,6 +343,7 @@ async function completionRecipients(complaint, completer) {
 export async function complete(id, { idempotencyKey, remarks }, { user, permissions, context }) {
   await findVisible(id, user, permissions, { lean: true });
   let queued = false;
+  let finishedComplaint = null;
   await mongoose.connection.transaction(async (session) => {
     queued = false;
     const { complaint, replayed } = await workflow.perform(id, 'completeD2', {
@@ -327,6 +353,7 @@ export async function complete(id, { idempotencyKey, remarks }, { user, permissi
       session,
     });
     if (replayed) return;
+    finishedComplaint = complaint;
     const now = new Date();
     await Complaint.updateOne({ _id: complaint._id }, { $set: { 'd2.completedBy': user._id, 'd2.completedAt': now } }, { session });
     await ComplaintStageRecord.create(
@@ -350,6 +377,26 @@ export async function complete(id, { idempotencyKey, remarks }, { user, permissi
     }
   });
   if (queued) notifications.nudge();
+
+  // In-app notifications to FRP and Handler (SOP Step 13)
+  if (finishedComplaint?.frp) {
+    await inApp.createNotification({
+      recipient: finishedComplaint.frp,
+      complaint: finishedComplaint._id,
+      title: 'D2 Stage Completed',
+      message: `D2 stage for complaint ${finishedComplaint.complaintNumber} has been completed.`,
+      link: `/complaints/${finishedComplaint._id}?tab=D3`,
+    });
+  }
+  if (finishedComplaint?.coordinator && String(finishedComplaint.coordinator) !== String(finishedComplaint.frp)) {
+    await inApp.createNotification({
+      recipient: finishedComplaint.coordinator,
+      complaint: finishedComplaint._id,
+      title: 'D2 Stage Completed',
+      message: `D2 stage for complaint ${finishedComplaint.complaintNumber} has been completed.`,
+      link: `/complaints/${finishedComplaint._id}?tab=D3`,
+    });
+  }
 
   // If FRP has already acknowledged, automatically transition to D3
   try {
@@ -375,22 +422,9 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
   });
   await complaint.save();
 
-  // Look up FRP and their manager (SOP Page 7, Step 12)
-  const frp = await User.findById(complaint.frp).populate('manager', 'name email').lean();
-  let frpManager = frp?.manager;
-
-  // Fallback if no manager directly linked to FRP: look for FRP Manager role (reviewer) or assigner
-  if (!frpManager || !frpManager.email) {
-    frpManager = await User.findOne({ roles: 'reviewer', isActive: true }, { _id: 1, email: 1, name: 1 }).lean();
-    if (!frpManager) {
-      const activeAssignment = await ComplaintAssignment.findOne({
-        complaint: complaint._id,
-        role: 'FRP',
-        active: true,
-      }).populate('assignedBy', 'name email').lean();
-      frpManager = activeAssignment?.assignedBy;
-    }
-  }
+  // Resolve FRP Manager using centralized logic (SOP Page 7, Step 12)
+  const frpManager = await getFrpManager(complaint);
+  const frp = complaint.frp ? await User.findById(complaint.frp, { name: 1, email: 1 }).lean() : null;
 
   // Enqueue email notification to the FRP's manager
   let queued = false;
@@ -412,7 +446,7 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
   }
   if (queued) notifications.nudge();
 
-  // Send in-app notification strictly to the FRP's manager
+  // Send in-app notification strictly to the FRP's manager (SOP Step 12)
   if (frpManager?._id) {
     await inApp.createNotification({
       recipient: frpManager._id,

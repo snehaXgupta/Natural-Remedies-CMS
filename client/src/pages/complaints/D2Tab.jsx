@@ -114,8 +114,7 @@ function SfFieldItem({ label, apiName, value, onEdit, canEdit = true, customValu
     <div className="flex items-center justify-between px-4 py-2 hover:bg-slate-50/80 group transition-colors min-h-[38px]">
       <div className="flex items-start sm:items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <div className="w-52 sm:w-60 shrink-0 text-slate-600 font-medium text-xs">
-          <span>{label}</span>{' '}
-          {apiName && <span className="text-[10px] text-slate-400 font-normal">({apiName})</span>}
+          <span>{label}</span>
         </div>
         <div className="text-slate-900 font-normal text-xs flex-1 min-w-0">
           {customValue ? customValue : (value || <span className="text-slate-300 font-light">&nbsp;</span>)}
@@ -472,14 +471,14 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                 className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
               />
               <span className="text-slate-700 font-medium text-xs">
-                Performance/Efficacy related <span className="text-[10px] text-slate-400 font-normal">(Performance_related__c)</span>
+                Performance/Efficacy related
               </span>
             </label>
           </div>
 
           <div className="px-4 py-2.5">
             <label className="block text-slate-600 font-medium text-xs mb-1">
-              Batch Number <span className="text-[10px] text-slate-400 font-normal">(Batch_Number__c)</span>
+              Batch Number
               <span className="text-red-500 ml-0.5">*</span>
             </label>
             <input
@@ -495,7 +494,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
           <div className="px-4 py-2.5">
             <label className="block text-slate-600 font-medium text-xs mb-1">
-              Invoice Qty <span className="text-[10px] text-slate-400 font-normal">(Invoice_Qty__c)</span>
+              Invoice Qty
             </label>
             <input
               {...numInputProps}
@@ -513,7 +512,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
         <div className="divide-y divide-slate-200/60">
           <div className="px-4 py-2.5">
             <label className="block text-slate-600 font-medium text-xs mb-1">
-              SKU <span className="text-[10px] text-slate-400 font-normal">(SKU__c)</span>
+              SKU
             </label>
             <input
               type="text"
@@ -528,7 +527,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
           <div className="px-4 py-2.5">
             <label className="block text-slate-600 font-medium text-xs mb-1">
-              Remarks <span className="text-[10px] text-slate-400 font-normal">(Remarks__c)</span>
+              Remarks
             </label>
             <textarea
               rows={3}
@@ -550,7 +549,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
           <div className="divide-y divide-slate-200/60">
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                A-No. of Occurrence of the Event & Score (Probability: 2, 4, 6, 8) <span className="text-[10px] text-slate-400 font-normal">(A_No_of_Occurrence_of_the_Event_Score__c)</span>
+                A-No. of Occurrence of the Event & Score (Probability: 2, 4, 6, 8)
               </label>
               <input
                 {...numInputProps}
@@ -566,7 +565,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                C-Severity & Score (Severity: 2, 4, 6, 54) <span className="text-[10px] text-slate-400 font-normal">(C_Severity_Score__c)</span>
+                C-Severity & Score (Severity: 2, 4, 6, 54)
                 <span className="text-red-500 ml-0.5">*</span>
               </label>
               <input
@@ -583,7 +582,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                Manufacturing Location <span className="text-[10px] text-slate-400 font-normal">(Manufacturing_Location__c)</span>
+                Manufacturing Location
                 <span className="text-red-500 ml-0.5">*</span>
               </label>
               <select
@@ -605,7 +604,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                Location detail <span className="text-[10px] text-slate-400 font-normal">(Location_detail__c)</span>
+                Location detail
               </label>
               <select
                 value={form.investigation.locationDetail}
@@ -631,7 +630,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                   className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
                 />
                 <span className="text-slate-700 font-medium text-xs">
-                  Repeat complaint <span className="text-[10px] text-slate-400 font-normal">(Repeat_complaint__c)</span>
+                  Repeat complaint
                 </span>
               </label>
             </div>
@@ -641,7 +640,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
           <div className="divide-y divide-slate-200/60">
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                B-Affected Qtys. & Score (Detectability: 2, 4, 6, 8) <span className="text-[10px] text-slate-400 font-normal">(B_Affected_Qtys_Score__c)</span>
+                B-Affected Qtys. & Score (Detectability: 2, 4, 6, 8)
               </label>
               <input
                 {...numInputProps}
@@ -657,7 +656,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5 bg-slate-50/50">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                RPN value <span className="text-[10px] text-slate-400 font-normal">(RPN_value__c = S × P × D)</span>
+                RPN value
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -687,7 +686,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                Type of failure <span className="text-[10px] text-slate-400 font-normal">(Type_of_failure__c)</span>
+                Type of failure
                 <span className="text-red-500 ml-0.5">*</span>
               </label>
               <select
@@ -709,7 +708,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                SLA Hours for D3 & D4 <span className="text-[10px] text-slate-400 font-normal">(SLA_Hours_for_D3_D4__c)</span>
+                SLA Hours for D3 & D4
               </label>
               <input
                 {...numInputProps}
@@ -729,7 +728,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
           <div className="divide-y divide-slate-200/60">
             <div className="px-4 py-2.5">
               <label className="block text-slate-600 font-medium text-xs mb-1">
-                First Responsible Person <span className="text-[10px] text-slate-400 font-normal">(First_Responsible_Person__c)</span>
+                First Responsible Person
               </label>
               <div className="flex items-center gap-2">
                 <select
@@ -764,7 +763,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                   className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
                 />
                 <span className="text-slate-800 font-semibold text-xs">
-                  Send Mail To FRP <span className="text-[10px] text-slate-400 font-normal">(Send_Mail_To_FRP__c)</span>
+                  Send Mail To FRP
                 </span>
               </label>
               <p className="text-[11px] text-slate-500 mt-1 ml-6">
@@ -781,7 +780,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 
 /* ---------------- FRP assignment modal ---------------- */
 
-function AssignFrpModal({ open, complaint, onClose, onDone }) {
+export function AssignFrpModal({ open, complaint, onClose, onDone }) {
   const candidates = useAsync(() => (open ? complaintApi.frpCandidates() : Promise.resolve({ data: [] })), [open]);
   const [selected, setSelected] = useState('');
   const [reason, setReason] = useState('');
@@ -899,7 +898,7 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
             className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
           />
           <span className="text-xs font-bold text-slate-800">
-            Send Mail To FRP <span className="font-normal text-slate-600">(Send_Mail_To_FRP__c)</span>
+            Send Mail To FRP
           </span>
         </label>
         <p className="text-[11px] text-slate-600 mt-1 ml-6">
@@ -993,7 +992,7 @@ function AssignFrpModal({ open, complaint, onClose, onDone }) {
 
 /* ---------------- Main D2Tab Component ---------------- */
 
-export function D2Tab({ detail, onSaved, refreshKey }) {
+export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
   const { complaint: c, can } = detail;
   const notify = useToast();
   const [editing, setEditing] = useState(false);
@@ -1005,6 +1004,12 @@ export function D2Tab({ detail, onSaved, refreshKey }) {
   const [assignFrpOpen, setAssignFrpOpen] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [sendingFrpMail, setSendingFrpMail] = useState(false);
+
+  useEffect(() => {
+    if (editTrigger > 0) {
+      startEdit();
+    }
+  }, [editTrigger]);
 
   useEffect(() => {
     complaintApi

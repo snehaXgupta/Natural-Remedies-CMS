@@ -412,7 +412,35 @@ function CapaModal({ open, initial, people, onClose, onSave }) {
   );
 }
 
-function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForApproval }) {
+function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, onSubmitForApproval }) {
+  const { user } = useAuth();
+
+  // Only FRP Manager has access to an Edit button (Reviewer role, Admin role, or specifically Thippeswamy)
+  const isFrpManager = Boolean(
+    user && (
+      user.roles?.includes('reviewer') ||
+      user.roles?.includes('admin') ||
+      /thippeswamy/i.test(user.name) ||
+      /thippeswamy/i.test(user.email) ||
+      (complaint?.reviewer && String(complaint.reviewer._id || complaint.reviewer) === String(user._id)) ||
+      (d3?.frpManager && String(d3.frpManager._id) === String(user._id)) ||
+      user.designation?.toLowerCase().includes('frp manager') ||
+      user.designation?.toLowerCase().includes('manager')
+    )
+  );
+
+  const handleStartEdit = () => {
+    const sMap = {};
+    const cMap = {};
+    for (const capa of allCapas) {
+      const currentStatus = capa.frpManagerApproval?.status || capa.approvalStatus || 'PENDING';
+      sMap[capa._id] = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
+      cMap[capa._id] = capa.frpManagerApproval?.comments || capa.comments || '';
+    }
+    setStatusEdits(sMap);
+    setCommentsEdits(cMap);
+    setIsEditingTable(true);
+  };
   const notify = useToast();
   const [rcModalOpen, setRcModalOpen] = useState(false);
   const [isEditingTable, setIsEditingTable] = useState(false);
@@ -434,12 +462,41 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
   const [rcErrors, setRcErrors] = useState({});
   const [savingRc, setSavingRc] = useState(false);
 
+  // Form state for attaching CAPA to orphaned root cause
+  const [attachCapaTarget, setAttachCapaTarget] = useState(null);
+  const [attachCapaForm, setAttachCapaForm] = useState({
+    capaRequired: true,
+    category: 'CA',
+    description: '',
+    correctiveAction: '',
+    responsiblePerson: '',
+    timeline: new Date().toISOString().slice(0, 10),
+  });
+  const [attachCapaErrors, setAttachCapaErrors] = useState({});
+  const [savingAttachCapa, setSavingAttachCapa] = useState(false);
+
   useEffect(() => {
     d3Api.people().then((r) => setPeople(r.data)).catch(() => {});
   }, []);
 
   const rootCauses = d3.rootCauses || [];
-  const allCapas = rootCauses.flatMap((rc) => (rc.capas || []).map((c) => ({ ...c, rootCause: rc })));
+  const tableRows = rootCauses.flatMap((rc) => {
+    if (!rc.capas || rc.capas.length === 0) {
+      return [{
+        _id: `rc-orphan-${rc._id}`,
+        isOrphan: true,
+        rootCause: rc,
+        capaRequired: false,
+        category: '—',
+        description: 'No CAPA recorded',
+        responsiblePerson: null,
+        targetDate: null,
+        approvalStatus: 'PENDING',
+      }];
+    }
+    return rc.capas.map((c) => ({ ...c, rootCause: rc }));
+  });
+  const allCapas = tableRows.filter((r) => !r.isOrphan);
 
   const handleOpenAdd = () => {
     setRcErrors({});
@@ -455,42 +512,133 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
     setRcModalOpen(true);
   };
 
+  const handleDeleteRootCause = async (rcId, desc) => {
+    if (!window.confirm(`Are you sure you want to delete root cause "${desc}"?`)) return;
+    try {
+      await d3Api.deleteRootCause(complaintId, rcId);
+      notify('Root cause deleted successfully.');
+      if (onReload) onReload();
+      else d3Api.get(complaintId).then((r) => setData(r.data));
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    }
+  };
+
+  const handleOpenAttachCapa = (rc) => {
+    setAttachCapaTarget(rc);
+    setAttachCapaForm({
+      capaRequired: true,
+      category: 'CA',
+      description: rc.description || '',
+      correctiveAction: rc.description || '',
+      responsiblePerson: people[0]?._id || '',
+      timeline: new Date().toISOString().slice(0, 10),
+    });
+    setAttachCapaErrors({});
+  };
+
+  const handleSaveAttachCapa = async (e) => {
+    e.preventDefault();
+    if (!attachCapaTarget) return;
+
+    const errors = {};
+    if (attachCapaForm.capaRequired) {
+      if (!attachCapaForm.correctiveAction.trim()) {
+        errors.correctiveAction = 'Describe the corrective action.';
+      }
+      if (!attachCapaForm.responsiblePerson) {
+        errors.responsiblePerson = 'Choose who is responsible.';
+      }
+      if (!attachCapaForm.timeline) {
+        errors.timeline = 'Set a target completion date.';
+      }
+    } else if (!attachCapaForm.description.trim()) {
+      errors.description = 'Explain why no corrective action is needed.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setAttachCapaErrors(errors);
+      notify(Object.values(errors)[0], 'bad');
+      return;
+    }
+
+    setSavingAttachCapa(true);
+    try {
+      await d3Api.addCapa(complaintId, attachCapaTarget._id, {
+        capaRequired: attachCapaForm.capaRequired,
+        category: attachCapaForm.category,
+        description: attachCapaForm.description.trim(),
+        correctiveAction: attachCapaForm.capaRequired ? attachCapaForm.correctiveAction.trim() : undefined,
+        responsiblePerson: attachCapaForm.capaRequired ? attachCapaForm.responsiblePerson : undefined,
+        targetDate: attachCapaForm.capaRequired ? attachCapaForm.timeline : undefined,
+      });
+      notify('CAPA record attached successfully.');
+      setAttachCapaTarget(null);
+      if (onReload) onReload();
+      else d3Api.get(complaintId).then((r) => setData(r.data));
+    } catch (err) {
+      const errObj = readError(err);
+      const fieldErrors = errObj.fields || {};
+      if (fieldErrors.targetDate) fieldErrors.timeline = fieldErrors.targetDate;
+      setAttachCapaErrors(fieldErrors);
+      const msgs = Object.values(fieldErrors);
+      notify(msgs.length ? msgs.join('. ') : errObj.message, 'bad');
+    } finally {
+      setSavingAttachCapa(false);
+    }
+  };
+
   const handleSaveRootCause = async (e) => {
     e.preventDefault();
     setRcErrors({});
-    if (!rcForm.description.trim()) {
-      setRcErrors({ description: 'Please enter a root cause description.' });
-      notify('Please enter a root cause description.', 'bad');
+
+    const clientErrors = {};
+    if (!rcForm.description?.trim()) {
+      clientErrors.description = 'Please enter a root cause description.';
+    }
+    if (rcForm.capaRequired) {
+      if (!rcForm.capaDescription?.trim() && !rcForm.description?.trim()) {
+        clientErrors.correctiveAction = 'Describe the corrective action.';
+      }
+      if (!rcForm.responsiblePerson) {
+        clientErrors.responsiblePerson = 'Choose who is responsible.';
+      }
+      if (!rcForm.timeline) {
+        clientErrors.timeline = 'Set a target completion date.';
+      }
+    }
+
+    if (Object.keys(clientErrors).length > 0) {
+      setRcErrors(clientErrors);
+      notify(Object.values(clientErrors)[0], 'bad');
       return;
     }
+
     setSavingRc(true);
     try {
-      // 1. Add root cause
-      const rcRes = await d3Api.addRootCause(complaintId, {
+      const capaPayload = {
+        capaRequired: Boolean(rcForm.capaRequired),
+        category: rcForm.capaCategory,
+        description: rcForm.capaDescription?.trim() || rcForm.description.trim(),
+        correctiveAction: rcForm.capaRequired ? (rcForm.capaDescription?.trim() || rcForm.description.trim()) : undefined,
+        responsiblePerson: rcForm.capaRequired ? (rcForm.responsiblePerson || undefined) : undefined,
+        targetDate: rcForm.capaRequired ? (rcForm.timeline || undefined) : undefined,
+      };
+
+      await d3Api.addRootCause(complaintId, {
         category: rcForm.category,
         description: rcForm.description.trim(),
+        capa: capaPayload,
       });
-      const createdRc = rcRes.data?.rootCauses?.slice(-1)[0] || rcRes.data?.rootCauses?.[0];
 
-      // 2. Add CAPA if required
-      if (rcForm.capaRequired && createdRc?._id) {
-        await d3Api.addCapa(complaintId, createdRc._id, {
-          capaRequired: true,
-          category: rcForm.capaCategory,
-          description: rcForm.capaDescription || rcForm.description,
-          correctiveAction: rcForm.capaDescription || rcForm.description,
-          responsiblePerson: rcForm.responsiblePerson || undefined,
-          targetDate: rcForm.timeline || undefined,
-        });
-      }
-
-      notify('Root cause added successfully.');
+      notify('Root cause and CAPA recorded successfully.');
       setRcModalOpen(false);
       if (onReload) onReload();
       else d3Api.get(complaintId).then((r) => setData(r.data));
     } catch (err) {
       const errObj = readError(err);
       const fieldErrors = errObj.fields || {};
+      if (fieldErrors.targetDate) fieldErrors.timeline = fieldErrors.targetDate;
       setRcErrors(fieldErrors);
       const msgs = Object.values(fieldErrors);
       notify(msgs.length ? msgs.join('. ') : errObj.message, 'bad');
@@ -512,14 +660,18 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
   const handleSaveAllStatuses = async () => {
     setSavingStatus(true);
     try {
-      for (const [capaId, status] of Object.entries(statusEdits)) {
-        await complaintApi.decideImplementationApproval(complaintId, capaId, {
+      for (const capa of allCapas) {
+        const currentStatus = capa.frpManagerApproval?.status || capa.approvalStatus || 'PENDING';
+        const defaultStatus = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
+        const status = statusEdits[capa._id] ?? defaultStatus;
+        const comments = commentsEdits[capa._id] ?? (capa.frpManagerApproval?.comments || capa.comments || '');
+        await complaintApi.decideImplementationApproval(complaintId, capa._id, {
           tier: 'FRP_MANAGER',
-          decision: status,
-          comments: commentsEdits[capaId] || undefined,
-        }).catch(() => {});
+          decision: status.toUpperCase(),
+          comments: comments || undefined,
+        });
       }
-      notify('Root Cause statuses updated successfully.');
+      notify('Root Cause status and comments updated successfully.');
       setIsEditingTable(false);
       if (onReload) onReload();
     } catch (err) {
@@ -557,12 +709,13 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
             </>
           ) : (
             <>
-              {allCapas.length > 0 && (
+              {isFrpManager && allCapas.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setIsEditingTable(true)}
-                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
+                  onClick={handleStartEdit}
+                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
                 >
+                  <Pencil className="h-3 w-3 text-slate-500" />
                   Edit
                 </button>
               )}
@@ -603,19 +756,76 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
               <th className="px-3 py-2.5">Responsible Person</th>
               <th className="px-3 py-2.5">Time Line</th>
               <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5">Comments</th>
+              <th className="px-3 py-2.5 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {allCapas.length === 0 ? (
+            {tableRows.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={10} className="px-4 py-6 text-center text-slate-400">
                   No identified root causes yet. Click &quot;Add Root Cause&quot; to register a root cause.
                 </td>
               </tr>
             ) : (
-              allCapas.map((capa) => {
-                const rc = capa.rootCause;
-                const statusVal = statusEdits[capa._id] || (capa.approvalStatus === 'APPROVED' ? 'Approved' : capa.approvalStatus === 'REJECTED' ? 'Rejected' : 'Pending');
+              tableRows.map((row) => {
+                const rc = row.rootCause;
+                if (row.isOrphan) {
+                  return (
+                    <tr key={row._id} className="bg-amber-50/40 hover:bg-amber-50/70 border-l-2 border-l-amber-500">
+                      <td className="px-3 py-2 font-medium text-slate-800">{rc.category}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800 max-w-xs">{rc.description}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                          Missing
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">—</td>
+                      <td className="px-3 py-2 text-amber-700 max-w-xs italic font-medium">
+                        No CAPA recorded (required for approval)
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">—</td>
+                      <td className="px-3 py-2 text-slate-400">—</td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-red-100 text-red-700">
+                          Action Required
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-400">—</td>
+                      <td className="px-3 py-2 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {canEdit && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAttachCapa(rc)}
+                                className="inline-flex items-center gap-1 rounded bg-[#0176d3] text-white px-2.5 py-1 text-[11px] font-semibold hover:bg-[#015ba5] transition-colors cursor-pointer shadow-2xs"
+                                title="Add CAPA for this root cause"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add CAPA
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRootCause(rc._id, rc.description)}
+                                className="rounded border border-red-300 bg-white text-red-600 hover:bg-red-50 p-1 cursor-pointer transition-colors shadow-2xs"
+                                title="Delete root cause"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const capa = row;
+                const currentStatus = capa.frpManagerApproval?.status || capa.approvalStatus || 'PENDING';
+                const defaultStatus = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
+                const statusVal = statusEdits[capa._id] ?? defaultStatus;
+                const commentsVal = commentsEdits[capa._id] ?? (capa.frpManagerApproval?.comments || capa.comments || '');
 
                 return (
                   <tr key={capa._id} className="hover:bg-slate-50/50">
@@ -637,10 +847,10 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                         <select
                           value={statusVal}
                           onChange={(e) => setStatusEdits((prev) => ({ ...prev, [capa._id]: e.target.value }))}
-                          className="h-7 rounded border border-slate-300 bg-white px-2 text-xs font-semibold focus:border-[#0176d3] focus:outline-none"
+                          className="h-8 rounded border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-800 focus:border-[#0176d3] focus:outline-none shadow-2xs"
                         >
-                          <option value="Approved">Approved</option>
                           <option value="Pending">Pending</option>
+                          <option value="Approved">Approved</option>
                           <option value="Rejected">Rejected</option>
                         </select>
                       ) : (
@@ -650,6 +860,35 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                           {statusVal}
                         </span>
                       )}
+                    </td>
+                    <td className="px-3 py-2">
+                      {isEditingTable ? (
+                        <input
+                          type="text"
+                          value={commentsVal}
+                          onChange={(e) => setCommentsEdits((prev) => ({ ...prev, [capa._id]: e.target.value }))}
+                          placeholder="Enter reviewer comments..."
+                          className="h-8 w-full min-w-[150px] max-w-xs rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:border-[#0176d3] focus:outline-none shadow-2xs"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-600 block max-w-xs truncate" title={commentsVal || ''}>
+                          {commentsVal || <span className="text-slate-400 italic">—</span>}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteRootCause(rc._id, rc.description)}
+                            className="text-slate-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-colors cursor-pointer"
+                            title="Delete root cause & CAPA"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -778,12 +1017,12 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                       value={rcForm.timeline}
                       onChange={(e) => {
                         setRcForm({ ...rcForm, timeline: e.target.value });
-                        if (rcErrors.targetDate) setRcErrors((prev) => ({ ...prev, targetDate: undefined }));
+                        if (rcErrors.targetDate || rcErrors.timeline) setRcErrors((prev) => ({ ...prev, targetDate: undefined, timeline: undefined }));
                       }}
-                      className={`w-full h-8 rounded border ${rcErrors.targetDate ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
+                      className={`w-full h-8 rounded border ${rcErrors.targetDate || rcErrors.timeline ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
                     />
-                    {rcErrors.targetDate && (
-                      <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.targetDate}</p>
+                    {(rcErrors.targetDate || rcErrors.timeline) && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{rcErrors.targetDate || rcErrors.timeline}</p>
                     )}
                   </div>
                 </>
@@ -803,6 +1042,149 @@ function RootCauses({ complaintId, d3, setData, canEdit, onReload, onSubmitForAp
                   className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] disabled:opacity-60 transition-colors cursor-pointer shadow-xs"
                 >
                   {savingRc ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attach CAPA Modal for Orphaned Root Cause */}
+      {attachCapaTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="flex flex-col w-full max-w-lg rounded-md border border-slate-300 bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-white">
+              <div>
+                <h2 className="text-sm font-bold text-slate-800">Add CAPA for Root Cause</h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Root Cause: <span className="font-semibold text-slate-700">{attachCapaTarget.description}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAttachCapaTarget(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAttachCapa} className="p-5 space-y-3.5 text-xs">
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={attachCapaForm.capaRequired}
+                    onChange={(e) => setAttachCapaForm({ ...attachCapaForm, capaRequired: e.target.checked })}
+                    className="h-4 w-4 rounded-xs border-slate-300 text-[#0176d3] focus:ring-[#0176d3]"
+                  />
+                  <span className="font-semibold text-slate-800">CAPA Required</span>
+                </label>
+              </div>
+
+              {attachCapaForm.capaRequired ? (
+                <>
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">CAPA Category</label>
+                    <select
+                      value={attachCapaForm.category}
+                      onChange={(e) => setAttachCapaForm({ ...attachCapaForm, category: e.target.value })}
+                      className="w-full h-8 rounded border border-slate-300 px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none"
+                    >
+                      <option value="CA">CA (Corrective Action)</option>
+                      <option value="PA">PA (Preventive Action)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">CAPA Description / Corrective Action</label>
+                    <textarea
+                      rows={2}
+                      value={attachCapaForm.correctiveAction}
+                      onChange={(e) => {
+                        setAttachCapaForm({ ...attachCapaForm, correctiveAction: e.target.value, description: e.target.value });
+                        if (attachCapaErrors.correctiveAction) setAttachCapaErrors((prev) => ({ ...prev, correctiveAction: undefined }));
+                      }}
+                      className={`w-full rounded border ${attachCapaErrors.correctiveAction ? 'border-red-500' : 'border-slate-300'} p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
+                    />
+                    {attachCapaErrors.correctiveAction && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{attachCapaErrors.correctiveAction}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">Responsible Person</label>
+                    <select
+                      value={attachCapaForm.responsiblePerson}
+                      onChange={(e) => {
+                        setAttachCapaForm({ ...attachCapaForm, responsiblePerson: e.target.value });
+                        if (attachCapaErrors.responsiblePerson) setAttachCapaErrors((prev) => ({ ...prev, responsiblePerson: undefined }));
+                      }}
+                      className={`w-full h-8 rounded border ${attachCapaErrors.responsiblePerson ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
+                    >
+                      <option value="">Select a responsible person</option>
+                      {people.map((p) => (
+                        <option key={p._id} value={p._id}>
+                          {p.name}{p.designation ? ` (${p.designation})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {attachCapaErrors.responsiblePerson && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{attachCapaErrors.responsiblePerson}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block font-medium text-slate-700 mb-1">Timeline</label>
+                    <input
+                      type="date"
+                      value={attachCapaForm.timeline}
+                      onChange={(e) => {
+                        setAttachCapaForm({ ...attachCapaForm, timeline: e.target.value });
+                        if (attachCapaErrors.targetDate || attachCapaErrors.timeline) {
+                          setAttachCapaErrors((prev) => ({ ...prev, targetDate: undefined, timeline: undefined }));
+                        }
+                      }}
+                      className={`w-full h-8 rounded border ${attachCapaErrors.targetDate || attachCapaErrors.timeline ? 'border-red-500' : 'border-slate-300'} px-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
+                    />
+                    {(attachCapaErrors.targetDate || attachCapaErrors.timeline) && (
+                      <p className="text-red-600 text-[11px] mt-1 font-medium">{attachCapaErrors.targetDate || attachCapaErrors.timeline}</p>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label className="block font-medium text-slate-700 mb-1">Why is CAPA not required?</label>
+                  <textarea
+                    rows={2}
+                    value={attachCapaForm.description}
+                    onChange={(e) => {
+                      setAttachCapaForm({ ...attachCapaForm, description: e.target.value });
+                      if (attachCapaErrors.description) setAttachCapaErrors((prev) => ({ ...prev, description: undefined }));
+                    }}
+                    placeholder="Provide justification..."
+                    className={`w-full rounded border ${attachCapaErrors.description ? 'border-red-500' : 'border-slate-300'} p-2 text-slate-800 focus:border-[#0176d3] focus:outline-none`}
+                  />
+                  {attachCapaErrors.description && (
+                    <p className="text-red-600 text-[11px] mt-1 font-medium">{attachCapaErrors.description}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAttachCapaTarget(null)}
+                  className="rounded border border-slate-300 bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAttachCapa}
+                  className="rounded bg-[#0176d3] px-5 py-1.5 text-xs font-semibold text-white hover:bg-[#015ba5] disabled:opacity-60 transition-colors cursor-pointer shadow-xs"
+                >
+                  {savingAttachCapa ? 'Saving...' : 'Save CAPA'}
                 </button>
               </div>
             </form>
@@ -1271,7 +1653,7 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
       {/* Root Causes & CAPA Stage Component - visible below Fishbone & Why-Why (PDF Page 10-14) */}
       {(activeStage === 'Fishbone' || activeStage === 'Why-Why') && (
         <>
-          <RootCauses complaintId={complaint._id} d3={d3} setData={setData} canEdit={canEdit} onReload={load} onSubmitForApproval={onSubmitForApproval} />
+          <RootCauses complaintId={complaint._id} complaint={complaint} d3={d3} setData={setData} canEdit={canEdit} onReload={load} onSubmitForApproval={onSubmitForApproval} />
           <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
         </>
       )}

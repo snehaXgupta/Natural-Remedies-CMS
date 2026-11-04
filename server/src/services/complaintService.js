@@ -162,7 +162,7 @@ export async function createComplaint(input, { actor, origin, context } = {}) {
       }).catch(() => {});
     }
 
-    // Always ensure admin@naturalremedies.com (Sneha) also receives the handler notification
+    // Always ensure admin@naturalremedies.com (Admin) also receives the handler notification
     if (adminUser && String(adminUser._id) !== String(handler?._id)) {
       const adminEmail = newComplaintHandler(complaint, adminUser);
       await notifications.enqueue({
