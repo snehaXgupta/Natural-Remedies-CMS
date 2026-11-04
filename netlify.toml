@@ -1,0 +1,11 @@
+[build]
+  base = "client"
+  publish = "dist"
+  command = "npm run build"
+
+# SPA routing: fallback all routes to index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
