@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
     () =>
       onSessionEvent((kind) => {
         if (kind === 'expired') {
-          setState({ status: 'signedOut', user: null, permissions: [], notice: 'Your session ended. Sign in again to continue.' });
+          setState((prev) => (prev.status === 'signedIn' ? { status: 'signedOut', user: null, permissions: [], notice: 'Your session ended. Sign in again to continue.' } : prev));
         }
         if (kind === 'password') {
           setState((s) => (s.user ? { ...s, user: { ...s.user, mustChangePassword: true } } : s));

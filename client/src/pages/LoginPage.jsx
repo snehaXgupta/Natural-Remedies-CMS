@@ -12,10 +12,22 @@ export function LoginPage() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (busy) return;
+
+    // Read state or fallback to direct input element values (fixes browser autofill desync)
+    const formEl = e.currentTarget;
+    const emailVal = (form.email || formEl.elements.email?.value || '').trim();
+    const passVal = form.password || formEl.elements.password?.value || '';
+
+    if (!emailVal || !passVal) {
+      setError({ message: 'Please enter your email and password.', fields: {} });
+      return;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      await login(form.email.trim(), form.password);
+      await login(emailVal, passVal);
     } catch (err) {
       setError(readError(err));
       setBusy(false);
@@ -42,6 +54,7 @@ export function LoginPage() {
             {(p) => (
               <input
                 {...p}
+                name="email"
                 type="email"
                 autoComplete="username"
                 autoFocus
@@ -55,6 +68,7 @@ export function LoginPage() {
             {(p) => (
               <input
                 {...p}
+                name="password"
                 type="password"
                 autoComplete="current-password"
                 className="field-input"
