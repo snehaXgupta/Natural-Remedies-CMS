@@ -1,5 +1,5 @@
-import { jsPDF } from '../../../client/node_modules/jspdf/dist/jspdf.es.min.js';
-import { NATURAL_REMEDIES_LOGO } from '../../../client/src/lib/logoBase64.js';
+import { jsPDF } from 'jspdf';
+import { NATURAL_REMEDIES_LOGO } from '../lib/logoBase64.js';
 import { CapaRecord, RootCause, RootCauseAnalysis, FishboneCause } from '../models/index.js';
 
 export const formatSopDate = (v) => {
