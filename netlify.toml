@@ -3,9 +3,15 @@
   publish = "dist"
   command = "npm run build"
 
-# SPA routing: fallback all routes to index.html
+# Proxy API requests to Render backend
+[[redirects]]
+  from = "/api/*"
+  to = "https://natural-remedies-cms.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# SPA client-side routing fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-

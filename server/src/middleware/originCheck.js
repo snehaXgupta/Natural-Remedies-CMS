@@ -16,7 +16,8 @@ export function isOriginAllowed(origin) {
       host.endsWith('.ngrok-free.app') ||
       host.endsWith('.ngrok-free.dev') ||
       host.endsWith('.ngrok.io') ||
-      host.endsWith('.ngrok.app')
+      host.endsWith('.ngrok.app') ||
+      host.endsWith('.netlify.app')
     ) {
       return true;
     }
