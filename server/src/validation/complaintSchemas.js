@@ -229,7 +229,7 @@ export const subIdParams = (name) => z.object({ id: objectId, [name]: objectId }
 /* ---------------- D3 review (Phase 7) ---------------- */
 
 export const submitD3Body = z.object({
-  reviewerId: objectId,
+  reviewerId: objectId.optional(),
   remarks: z.string().trim().max(2000).optional(),
   idempotencyKey: z.string().regex(/^[A-Za-z0-9_-]{8,80}$/).optional(),
 });

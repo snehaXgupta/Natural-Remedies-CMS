@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, CapaRecord, User, RootCause } from '../models/index.js';
+import { Complaint, CapaRecord, User, RootCause, ComplaintAssignment } from '../models/index.js';
 import { STATUSES as S, STAGES } from '../config/workflow.js';
 import { AppError } from '../utils/AppError.js';
 import { findVisible, getDetail } from './complaintService.js';
@@ -164,6 +164,94 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     });
     if (isApproved) {
       capa.reviewStatus = 'REVIEWED';
+      // Notify Complaint Handlers (Point 20)
+      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      for (const h of handlers) {
+        await inApp.createNotification({
+          recipient: h._id,
+          complaint: complaint._id,
+          title: 'Root Causes Approved by FRP Manager',
+          message: `FRP Manager (${user.name}) approved root causes for complaint ${complaint.complaintNumber}. You can now complete Handler Review.`,
+          link: `/complaints/${complaint._id}?tab=D3`,
+        });
+      }
+    } else if (isRejected) {
+      // Notify FRP to revise (Point 19)
+      if (complaint.frp) {
+        await inApp.createNotification({
+          recipient: complaint.frp,
+          complaint: complaint._id,
+          title: 'Root Causes Rejected by FRP Manager',
+          message: `FRP Manager (${user.name}) rejected the root causes for complaint ${complaint.complaintNumber}: ${comments || 'Please revise and resubmit.'}`,
+          link: `/complaints/${complaint._id}?tab=D3`,
+        });
+      }
+    }
+    await capa.save();
+    return capa;
+  }
+
+  // If Complaint Handler review from Identified Root Cause table (Points 21-23)
+  if (tier === 'HANDLER_ROOT_CAUSE') {
+    capa.handlerApproval = {
+      status: newStatus,
+      comments: comments || '',
+      approver: user._id,
+      date: now,
+    };
+    capa.approvalHistory.push({
+      step: 'Complaint Handler Root Cause & CAPA Review',
+      status: isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Pending',
+      assignedTo: user.name,
+      actualApprover: user.name,
+      date: now,
+      comments: comments || '',
+    });
+
+    if (isApproved) {
+      // Point 23: Assign RP and notify
+      if (capa.responsiblePerson) {
+        const rpUser = await User.findById(capa.responsiblePerson, { name: 1, email: 1 }).lean();
+        if (rpUser) {
+          if (rpUser.email) {
+            await notifications.enqueue({
+              type: 'CAPA_IMPLEMENTATION_ASSIGNMENT',
+              complaint: complaint._id,
+              recipient: rpUser.email,
+              recipientUser: rpUser._id,
+              dedupeKey: `CAPA_ASSIGNMENT:${capa._id}:${Date.now()}`,
+              message: capaImplementationAssignment(complaint, capa, { rpName: rpUser.name }),
+            });
+            notifications.nudge();
+          }
+          await inApp.createNotification({
+            recipient: rpUser._id,
+            complaint: complaint._id,
+            title: 'Assigned as Responsible Person for CAPA',
+            message: `You have been assigned as Responsible Person to implement CAPA ${capa.capaNumber} for complaint ${complaint.complaintNumber}.`,
+            link: `/complaints/${complaint._id}?tab=D3`,
+          });
+          await ComplaintAssignment.create({
+            complaint: complaint._id,
+            role: 'RESPONSIBLE_PERSON',
+            assignee: rpUser._id,
+            assignedBy: user._id,
+            assignedAt: now,
+            reason: `Assigned as Responsible Person for CAPA ${capa.capaNumber}`,
+          }).catch(() => {});
+        }
+      }
+    } else if (isRejected) {
+      // Point 22: Notify FRP to revise
+      if (complaint.frp) {
+        await inApp.createNotification({
+          recipient: complaint.frp,
+          complaint: complaint._id,
+          title: 'Root Cause Rejected by Complaint Handler',
+          message: `Complaint Handler (${user.name}) rejected CAPA ${capa.capaNumber}: ${comments || 'Please revise and resubmit.'}`,
+          link: `/complaints/${complaint._id}?tab=D3`,
+        });
+      }
     }
     await capa.save();
     return capa;

@@ -1004,6 +1004,8 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
   const [assignFrpOpen, setAssignFrpOpen] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [sendingFrpMail, setSendingFrpMail] = useState(false);
+  const [ackChecked, setAckChecked] = useState(true);
+  const [ackSubmitting, setAckSubmitting] = useState(false);
 
   useEffect(() => {
     if (editTrigger > 0) {
@@ -1172,6 +1174,11 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
+                if (!ackChecked) {
+                  notify('Please check the acknowledgement checkbox to proceed.', 'warn');
+                  return;
+                }
+                setAckSubmitting(true);
                 const comments = e.target.ackComments.value;
                 try {
                   const res = await complaintApi.frpAcknowledge(c._id, { comments });
@@ -1183,6 +1190,8 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
                   onSaved(res.data);
                 } catch (err) {
                   notify(readError(err).message, 'bad');
+                } finally {
+                  setAckSubmitting(false);
                 }
               }}
               className="space-y-3 max-w-lg"
@@ -1191,8 +1200,9 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
                 <input
                   type="checkbox"
                   id="frpAckCheck"
-                  required
-                  className="h-4 w-4 rounded-xs text-[#0176d3] border-slate-300 focus:ring-[#0176d3]"
+                  checked={ackChecked}
+                  onChange={(e) => setAckChecked(e.target.checked)}
+                  className="h-4 w-4 rounded-xs text-[#0176d3] border-slate-300 focus:ring-[#0176d3] cursor-pointer"
                 />
                 <label htmlFor="frpAckCheck" className="text-xs font-semibold text-slate-800 cursor-pointer">
                   D2 Acknowledgement
@@ -1210,7 +1220,7 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
                   className="w-full text-xs rounded-xs border border-slate-300 p-2 focus:border-[#0176d3] focus:outline-none"
                 />
               </div>
-              <Button type="submit" size="sm">
+              <Button type="submit" size="sm" loading={ackSubmitting} disabled={ackSubmitting}>
                 Submit FRP Acknowledgement
               </Button>
             </form>

@@ -612,33 +612,7 @@ function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknow
         </div>
         {showFiles && (
           <div className="mt-3 pt-3 border-t border-slate-100 space-y-2.5">
-            <div className="flex items-center justify-between p-2 rounded border border-slate-200 bg-[#f8fafc] hover:bg-slate-100 transition-colors">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="flex h-7 w-7 items-center justify-center rounded bg-red-100 text-red-600 font-bold text-2xs shrink-0">
-                  PDF
-                </span>
-                <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={onOpenReportModal}
-                    className="text-xs font-semibold text-[#0176d3] hover:underline truncate block text-left cursor-pointer"
-                    title={`customerComplaintReport-${c.complaintNumber}.pdf`}
-                  >
-                    customerComplaintReport-{c.complaintNumber}.pdf
-                  </button>
-                  <span className="text-[10px] text-slate-500 block">
-                    FileType: pdf • SOP 001 Report
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={onOpenReportModal}
-                className="text-xs font-semibold text-[#0176d3] hover:underline shrink-0 ml-2 cursor-pointer"
-              >
-                Preview
-              </button>
-            </div>
+
             <FilesTab complaint={c} canUpload={detail?.can?.upload} onChange={() => {}} />
           </div>
         )}
@@ -1285,28 +1259,7 @@ export function ComplaintDetailPage() {
           <div className="lg:col-span-8 space-y-4 min-w-0">
             {tab === 'files' && (
               <div className="bg-white rounded border border-slate-200 p-4 shadow-2xs space-y-4">
-                <div className="flex items-center justify-between p-3 rounded border border-blue-200 bg-blue-50/50">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="flex h-9 w-9 items-center justify-center rounded bg-red-100 text-red-600 font-bold text-xs shrink-0">
-                      PDF
-                    </span>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-800">
-                        Complaint Management Report (NR/QAD/SOP/001-F01/04)
-                      </h4>
-                      <p className="text-xs text-slate-500">
-                        Official Standard Operating Procedure quality investigation report for {c.complaintNumber}.
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setReportModalOpen(true)}
-                    className="rounded border border-[#0176d3] bg-white px-3 py-1.5 text-xs font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors cursor-pointer shrink-0"
-                  >
-                    Preview Report
-                  </button>
-                </div>
+
                 <FilesTab complaint={c} canUpload={detail.can.upload} onChange={() => { load.reload(); setHistoryKey((k) => k + 1); }} />
               </div>
             )}

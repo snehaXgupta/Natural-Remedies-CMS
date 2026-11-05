@@ -123,7 +123,7 @@ export async function perform(complaintId, action, { actor, permissions, remarks
   if (t.permission === null && actor && permissions && !isAdmin) {
     throw AppError.forbidden('This step is performed by the system.');
   }
-  if (t.permission && !isAdmin && !permissions?.has(t.permission)) throw AppError.forbidden();
+  if (t.permission && !isAdmin && !permissions?.has(t.permission) && t.action !== 'completeD2') throw AppError.forbidden();
   if (t.pending) {
     throw AppError.conflict('This step is not available yet: its business rules are still to be confirmed.');
   }
@@ -142,6 +142,11 @@ export async function perform(complaintId, action, { actor, permissions, remarks
 
     const current = await Complaint.findById(complaintId).session(s);
     if (!current) throw AppError.notFound('Complaint');
+
+    const isAssignedFrp = current.frp && actor?._id && String(current.frp._id || current.frp) === String(actor._id);
+    if (t.permission && !isAdmin && !permissions?.has(t.permission) && !(t.action === 'completeD2' && isAssignedFrp)) {
+      throw AppError.forbidden();
+    }
     if (current.status !== t.from) {
       throw AppError.conflict(
         `This complaint is now "${STATUS_LABELS[current.status]}", so "${t.label}" is no longer possible. Reload to see the latest state.`,

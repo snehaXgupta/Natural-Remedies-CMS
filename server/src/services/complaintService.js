@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, ComplaintAssignment, ComplaintAttachment, AuditLog, RootCauseAnalysis, User } from '../models/index.js';
+import { Complaint, ComplaintAssignment, ComplaintAttachment, AuditLog, RootCauseAnalysis, User, CapaRecord, RootCause } from '../models/index.js';
 import { STATUSES as S, STATUS_LABELS } from '../config/workflow.js';
 import { PERMISSIONS as P } from '../auth/permissions.js';
 import { AppError } from '../utils/AppError.js';
@@ -26,8 +26,16 @@ import { newComplaintHandler, d1Acknowledgement } from '../mail/templates.js';
 export async function visibilityFilter(user, permissions) {
   if (permissions.has(P.COMPLAINT_VIEW_ALL) || user?.roles?.includes('admin')) return {};
   if (permissions.has(P.COMPLAINT_VIEW_ASSIGNED)) {
-    const assigned = await ComplaintAssignment.distinct('complaint', { assignee: user._id, active: true });
-    return { $or: [{ frp: user._id }, { _id: { $in: assigned } }] };
+    const [assigned, capaComplaints, rcComplaints] = await Promise.all([
+      ComplaintAssignment.distinct('complaint', { assignee: user._id, active: true }),
+      CapaRecord.distinct('complaint', {
+        $or: [{ responsiblePerson: user._id }, { erp: user._id }],
+        deletedAt: null,
+      }),
+      RootCause.distinct('complaint', { responsiblePerson: user._id, deletedAt: null }),
+    ]);
+    const allIds = Array.from(new Set([...assigned, ...capaComplaints, ...rcComplaints].map(String)));
+    return { $or: [{ frp: user._id }, { _id: { $in: allIds } }] };
   }
   return { _id: { $in: [] } };
 }
@@ -212,8 +220,16 @@ export async function listComplaints(query, user, permissions, page) {
 
   if (query.mine) {
     // "My assigned complaints": always narrowed to the user, even for admins.
-    const assigned = await ComplaintAssignment.distinct('complaint', { assignee: user._id, active: true });
-    and.push({ $or: [{ frp: user._id }, { _id: { $in: assigned } }] });
+    const [assigned, capaComplaints, rcComplaints] = await Promise.all([
+      ComplaintAssignment.distinct('complaint', { assignee: user._id, active: true }),
+      CapaRecord.distinct('complaint', {
+        $or: [{ responsiblePerson: user._id }, { erp: user._id }],
+        deletedAt: null,
+      }),
+      RootCause.distinct('complaint', { responsiblePerson: user._id, deletedAt: null }),
+    ]);
+    const allIds = Array.from(new Set([...assigned, ...capaComplaints, ...rcComplaints].map(String)));
+    and.push({ $or: [{ frp: user._id }, { _id: { $in: allIds } }] });
   }
   if (query.search) {
     const rx = new RegExp(escapeRegex(query.search.trim()), 'i');

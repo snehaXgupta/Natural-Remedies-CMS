@@ -95,7 +95,7 @@ export const DEFAULT_ROLES = Object.freeze([
     key: 'frp',
     name: 'First Responsible Person',
     description: 'Investigates assigned complaints and records root cause and CAPA.',
-    permissions: [P.COMPLAINT_VIEW_ASSIGNED, P.COMPLAINT_D3_EDIT, P.ATTACHMENT_UPLOAD],
+    permissions: [P.COMPLAINT_VIEW_ASSIGNED, P.COMPLAINT_D2_EDIT, P.COMPLAINT_D3_EDIT, P.ATTACHMENT_UPLOAD],
   },
   {
     key: 'reviewer',

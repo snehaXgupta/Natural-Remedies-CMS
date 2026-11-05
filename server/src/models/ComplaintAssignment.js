@@ -11,7 +11,7 @@ const { Schema } = mongoose;
 const assignmentSchema = new Schema(
   {
     complaint: { type: Schema.Types.ObjectId, ref: 'Complaint', required: true },
-    role: { type: String, enum: ['FRP', 'REVIEWER'], required: true },
+    role: { type: String, enum: ['FRP', 'REVIEWER', 'RESPONSIBLE_PERSON', 'ERP'], required: true },
     assignee: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     assignedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     assignedAt: { type: Date, default: Date.now },
