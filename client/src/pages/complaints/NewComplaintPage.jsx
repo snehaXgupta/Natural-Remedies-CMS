@@ -195,9 +195,8 @@ export function NewComplaintPage() {
     if (!form.shortDescription?.trim()) {
       clientErrors.shortDescription = 'Describe the complaint in at least 5 characters.';
     }
-    // Auto-fill customer.name from selected type if not present
-    if (!form.customer?.name) {
-      form.customer = { ...form.customer, name: form.customer?.type || 'Distributor' };
+    if (!form.customer?.name?.trim()) {
+      clientErrors['customer.name'] = 'Enter the Distributor / Retailer Name.';
     }
     if (!form.reportedProduct.name?.trim()) {
       clientErrors['reportedProduct.name'] = 'Enter the Product Name.';
@@ -628,20 +627,30 @@ export function NewComplaintPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs text-slate-700">
             <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5 md:col-span-2">
-                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
-                  </label>
-                  <div className="flex-1">
-                    <select
-                      value={form.customer?.type || 'Distributor'}
-                      onChange={(e) => setForm({ ...form, customer: { ...form.customer, type: e.target.value, name: e.target.value } })}
-                      className="h-8 w-full max-w-xs rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="Distributor">Distributor</option>
-                      <option value="Retailer">Retailer</option>
-                    </select>
-                  </div>
+              <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
+                <span className="text-red-600 mr-0.5">*</span>Distributor / Retailer
+              </label>
+              <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                <select
+                  value={form.customer?.type || 'Distributor'}
+                  onChange={(e) => setForm({ ...form, customer: { ...form.customer, type: e.target.value } })}
+                  className="h-8 w-36 rounded border border-slate-300 bg-white px-2 text-xs text-slate-800 focus:border-blue-500 focus:outline-none shrink-0"
+                >
+                  <option value="Distributor">Distributor</option>
+                  <option value="Retailer">Retailer</option>
+                </select>
+                <div className="flex-1">
+                  <input
+                    type="text"
+                    placeholder={`Enter ${(form.customer?.type || 'Distributor').toLowerCase()} name...`}
+                    value={form.customer?.name || ''}
+                    onChange={(e) => setForm({ ...form, customer: { ...form.customer, name: e.target.value } })}
+                    className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-blue-500 focus:outline-none"
+                  />
+                  {errors['customer.name'] && <p className="text-[10px] text-red-600 mt-1">{errors['customer.name']}</p>}
                 </div>
+              </div>
+            </div>
           </div>
         </div>
 
