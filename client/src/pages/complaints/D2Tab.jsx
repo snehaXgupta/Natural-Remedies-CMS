@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send } from 'lucide-react';
 import { complaintApi, lookupApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
+import { useAuth } from '../../auth/AuthContext.jsx';
 import { useAsync } from '../../lib/useAsync.js';
 import { formatDateTime } from '../../lib/format.js';
 import { Button } from '../../components/Button.jsx';
@@ -994,7 +995,17 @@ export function AssignFrpModal({ open, complaint, onClose, onDone }) {
 
 export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
   const { complaint: c, can } = detail;
+  const { user } = useAuth();
   const notify = useToast();
+
+  const isAssignedFrp = Boolean(
+    user &&
+    c.frp &&
+    (String(user._id) === String(c.frp?._id || c.frp) || (c.frp?.email && user.email?.toLowerCase() === c.frp.email?.toLowerCase()))
+  );
+  const isAdmin = user?.roles?.some((r) => ['admin', 'qa_manager'].includes(r));
+  const canAcknowledgeFrp = isAssignedFrp || isAdmin;
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(() => toForm(c));
   const [errors, setErrors] = useState({});
@@ -1145,88 +1156,90 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
         />
       )}
 
-      {/* FRP Acknowledgement Section (Salesforce Styled) */}
-      <SfSection title="Acknowledgement (FRP Only)" defaultOpen={true}>
-        <div className="p-4 text-xs">
-          {c.d2?.frpAcknowledgement?.acknowledged ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">✓</span>
-                <span>D2 Acknowledged</span>
-              </div>
-              <p className="text-slate-600">
-                Comments: {c.d2.frpAcknowledgement.comments || 'Acknowledged'}
-              </p>
-              {c.status === 'D2_IN_PROGRESS' && (
-                <div className="mt-2.5 rounded-xs border border-blue-200 bg-blue-50/80 p-3 text-slate-700 space-y-1">
-                  <p className="font-semibold text-blue-900">Next Step to Advance to D3:</p>
-                  <p>
-                    FRP acknowledgement has been recorded. To transition this complaint to <strong>D3 (Root Cause Analysis)</strong>:
-                  </p>
-                  <ol className="list-decimal list-inside space-y-0.5 text-slate-600 pt-0.5">
-                    <li>Ensure required D2 fields are filled (Verified Batch Number, Manufacturing Location, Type of Failure, Severity Score).</li>
-                    <li>Click <strong>Complete D2</strong> in the top action bar or Next Actions panel.</li>
-                  </ol>
+      {/* FRP Acknowledgement Section (Salesforce Styled) - Only visible to assigned FRP / Admin, or once acknowledged */}
+      {(c.d2?.frpAcknowledgement?.acknowledged || canAcknowledgeFrp) && (
+        <SfSection title={c.d2?.frpAcknowledgement?.acknowledged ? "Acknowledgement (FRP)" : "Acknowledgement (FRP Only)"} defaultOpen={true}>
+          <div className="p-4 text-xs">
+            {c.d2?.frpAcknowledgement?.acknowledged ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">✓</span>
+                  <span>D2 Acknowledged</span>
                 </div>
-              )}
-            </div>
-          ) : (
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (!ackChecked) {
-                  notify('Please check the acknowledgement checkbox to proceed.', 'warn');
-                  return;
-                }
-                setAckSubmitting(true);
-                const comments = e.target.ackComments.value;
-                try {
-                  const res = await complaintApi.frpAcknowledge(c._id, { comments });
-                  if (res.data?.complaint?.status === 'D3_IN_PROGRESS' || res.data?.complaint?.stage === 'D3') {
-                    notify('D2 Acknowledged by FRP. Complaint moved to D3.');
-                  } else {
-                    notify('D2 Acknowledged by FRP. Fill mandatory D2 investigation fields and click Complete D2 to advance to D3.', 'warn');
+                <p className="text-slate-600">
+                  Comments: {c.d2.frpAcknowledgement.comments || 'Acknowledged'}
+                </p>
+                {c.status === 'D2_IN_PROGRESS' && (
+                  <div className="mt-2.5 rounded-xs border border-blue-200 bg-blue-50/80 p-3 text-slate-700 space-y-1">
+                    <p className="font-semibold text-blue-900">Next Step to Advance to D3:</p>
+                    <p>
+                      FRP acknowledgement has been recorded. To transition this complaint to <strong>D3 (Root Cause Analysis)</strong>:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-0.5 text-slate-600 pt-0.5">
+                      <li>Ensure required D2 fields are filled (Verified Batch Number, Manufacturing Location, Type of Failure, Severity Score).</li>
+                      <li>Click <strong>Complete D2</strong> in the top action bar or Next Actions panel.</li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!ackChecked) {
+                    notify('Please check the acknowledgement checkbox to proceed.', 'warn');
+                    return;
                   }
-                  onSaved(res.data);
-                } catch (err) {
-                  notify(readError(err).message, 'bad');
-                } finally {
-                  setAckSubmitting(false);
-                }
-              }}
-              className="space-y-3 max-w-lg"
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="frpAckCheck"
-                  checked={ackChecked}
-                  onChange={(e) => setAckChecked(e.target.checked)}
-                  className="h-4 w-4 rounded-xs text-[#0176d3] border-slate-300 focus:ring-[#0176d3] cursor-pointer"
-                />
-                <label htmlFor="frpAckCheck" className="text-xs font-semibold text-slate-800 cursor-pointer">
-                  D2 Acknowledgement
-                </label>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  D2 Acknowledgement Comments
-                </label>
-                <input
-                  type="text"
-                  name="ackComments"
-                  placeholder="Acknowledged"
-                  defaultValue="Acknowledged"
-                  className="w-full text-xs rounded-xs border border-slate-300 p-2 focus:border-[#0176d3] focus:outline-none"
-                />
-              </div>
-              <Button type="submit" size="sm" loading={ackSubmitting} disabled={ackSubmitting}>
-                Submit FRP Acknowledgement
-              </Button>
-            </form>
-          )}
-        </div>
-      </SfSection>
+                  setAckSubmitting(true);
+                  const comments = e.target.ackComments.value;
+                  try {
+                    const res = await complaintApi.frpAcknowledge(c._id, { comments });
+                    if (res.data?.complaint?.status === 'D3_IN_PROGRESS' || res.data?.complaint?.stage === 'D3') {
+                      notify('D2 Acknowledged by FRP. Complaint moved to D3.');
+                    } else {
+                      notify('D2 Acknowledged by FRP. Fill mandatory D2 investigation fields and click Complete D2 to advance to D3.', 'warn');
+                    }
+                    onSaved(res.data);
+                  } catch (err) {
+                    notify(readError(err).message, 'bad');
+                  } finally {
+                    setAckSubmitting(false);
+                  }
+                }}
+                className="space-y-3 max-w-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="frpAckCheck"
+                    checked={ackChecked}
+                    onChange={(e) => setAckChecked(e.target.checked)}
+                    className="h-4 w-4 rounded-xs text-[#0176d3] border-slate-300 focus:ring-[#0176d3] cursor-pointer"
+                  />
+                  <label htmlFor="frpAckCheck" className="text-xs font-semibold text-slate-800 cursor-pointer">
+                    D2 Acknowledgement
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    D2 Acknowledgement Comments
+                  </label>
+                  <input
+                    type="text"
+                    name="ackComments"
+                    placeholder="Acknowledged"
+                    defaultValue="Acknowledged"
+                    className="w-full text-xs rounded-xs border border-slate-300 p-2 focus:border-[#0176d3] focus:outline-none"
+                  />
+                </div>
+                <Button type="submit" size="sm" loading={ackSubmitting} disabled={ackSubmitting}>
+                  Submit FRP Acknowledgement
+                </Button>
+              </form>
+            )}
+          </div>
+        </SfSection>
+      )}
 
       {/* FRP Assign Modal */}
       <AssignFrpModal

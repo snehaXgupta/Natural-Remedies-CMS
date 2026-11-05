@@ -462,6 +462,15 @@ export async function requestSlaExtension(id, { hours, reason }, { user, permiss
 
 export async function frpAcknowledge(id, { comments }, { user, permissions, context }) {
   const complaint = await findVisible(id, user, permissions);
+  const isFrp = complaint.frp && (
+    String(complaint.frp._id || complaint.frp) === String(user._id) ||
+    complaint.frp.email === user.email
+  );
+  const isAdmin = permissions.has(P.COMPLAINT_CLOSE) || user.roles?.some((r) => ['admin', 'qa_manager'].includes(r));
+  if (!isFrp && !isAdmin) {
+    throw AppError.forbidden('Only the assigned First Responsible Person (FRP) can submit D2 Acknowledgement.');
+  }
+
   complaint.set('d2.frpAcknowledgement', {
     acknowledged: true,
     comments,
