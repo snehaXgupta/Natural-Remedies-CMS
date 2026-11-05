@@ -104,5 +104,6 @@ r.post('/:id/capa/:capaId/implementation-decision', canView, d4.decideImplementa
 r.post('/:id/capa/:capaId/erp', canView, d4.assignErp);
 r.post('/:id/capa/:capaId/close', canView, d4.closeCapa);
 r.post('/:id/d4/start', canView, d4.startD4);
+r.post('/:id/close', canView, d4.closeComplaint);
 
 export default r;

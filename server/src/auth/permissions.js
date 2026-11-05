@@ -86,6 +86,9 @@ export const DEFAULT_ROLES = Object.freeze([
       P.COMPLAINT_D1_ACKNOWLEDGE,
       P.COMPLAINT_D2_EDIT,
       P.COMPLAINT_ASSIGN,
+      P.COMPLAINT_D3_REVIEW,
+      P.COMPLAINT_D4_EDIT,
+      P.COMPLAINT_CLOSE,
       P.ATTACHMENT_UPLOAD,
       P.REPORTS_VIEW,
       P.AUDIT_VIEW,
@@ -107,6 +110,6 @@ export const DEFAULT_ROLES = Object.freeze([
     key: 'employee',
     name: 'Employee',
     description: 'Sees only complaints and actions assigned to them.',
-    permissions: [P.COMPLAINT_VIEW_ASSIGNED],
+    permissions: [P.COMPLAINT_VIEW_ASSIGNED, P.COMPLAINT_D4_EDIT],
   },
 ]);

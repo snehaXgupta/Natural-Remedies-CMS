@@ -52,9 +52,9 @@ export async function downloadAttachment(req, res) {
     'Content-Type': attachment.mimeType,
     'Content-Length': attachment.sizeBytes,
     'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
-    'Cache-Control': 'private, no-store',
+    'Cache-Control': 'private, max-age=3600',
     'X-Content-Type-Options': 'nosniff',
-    'Content-Security-Policy': "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox",
+    // CSP removed to allow inline image/pdf viewing
   });
   stream.on('error', () => res.destroy());
   stream.pipe(res);

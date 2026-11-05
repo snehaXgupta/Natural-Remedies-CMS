@@ -84,7 +84,7 @@ const complaintSchema = new Schema(
         reason: { type: String, trim: true, maxlength: 1000 },
         requestedBy: { type: Schema.Types.ObjectId, ref: 'User' },
         requestedAt: { type: Date },
-        status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+        status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'] },
       },
       frpAcknowledgement: {
         acknowledged: { type: Boolean, default: false },

@@ -76,5 +76,7 @@ export async function ensureDefaultRoles() {
   }
   await Role.updateOne({ key: 'admin' }, { $addToSet: { permissions: { $each: [...ALL_PERMISSIONS] } } });
   await Role.updateOne({ key: 'frp' }, { $addToSet: { permissions: 'complaint.d2.edit' } });
+  await Role.updateOne({ key: 'quality_coordinator' }, { $addToSet: { permissions: { $each: ['complaint.d3.review', 'complaint.d4.edit', 'complaint.close'] } } });
+  await Role.updateOne({ key: 'employee' }, { $addToSet: { permissions: 'complaint.d4.edit' } });
   clearRoleCache();
 }

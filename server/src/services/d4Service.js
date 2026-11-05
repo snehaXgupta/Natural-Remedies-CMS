@@ -590,3 +590,14 @@ export async function startD4(complaintId, { user, permissions }) {
   await complaint.save();
   return getDetail(complaintId, user, permissions);
 }
+
+export async function closeComplaint(complaintId, body, { user, permissions }) {
+  const complaint = await findVisible(complaintId, user, permissions);
+  complaint.stage = STAGES.CLOSED;
+  complaint.status = S.CLOSED;
+  complaint.closedAt = new Date();
+  complaint.closedBy = user._id;
+  complaint.lastActivityAt = new Date();
+  await complaint.save();
+  return getDetail(complaintId, user, permissions);
+}

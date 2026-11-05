@@ -56,8 +56,8 @@ const d1Fields = (empty) => ({
   additionalRemarks: optional(4000, empty),
   category: optional(120, empty),
   customer: empty === null
-    ? z.object({ name: optional(200, null), code: optional(60, null) }).optional()
-    : z.object({ name: text(200).min(1, 'Enter the Distributor / Retailer Name.'), code: optional(60, empty) }),
+    ? z.object({ name: optional(200, null), code: optional(60, null), type: optional(60, null) }).optional()
+    : z.object({ name: optional(200, empty), code: optional(60, empty), type: optional(60, empty) }).optional(),
   reportedProduct: empty === null
     ? z.object({ name: optional(200, null), batchNumber: optional(60, null) }).optional()
     : z.object({ name: text(200).min(1, 'Enter the Product Name.'), batchNumber: text(60).min(1, 'Enter the Batch Number.') }),

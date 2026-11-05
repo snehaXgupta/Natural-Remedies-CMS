@@ -1,15 +1,11 @@
 import env from '../config/env.js';
-import { LocalStorage } from './localStorage.js';
+import { MongoGridFSStorage } from './mongoGridFSStorage.js';
 
 let instance = null;
 
 export function storage() {
   if (!instance) {
-    if (env.STORAGE_DRIVER === 'local') {
-      instance = new LocalStorage(env.STORAGE_DIR);
-    } else {
-      throw new Error(`Unsupported storage driver: ${env.STORAGE_DRIVER}`);
-    }
+    instance = new MongoGridFSStorage(env.STORAGE_DIR);
   }
   return instance;
 }

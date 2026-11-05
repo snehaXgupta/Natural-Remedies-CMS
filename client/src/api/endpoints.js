@@ -65,6 +65,7 @@ export const complaintApi = {
   assignErp: (id, capaId, body) => data(api.post(`/complaints/${id}/capa/${capaId}/erp`, body)),
   closeCapa: (id, capaId, body) => data(api.post(`/complaints/${id}/capa/${capaId}/close`, body)),
   startD4: (id) => data(api.post(`/complaints/${id}/d4/start`)),
+  close: (id, body) => data(api.post(`/complaints/${id}/close`, body)),
 };
 
 export const d3Api = {

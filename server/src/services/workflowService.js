@@ -72,8 +72,8 @@ export const TRANSITIONS = Object.freeze([
     remarks: 'required',
     phase: 7,
   },
-  { action: 'startD4', label: 'Start D4', from: S.D3_APPROVED, to: S.D4_IN_PROGRESS, permission: P.COMPLAINT_D4_EDIT, pending: true, phase: 8 },
-  { action: 'close', label: 'Close complaint', from: S.D4_IN_PROGRESS, to: S.CLOSED, permission: P.COMPLAINT_CLOSE, pending: true, phase: 8 },
+  { action: 'startD4', label: 'Start D4', from: S.D3_APPROVED, to: S.D4_IN_PROGRESS, permission: P.COMPLAINT_D4_EDIT, phase: 8 },
+  { action: 'close', label: 'Close complaint', from: S.D4_IN_PROGRESS, to: S.CLOSED, permission: P.COMPLAINT_CLOSE, phase: 8 },
 ]);
 
 const byAction = new Map(TRANSITIONS.map((t) => [t.action, t]));

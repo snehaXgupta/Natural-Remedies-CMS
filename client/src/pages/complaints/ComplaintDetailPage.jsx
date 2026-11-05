@@ -638,48 +638,52 @@ function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknow
 
         <div className="p-3.5 text-xs divide-y divide-slate-100 space-y-3">
           {/* Row 1: Acknowledgement */}
-          <div className="pt-2 first:pt-0 space-y-1">
-            <div className="grid grid-cols-[100px_1fr] gap-y-1">
-              <span className="text-slate-500 font-medium">Date:</span>
-              <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+          {c.acknowledgement?.approvedAt && (
+            <div className="pt-2 first:pt-0 space-y-1">
+              <div className="grid grid-cols-[100px_1fr] gap-y-1">
+                <span className="text-slate-500 font-medium">Date:</span>
+                <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement.approvedAt)}</span>
 
-              <span className="text-slate-500 font-medium">Field:</span>
-              <span className="text-slate-800 font-semibold">Acknowledgement</span>
+                <span className="text-slate-500 font-medium">Field:</span>
+                <span className="text-slate-800 font-semibold">Acknowledgement</span>
 
-              <span className="text-slate-500 font-medium">User:</span>
-              <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
-                {c.acknowledgement?.approvedBy?.name || 'Narayan Rao Vakamudi'}
-              </span>
+                <span className="text-slate-500 font-medium">User:</span>
+                <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
+                  {c.acknowledgement?.approvedBy?.name || c.coordinator?.name || 'Complaint Handler'}
+                </span>
 
-              <span className="text-slate-500 font-medium">Original Value:</span>
-              <span className="text-slate-400 italic font-light">—</span>
+                <span className="text-slate-500 font-medium">Original Value:</span>
+                <span className="text-slate-400 italic font-light">—</span>
 
-              <span className="text-slate-500 font-medium">New Value:</span>
-              <span className="text-slate-900 font-bold">{c.acknowledgement?.approvedAt ? 'Approved' : 'Approved'}</span>
+                <span className="text-slate-500 font-medium">New Value:</span>
+                <span className="text-slate-900 font-bold">Approved</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Row 2: D1 End Date */}
-          <div className="pt-3 space-y-1">
-            <div className="grid grid-cols-[100px_1fr] gap-y-1">
-              <span className="text-slate-500 font-medium">Date:</span>
-              <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+          {c.acknowledgement?.approvedAt && (
+            <div className="pt-3 space-y-1">
+              <div className="grid grid-cols-[100px_1fr] gap-y-1">
+                <span className="text-slate-500 font-medium">Date:</span>
+                <span className="text-slate-800 font-semibold">{formatSfDateTime(c.acknowledgement.approvedAt)}</span>
 
-              <span className="text-slate-500 font-medium">Field:</span>
-              <span className="text-slate-800 font-semibold">D1 End Date</span>
+                <span className="text-slate-500 font-medium">Field:</span>
+                <span className="text-slate-800 font-semibold">D1 End Date</span>
 
-              <span className="text-slate-500 font-medium">User:</span>
-              <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
-                {c.acknowledgement?.approvedBy?.name || 'Narayan Rao Vakamudi'}
-              </span>
+                <span className="text-slate-500 font-medium">User:</span>
+                <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
+                  {c.acknowledgement?.approvedBy?.name || c.coordinator?.name || 'Complaint Handler'}
+                </span>
 
-              <span className="text-slate-500 font-medium">Original Value:</span>
-              <span className="text-slate-400 italic font-light">—</span>
+                <span className="text-slate-500 font-medium">Original Value:</span>
+                <span className="text-slate-400 italic font-light">—</span>
 
-              <span className="text-slate-500 font-medium">New Value:</span>
-              <span className="text-slate-900 font-bold">{formatSfDateTime(c.acknowledgement?.approvedAt || c.complaintDate || c.createdAt)}</span>
+                <span className="text-slate-500 font-medium">New Value:</span>
+                <span className="text-slate-900 font-bold">{formatSfDateTime(c.acknowledgement.approvedAt)}</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Row 3: Created. */}
           <div className="pt-3 space-y-1">
@@ -692,7 +696,7 @@ function RightOrganizerSidebar({ complaint: c, detail, historyKey, onStartAcknow
 
               <span className="text-slate-500 font-medium">User:</span>
               <span className="text-[#0176d3] font-medium hover:underline cursor-pointer">
-                {c.origin === 'WhatsApp' ? 'Complaint Capture Site Guest User' : (c.createdBy?.name || 'Complaint Capture Site Guest User')}
+                {c.createdBy?.name || c.coordinator?.name || (c.origin === 'WhatsApp' ? 'Complaint Capture Site Guest User' : 'Complaint Handler')}
               </span>
 
               <span className="text-slate-500 font-medium">Original Value:</span>
@@ -988,6 +992,16 @@ export function ComplaintDetailPage() {
     resubmitD3: () => setSubmitting(true),
     approveD3: () => setDeciding('approve'),
     rejectD3: () => setDeciding('reject'),
+    startD4: handleStartD4,
+    close: async () => {
+      try {
+        const res = await complaintApi.close(c._id);
+        refreshed(res.data);
+        notify('Complaint successfully closed.');
+      } catch (err) {
+        notify(readError(err).message, 'bad');
+      }
+    },
     startD3: async () => {
       try {
         const res = await complaintApi.startD3(c._id, { idempotencyKey: `d3-${crypto.randomUUID()}` });

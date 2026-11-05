@@ -9,3 +9,4 @@ export const decideImplementationApproval = async (req, res) => ok(res, await d4
 export const assignErp = async (req, res) => ok(res, await d4.assignErp(req.params.capaId, req.body, who(req)));
 export const closeCapa = async (req, res) => ok(res, await d4.closeCapa(req.params.capaId, req.body, who(req)));
 export const startD4 = async (req, res) => ok(res, await d4.startD4(req.params.id, who(req)));
+export const closeComplaint = async (req, res) => ok(res, await d4.closeComplaint(req.params.id, req.body, who(req)));
