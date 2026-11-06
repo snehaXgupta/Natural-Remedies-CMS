@@ -197,8 +197,8 @@ function drawFishboneDiagram(doc, startX, startY, width, height, problemText, ca
   doc.setFontSize(6.5);
   const headLabel = (problemText || 'Identified Problem').trim();
   const splitHead = doc.splitTextToSize(headLabel, ovalRx * 2 - 4);
-  const textOffsetY = spineY - (splitHead.length - 1) * 1.5;
-  doc.text(splitHead.slice(0, 4), ovalCenterX, textOffsetY, { align: 'center' });
+  const textOffsetY = spineY - ((splitHead.length - 1) * 2.8) / 2 + 0.8;
+  doc.text(splitHead.slice(0, 5), ovalCenterX, textOffsetY, { align: 'center' });
 
   // 3. Categories & Diagonal Ribs
   const colCenters = [startX + 30, startX + 72, startX + 114];
@@ -228,7 +228,7 @@ function drawFishboneDiagram(doc, startX, startY, width, height, problemText, ca
     doc.setFontSize(cat.pillW > 28 ? 5.2 : 6);
     doc.text(cat.label, pillCenterX, pillCenterY + 1.6, { align: 'center' });
 
-    // Causes attached to rib
+    // Causes attached to rib - dynamically sized to show full text without clipping
     const rawCauses = causesMap[cat.key] || (cat.alias && causesMap[cat.alias]) || [];
     const causes = (rawCauses.length ? rawCauses : ['None Identified']).slice(0, 3);
 
@@ -238,9 +238,17 @@ function drawFishboneDiagram(doc, startX, startY, width, height, problemText, ca
       const bx = pillCenterX + (ribIntersectX - pillCenterX) * frac;
       const by = ribStartY + (spineY - ribStartY) * frac;
 
+      // Allow box to size dynamically to fit full text without truncation
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5);
+      const maxBoxW = 34;
+      const splitCause = doc.splitTextToSize(causeText, maxBoxW - 3);
+      const longestLine = Math.max(...splitCause.map((ln) => doc.getTextWidth(ln)));
+      const boxW = Math.max(18, Math.min(maxBoxW, longestLine + 3));
+      const boxH = Math.max(5.5, splitCause.length * 2.6 + 2.5);
+      const bEndX = bx - boxW;
+
       // Horizontal sub-branch
-      const branchLen = 22;
-      const bEndX = bx - branchLen;
       doc.setDrawColor(120, 120, 120);
       doc.setLineWidth(0.25);
       doc.line(bx, by, bEndX, by);
@@ -248,13 +256,11 @@ function drawFishboneDiagram(doc, startX, startY, width, height, problemText, ca
       // Text box for cause
       doc.setFillColor(255, 255, 255);
       doc.setDrawColor(180, 180, 180);
-      doc.roundedRect(bEndX - 1, by - 3, branchLen, 5.5, 1, 1, 'FD');
+      doc.roundedRect(bEndX, by - boxH / 2, boxW, boxH, 1, 1, 'FD');
 
       doc.setTextColor(30, 41, 59);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(5);
-      const splitCause = doc.splitTextToSize(causeText, branchLen - 2);
-      doc.text(splitCause[0] || causeText, bEndX + branchLen / 2, by + 0.6, { align: 'center' });
+      const textStartY = by - ((splitCause.length - 1) * 2.6) / 2 + 0.8;
+      doc.text(splitCause, bEndX + boxW / 2, textStartY, { align: 'center' });
     });
   });
 }

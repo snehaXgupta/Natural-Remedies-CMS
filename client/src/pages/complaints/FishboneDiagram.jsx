@@ -23,6 +23,25 @@ const CATEGORIES = [
   { key: 'Measurement', label: 'Measurement', badgeLabel: 'MEASUREMENT', color: '#4caf50', borderColor: '#4caf50', pillW: 120, half: 'bottom', col: 2 },
 ];
 
+function wrapSvgText(text, maxChars = 20) {
+  if (!text) return [];
+  const words = String(text).split(' ');
+  const lines = [];
+  let current = '';
+  for (const w of words) {
+    if (!current) {
+      current = w;
+    } else if ((current + ' ' + w).length <= maxChars) {
+      current += ' ' + w;
+    } else {
+      lines.push(current);
+      current = w;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [String(text)];
+}
+
 export function FishboneDiagram({
   tree = {},
   problem = '',
@@ -444,12 +463,15 @@ export function FishboneDiagram({
                       const boxY = yLevels[idx] || 145;
                       const frac = (boxY - ribStartY) / (ribEndY - ribStartY);
                       const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
-                      const boxW = 100;
-                      const boxH = 26;
+                      const lines = wrapSvgText(textVal, 20);
+                      const maxLineLen = Math.max(...lines.map((l) => l.length));
+                      const boxW = Math.max(90, Math.min(160, maxLineLen * 6.5 + 16));
+                      const boxH = Math.max(26, lines.length * 12 + 10);
                       const boxX = ribIntersectX - boxW - 8;
 
                       return (
                         <g key={idx}>
+                          <title>{textVal}</title>
                           <line
                             x1={boxX + boxW}
                             y1={boxY}
@@ -470,13 +492,17 @@ export function FishboneDiagram({
                           />
                           <text
                             x={boxX + boxW / 2}
-                            y={boxY + 4}
+                            y={boxY - ((lines.length - 1) * 6) + 4}
                             textAnchor="middle"
                             fill="#334155"
-                            fontSize="11"
+                            fontSize={lines.length > 2 ? '9' : '10.5'}
                             fontWeight="600"
                           >
-                            {textVal.length > 14 ? `${textVal.slice(0, 13)}…` : textVal}
+                            {lines.map((ln, i) => (
+                              <tspan key={i} x={boxX + boxW / 2} dy={i === 0 ? 0 : 13}>
+                                {ln}
+                              </tspan>
+                            ))}
                           </text>
                         </g>
                       );
@@ -544,12 +570,15 @@ export function FishboneDiagram({
                       const boxY = yLevels[idx] || 315;
                       const frac = (ribStartY - boxY) / (ribStartY - ribEndY);
                       const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
-                      const boxW = 100;
-                      const boxH = 26;
+                      const lines = wrapSvgText(textVal, 20);
+                      const maxLineLen = Math.max(...lines.map((l) => l.length));
+                      const boxW = Math.max(90, Math.min(160, maxLineLen * 6.5 + 16));
+                      const boxH = Math.max(26, lines.length * 12 + 10);
                       const boxX = ribIntersectX - boxW - 8;
 
                       return (
                         <g key={idx}>
+                          <title>{textVal}</title>
                           <line
                             x1={boxX + boxW}
                             y1={boxY}
@@ -570,13 +599,17 @@ export function FishboneDiagram({
                           />
                           <text
                             x={boxX + boxW / 2}
-                            y={boxY + 4}
+                            y={boxY - ((lines.length - 1) * 6) + 4}
                             textAnchor="middle"
                             fill="#334155"
-                            fontSize="11"
+                            fontSize={lines.length > 2 ? '9' : '10.5'}
                             fontWeight="600"
                           >
-                            {textVal.length > 14 ? `${textVal.slice(0, 13)}…` : textVal}
+                            {lines.map((ln, i) => (
+                              <tspan key={i} x={boxX + boxW / 2} dy={i === 0 ? 0 : 13}>
+                                {ln}
+                              </tspan>
+                            ))}
                           </text>
                         </g>
                       );
@@ -593,18 +626,27 @@ export function FishboneDiagram({
                   stroke="#d81b60"
                   strokeWidth="1.5"
                 />
-                <text
-                  x="770"
-                  y="235"
-                  textAnchor="middle"
-                  fill="#ffffff"
-                  fontSize="14"
-                  fontWeight="700"
-                >
-                  {(rootCauseName || 'Test1').length > 18
-                    ? `${(rootCauseName || 'Test1').slice(0, 17)}…`
-                    : rootCauseName || 'Test1'}
-                </text>
+                {(() => {
+                  const headLines = wrapSvgText(rootCauseName || 'Identified Problem', 16).slice(0, 4);
+                  const startY = 230 - ((headLines.length - 1) * 7.5) + 4;
+                  const fSize = headLines.length > 3 ? '10' : (headLines.length > 2 ? '11.5' : '13.5');
+                  return (
+                    <text
+                      x="775"
+                      y={startY}
+                      textAnchor="middle"
+                      fill="#ffffff"
+                      fontSize={fSize}
+                      fontWeight="700"
+                    >
+                      {headLines.map((ln, i) => (
+                        <tspan key={i} x="775" dy={i === 0 ? 0 : 15}>
+                          {ln}
+                        </tspan>
+                      ))}
+                    </text>
+                  );
+                })()}
               </g>
             </svg>
           </div>
