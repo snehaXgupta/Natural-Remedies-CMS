@@ -445,34 +445,6 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
   const [handlerStatusEdits, setHandlerStatusEdits] = useState({});
   const [handlerCommentsEdits, setHandlerCommentsEdits] = useState({});
 
-  const handleStartFrpEdit = () => {
-    setEditMode('FRP_MANAGER');
-    const sMap = {};
-    const cMap = {};
-    for (const capa of allCapas) {
-      const currentStatus = capa.frpManagerApproval?.status || capa.approvalStatus || 'PENDING';
-      sMap[capa._id] = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
-      cMap[capa._id] = capa.frpManagerApproval?.comments || capa.comments || '';
-    }
-    setStatusEdits(sMap);
-    setCommentsEdits(cMap);
-    setIsEditingTable(true);
-  };
-
-  const handleStartHandlerEdit = () => {
-    setEditMode('HANDLER');
-    const sMap = {};
-    const cMap = {};
-    for (const capa of allCapas) {
-      const currentStatus = capa.handlerApproval?.status || 'PENDING';
-      sMap[capa._id] = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
-      cMap[capa._id] = capa.handlerApproval?.comments || '';
-    }
-    setHandlerStatusEdits(sMap);
-    setHandlerCommentsEdits(cMap);
-    setIsEditingTable(true);
-  };
-
   const notify = useToast();
   const [rcModalOpen, setRcModalOpen] = useState(false);
   const [isEditingTable, setIsEditingTable] = useState(false);
@@ -527,6 +499,56 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
     return rc.capas.map((c) => ({ ...c, rootCause: rc }));
   });
   const allCapas = tableRows.filter((r) => !r.isOrphan);
+
+  const allFrpApproved =
+    allCapas.length > 0 &&
+    allCapas.every((c) => (c.frpManagerApproval?.status || c.approvalStatus || '').toUpperCase() === 'APPROVED');
+  const allHandlerApproved =
+    allCapas.length > 0 &&
+    allCapas.every((c) => (c.handlerApproval?.status || '').toUpperCase() === 'APPROVED');
+
+  const handleStartEdit = () => {
+    if (!allCapas.length) {
+      notify('No root cause CAPA records available to edit.', 'warn');
+      return;
+    }
+
+    if (!allFrpApproved) {
+      // Step 1: FRP Manager Approval is pending
+      if (isFrpManager) {
+        setEditMode('FRP_MANAGER');
+        const sMap = {};
+        const cMap = {};
+        for (const capa of allCapas) {
+          const currentStatus = capa.frpManagerApproval?.status || capa.approvalStatus || 'PENDING';
+          sMap[capa._id] = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
+          cMap[capa._id] = capa.frpManagerApproval?.comments || capa.comments || '';
+        }
+        setStatusEdits(sMap);
+        setCommentsEdits(cMap);
+        setIsEditingTable(true);
+      } else {
+        notify('FRP Manager must review and approve root causes first before Complaint Handler review.', 'warn');
+      }
+    } else {
+      // Step 2: FRP Manager has approved. Now Complaint Handler Review
+      if (isHandler) {
+        setEditMode('HANDLER');
+        const sMap = {};
+        const cMap = {};
+        for (const capa of allCapas) {
+          const currentStatus = capa.handlerApproval?.status || 'PENDING';
+          sMap[capa._id] = currentStatus.toUpperCase() === 'APPROVED' ? 'Approved' : currentStatus.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
+          cMap[capa._id] = capa.handlerApproval?.comments || '';
+        }
+        setHandlerStatusEdits(sMap);
+        setHandlerCommentsEdits(cMap);
+        setIsEditingTable(true);
+      } else {
+        notify('FRP Manager review is already approved. Complaint Handler review is pending.', 'warn');
+      }
+    }
+  };
 
   const handleOpenAdd = () => {
     setRcErrors({});
@@ -709,7 +731,7 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
             comments: comments || undefined,
           });
         }
-        notify('FRP Manager review saved successfully.');
+        notify('FRP Manager review saved and submitted to Complaint Handler.');
       } else {
         for (const capa of allCapas) {
           const currentStatus = capa.handlerApproval?.status || 'PENDING';
@@ -722,7 +744,7 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
             comments: comments || undefined,
           });
         }
-        notify('Complaint Handler review saved successfully.');
+        notify('Complaint Handler review saved. Responsible Person assigned & notified.');
       }
       setIsEditingTable(false);
       if (onReload) onReload();
@@ -761,26 +783,15 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
             </>
           ) : (
             <>
-              {isFrpManager && allCapas.length > 0 && (
+              {(isFrpManager || isHandler) && allCapas.length > 0 && (
                 <button
                   type="button"
-                  onClick={handleStartFrpEdit}
-                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                  title="FRP Manager Status & Comments (Points 19 & 20)"
+                  onClick={handleStartEdit}
+                  className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                  title="Edit Root Cause & CAPA Review"
                 >
                   <Pencil className="h-3 w-3 text-slate-500" />
-                  Edit FRP Review
-                </button>
-              )}
-              {isHandler && allCapas.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleStartHandlerEdit}
-                  className="rounded border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                  title="Complaint Handler Status & Comments (Points 21-23)"
-                >
-                  <Pencil className="h-3 w-3 text-indigo-500" />
-                  Edit Handler Review
+                  Edit
                 </button>
               )}
               {canEdit && (
@@ -895,9 +906,8 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
                 const handlerStatusDefault = handlerStatusRaw.toUpperCase() === 'APPROVED' ? 'Approved' : handlerStatusRaw.toUpperCase() === 'REJECTED' ? 'Rejected' : 'Pending';
                 const handlerStatusVal = handlerStatusEdits[capa._id] ?? handlerStatusDefault;
 
-                const commentsVal = editMode === 'FRP_MANAGER'
-                  ? (commentsEdits[capa._id] ?? (capa.frpManagerApproval?.comments || capa.comments || ''))
-                  : (handlerCommentsEdits[capa._id] ?? (capa.handlerApproval?.comments || ''));
+                const frpComment = capa.frpManagerApproval?.comments || capa.comments || '';
+                const handlerComment = capa.handlerApproval?.comments || '';
 
                 return (
                   <tr key={capa._id} className="hover:bg-slate-50/50">
@@ -961,7 +971,11 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
                       {isEditingTable ? (
                         <input
                           type="text"
-                          value={commentsVal}
+                          value={
+                            editMode === 'FRP_MANAGER'
+                              ? (commentsEdits[capa._id] ?? frpComment)
+                              : (handlerCommentsEdits[capa._id] ?? handlerComment)
+                          }
                           onChange={(e) => {
                             const val = e.target.value;
                             if (editMode === 'FRP_MANAGER') setCommentsEdits((prev) => ({ ...prev, [capa._id]: val }));
@@ -971,9 +985,22 @@ function RootCauses({ complaintId, complaint, d3, setData, canEdit, onReload, on
                           className="h-8 w-full min-w-[150px] max-w-xs rounded border border-slate-300 bg-white px-2.5 text-xs text-slate-800 placeholder-slate-400 focus:border-[#0176d3] focus:outline-none shadow-2xs"
                         />
                       ) : (
-                        <span className="text-xs text-slate-600 block max-w-xs truncate" title={commentsVal || ''}>
-                          {commentsVal || <span className="text-slate-400 italic">—</span>}
-                        </span>
+                        frpComment || handlerComment ? (
+                          <div className="space-y-0.5 text-xs max-w-xs">
+                            {frpComment && (
+                              <div className="truncate" title={`FRP: ${frpComment}`}>
+                                <span className="font-semibold text-slate-700">FRP:</span> {frpComment}
+                              </div>
+                            )}
+                            {handlerComment && (
+                              <div className="truncate" title={`Handler: ${handlerComment}`}>
+                                <span className="font-semibold text-indigo-700">Handler:</span> {handlerComment}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">—</span>
+                        )
                       )}
                     </td>
                     <td className="px-3 py-2 text-center whitespace-nowrap">

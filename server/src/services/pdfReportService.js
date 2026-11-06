@@ -234,15 +234,17 @@ export async function generateComplaintPdfBuffer(complaint) {
     let rootCauses = [];
     let fishboneMap = {};
     let problemStatement = c.shortDescription || 'Test1';
+    let dbAnalysis = null;
 
     if (c._id) {
-      const [dbCapas, dbAnalysis, dbRcs] = await Promise.all([
+      const [dbCapas, loadedAnalysis, dbRcs] = await Promise.all([
         CapaRecord.find({ complaint: c._id, deletedAt: null }).populate('responsiblePerson', 'name').populate('erp', 'name').lean().catch(() => []),
         RootCauseAnalysis.findOne({ complaint: c._id }).lean().catch(() => null),
         RootCause.find({ complaint: c._id, deletedAt: null }).lean().catch(() => []),
       ]);
       capas = dbCapas || [];
       rootCauses = dbRcs || [];
+      dbAnalysis = loadedAnalysis;
       if (dbAnalysis) {
         problemStatement = dbAnalysis.problemStatement || c.shortDescription || 'Test1';
         const causes = await FishboneCause.find({ analysis: dbAnalysis._id, deletedAt: null }).lean().catch(() => []);

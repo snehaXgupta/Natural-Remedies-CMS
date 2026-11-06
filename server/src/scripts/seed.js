@@ -23,18 +23,29 @@ const DEMO_DEPARTMENTS = [
   { name: 'Customer Relationship Management', code: 'CRM' },
 ];
 
-// Placeholder dropdown values, clearly marked, until the company's lists are
-// loaded (OPEN_QUESTIONS Q6). Edit them in Settings → Lists.
+// Salesforce QEQMS dropdown values from official system screenshots
 const DEMO_LOOKUPS = [
-  { list: 'manufacturingLocation', value: 'Plant 1 (demo)' },
-  { list: 'manufacturingLocation', value: 'Plant 2 (demo)' },
-  { list: 'locationDetail', parent: 'Plant 1 (demo)', value: 'Granulation line (demo)' },
-  { list: 'locationDetail', parent: 'Plant 1 (demo)', value: 'Packing line (demo)' },
-  { list: 'locationDetail', parent: 'Plant 2 (demo)', value: 'Filling line (demo)' },
-  { list: 'typeOfFailure', value: 'Packaging defect (demo)' },
-  { list: 'typeOfFailure', value: 'Physical appearance (demo)' },
-  { list: 'typeOfFailure', value: 'Efficacy (demo)' },
-  { list: 'typeOfFailure', value: 'Labelling (demo)' },
+  { list: 'manufacturingLocation', value: 'Inhouse', order: 1 },
+  { list: 'manufacturingLocation', value: 'CMO', order: 2 },
+  { list: 'locationDetail', parent: 'Inhouse', value: '5B (NRPL Pet)-1400', order: 1 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Bangalore-1100', order: 2 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-AHP-2000', order: 3 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-HHP-2100', order: 4 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NLPL- Pithampur Indore-7000', order: 5 },
+  { list: 'typeOfFailure', value: 'Analytical Difference', order: 1 },
+  { list: 'typeOfFailure', value: 'Assay', order: 2 },
+  { list: 'typeOfFailure', value: 'Contaminants', order: 3 },
+  { list: 'typeOfFailure', value: 'Documentation', order: 4 },
+  { list: 'typeOfFailure', value: 'Efficacy', order: 5 },
+  { list: 'typeOfFailure', value: 'Foreign matter', order: 6 },
+  { list: 'typeOfFailure', value: 'Microbial Parameter', order: 7 },
+  { list: 'typeOfFailure', value: 'Packaging Quality', order: 8 },
+  { list: 'typeOfFailure', value: 'Physical properties (AOT)', order: 9 },
+  { list: 'typeOfFailure', value: 'Physicochemical parameter', order: 10 },
+  { list: 'typeOfFailure', value: 'Transit', order: 11 },
+  { list: 'typeOfFailure', value: 'Food Safety', order: 12 },
+  { list: 'typeOfFailure', value: 'Feed Safety', order: 13 },
+  { list: 'typeOfFailure', value: 'Product Quality', order: 14 },
 ];
 
 const DEMO_USERS = [

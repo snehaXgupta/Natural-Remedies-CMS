@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { Complaint, CapaRecord, User, RootCause, ComplaintAssignment } from '../models/index.js';
+import { Complaint, CapaRecord, User, RootCause, RootCauseAnalysis, ComplaintAssignment } from '../models/index.js';
 import { STATUSES as S, STAGES } from '../config/workflow.js';
 import { AppError } from '../utils/AppError.js';
 import { findVisible, getDetail } from './complaintService.js';
@@ -8,10 +8,12 @@ import * as notifications from './notificationService.js';
 import {
   capaImplementationAssignment,
   capaImplementationRejected,
+  capaReviewRequired,
   erpAssignment,
   capaClosedNotice,
   movedToD4Stage,
   complaintSuccessfullyClosed,
+  rootCausesApprovedNotice,
 } from '../mail/templates.js';
 import { generateComplaintPdfBuffer } from './pdfReportService.js';
 
@@ -103,7 +105,16 @@ export async function updateCapaImplementation(capaId, { actionImplemented, forw
       capa.handlerImplementationApproval = { status: 'PENDING' };
 
       // Notify Complaint Handler
-      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      const coordinatorId = complaint.coordinator?._id || complaint.coordinator;
+      const handlers = await User.find({
+        $or: [
+          ...(coordinatorId ? [{ _id: coordinatorId }] : []),
+          { roles: { $in: ['admin', 'quality_coordinator'] } },
+          { email: /chandan/i },
+        ],
+        isActive: true,
+      }, { _id: 1, email: 1, name: 1 }).lean();
+
       for (const h of handlers) {
         await inApp.createNotification({
           recipient: h._id,
@@ -112,7 +123,22 @@ export async function updateCapaImplementation(capaId, { actionImplemented, forw
           message: `The CAPA implementation has been completed by ${user.name} and requires your review as Complaint Handler for ${capa.capaNumber}.`,
           link: `/complaints/${complaint._id}?tab=D3`,
         });
+        if (h.email) {
+          await notifications.enqueue({
+            type: 'CAPA_REVIEW_REQUIRED',
+            complaint: complaint._id,
+            recipient: h.email,
+            recipientUser: h._id,
+            dedupeKey: `CAPA_REVIEW_HANDLER:${capa._id}:${h.email}:${Date.now()}`,
+            message: capaReviewRequired(complaint, capa, {
+              reviewerName: h.name,
+              reviewerRole: 'Handler',
+              implementedBy: user.name,
+            }),
+          });
+        }
       }
+      notifications.nudge();
     } else {
       // Case 2: FRP != Responsible Person -> Manual FRP Approval required
       capa.frpImplementationApproval = { status: 'PENDING' };
@@ -126,6 +152,21 @@ export async function updateCapaImplementation(capaId, { actionImplemented, forw
             message: `The CAPA implementation has been completed by ${user.name} and requires your review as FRP for ${capa.capaNumber}.`,
             link: `/complaints/${complaint._id}?tab=D3`,
           });
+          if (frp.email) {
+            await notifications.enqueue({
+              type: 'CAPA_REVIEW_REQUIRED',
+              complaint: complaint._id,
+              recipient: frp.email,
+              recipientUser: frp._id,
+              dedupeKey: `CAPA_REVIEW_FRP:${capa._id}:${Date.now()}`,
+              message: capaReviewRequired(complaint, capa, {
+                reviewerName: frp.name,
+                reviewerRole: 'FRP',
+                implementedBy: user.name,
+              }),
+            });
+            notifications.nudge();
+          }
         }
       }
     }
@@ -164,8 +205,17 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     });
     if (isApproved) {
       capa.reviewStatus = 'REVIEWED';
-      // Notify Complaint Handlers (Point 20)
-      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      // Notify Complaint Handlers (SOP Point 20.o)
+      const coordinatorId = complaint.coordinator?._id || complaint.coordinator;
+      const handlers = await User.find({
+        $or: [
+          ...(coordinatorId ? [{ _id: coordinatorId }] : []),
+          { roles: { $in: ['admin', 'quality_coordinator'] } },
+          { email: /chandan/i },
+        ],
+        isActive: true,
+      }, { _id: 1, email: 1, name: 1 }).lean();
+
       for (const h of handlers) {
         await inApp.createNotification({
           recipient: h._id,
@@ -174,17 +224,67 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           message: `FRP Manager (${user.name}) approved root causes for complaint ${complaint.complaintNumber}. You can now complete Handler Review.`,
           link: `/complaints/${complaint._id}?tab=D3`,
         });
+        if (h.email) {
+          await notifications.enqueue({
+            type: 'ROOT_CAUSES_APPROVED',
+            complaint: complaint._id,
+            recipient: h.email,
+            recipientUser: h._id,
+            dedupeKey: `RC_APPROVED_HANDLER:${capa._id}:${h.email}:${Date.now()}`,
+            message: rootCausesApprovedNotice(complaint, {
+              recipientName: h.name,
+              managerName: user.name,
+              isHandler: true,
+              count: 1,
+              rootCauses: [capa],
+            }),
+          });
+        }
       }
+
+      // Also notify assigned FRP (SOP Point 20.n)
+      if (complaint.frp) {
+        const frpUser = await User.findById(complaint.frp, { _id: 1, email: 1, name: 1 }).lean();
+        if (frpUser) {
+          await inApp.createNotification({
+            recipient: frpUser._id,
+            complaint: complaint._id,
+            title: 'Root Causes Approved by FRP Manager',
+            message: `FRP Manager (${user.name}) approved root causes for complaint ${complaint.complaintNumber}.`,
+            link: `/complaints/${complaint._id}?tab=D3`,
+          });
+          if (frpUser.email) {
+            await notifications.enqueue({
+              type: 'ROOT_CAUSES_APPROVED',
+              complaint: complaint._id,
+              recipient: frpUser.email,
+              recipientUser: frpUser._id,
+              dedupeKey: `RC_APPROVED_FRP:${capa._id}:${frpUser.email}:${Date.now()}`,
+              message: rootCausesApprovedNotice(complaint, {
+                recipientName: frpUser.name,
+                managerName: user.name,
+                isHandler: false,
+                count: 1,
+                rootCauses: [capa],
+              }),
+            });
+          }
+        }
+      }
+      notifications.nudge();
     } else if (isRejected) {
       // Notify FRP to revise (Point 19)
       if (complaint.frp) {
-        await inApp.createNotification({
-          recipient: complaint.frp,
-          complaint: complaint._id,
-          title: 'Root Causes Rejected by FRP Manager',
-          message: `FRP Manager (${user.name}) rejected the root causes for complaint ${complaint.complaintNumber}: ${comments || 'Please revise and resubmit.'}`,
-          link: `/complaints/${complaint._id}?tab=D3`,
-        });
+        const frpUser = await User.findById(complaint.frp, { _id: 1, email: 1, name: 1 }).lean();
+        if (frpUser) {
+          await inApp.createNotification({
+            recipient: frpUser._id,
+            complaint: complaint._id,
+            title: 'Root Causes Rejected by FRP Manager',
+            message: `FRP Manager (${user.name}) rejected the root causes for complaint ${complaint.complaintNumber}: ${comments || 'Please revise and resubmit.'}`,
+            link: `/complaints/${complaint._id}?tab=D3`,
+          });
+        }
       }
     }
     await capa.save();
@@ -241,6 +341,23 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           }).catch(() => {});
         }
       }
+
+      // Check if ALL CAPAs now have handler approval -> Advance complaint to D3_APPROVED
+      const allCapas = await CapaRecord.find({ complaint: complaint._id, deletedAt: null });
+      const allDone = allCapas.length > 0 && allCapas.every((c) =>
+        String(c._id) === String(capa._id) ? true : c.handlerApproval?.status === 'APPROVED'
+      );
+      if (allDone) {
+        if (complaint.status !== S.D3_APPROVED && [S.D3_IN_PROGRESS, S.D3_PENDING_APPROVAL, S.D3_REWORK].includes(complaint.status)) {
+          complaint.status = S.D3_APPROVED;
+          complaint.lastActivityAt = now;
+          await complaint.save();
+        }
+        await RootCauseAnalysis.updateOne(
+          { complaint: complaint._id },
+          { $set: { status: 'APPROVED', reviewedAt: now, reviewedBy: user._id } }
+        );
+      }
     } else if (isRejected) {
       // Point 22: Notify FRP to revise
       if (complaint.frp) {
@@ -273,7 +390,16 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
     if (isApproved) {
       capa.handlerImplementationApproval = { status: 'PENDING' };
       // Notify Complaint Handlers
-      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      const coordinatorId = complaint.coordinator?._id || complaint.coordinator;
+      const handlers = await User.find({
+        $or: [
+          ...(coordinatorId ? [{ _id: coordinatorId }] : []),
+          { roles: { $in: ['admin', 'quality_coordinator'] } },
+          { email: /chandan/i },
+        ],
+        isActive: true,
+      }, { _id: 1, email: 1, name: 1 }).lean();
+
       for (const h of handlers) {
         await inApp.createNotification({
           recipient: h._id,
@@ -282,7 +408,22 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           message: `CAPA implementation for ${capa.capaNumber} was approved by FRP (${user.name}) and requires Handler review.`,
           link: `/complaints/${complaint._id}?tab=D3`,
         });
+        if (h.email) {
+          await notifications.enqueue({
+            type: 'CAPA_REVIEW_REQUIRED',
+            complaint: complaint._id,
+            recipient: h.email,
+            recipientUser: h._id,
+            dedupeKey: `CAPA_REVIEW_HANDLER:${capa._id}:${h.email}:${Date.now()}`,
+            message: capaReviewRequired(complaint, capa, {
+              reviewerName: h.name,
+              reviewerRole: 'Handler',
+              implementedBy: user.name,
+            }),
+          });
+        }
       }
+      notifications.nudge();
     }
   } else if (normalizedTier === 'HANDLER') {
     capa.handlerImplementationApproval = { status: isApproved ? 'APPROVED' : 'REJECTED', comments, approver: user._id, date: now };
@@ -298,7 +439,7 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
       capa.qaImplementationApproval = { status: 'PENDING' };
       // Notify QA reviewers (including Handler Manager from database mapping)
       const handlerManager = await getHandlerManager(complaint);
-      const qas = await User.find({ roles: { $in: ['admin', 'reviewer'] } }, { _id: 1, email: 1, name: 1 }).lean();
+      const qas = await User.find({ roles: { $in: ['admin', 'reviewer'] }, isActive: true }, { _id: 1, email: 1, name: 1 }).lean();
       const targetQas = handlerManager && !qas.some((q) => String(q._id) === String(handlerManager._id))
         ? [handlerManager, ...qas]
         : qas;
@@ -311,7 +452,23 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
           message: `CAPA implementation for ${capa.capaNumber} was approved by Complaint Handler (${user.name}) and requires QA approval.`,
           link: `/complaints/${complaint._id}?tab=D3`,
         });
+        if (q.email) {
+          await notifications.enqueue({
+            type: 'CAPA_REVIEW_REQUIRED',
+            complaint: complaint._id,
+            recipient: q.email,
+            recipientUser: q._id,
+            dedupeKey: `CAPA_REVIEW_QA:${capa._id}:${q.email}:${Date.now()}`,
+            message: capaReviewRequired(complaint, capa, {
+              reviewerName: q.name,
+              reviewerRole: 'QA / Handler Manager',
+              implementedBy: user.name,
+              handlerName: user.name,
+            }),
+          });
+        }
       }
+      notifications.nudge();
     }
   } else if (normalizedTier === 'QA') {
     capa.qaImplementationApproval = { status: isApproved ? 'APPROVED' : 'REJECTED', comments, approver: user._id, date: now };
@@ -374,55 +531,8 @@ export async function decideImplementationApproval(capaId, { tier, decision, com
       complaint.lastActivityAt = new Date();
       await complaint.save();
 
-      // Dispatch 2 emails for moving to D4 (SOP Point 32):
-      // - Complaint Handler: WITH official PDF report attachment
-      // - FRP: WITHOUT attachment
-      // - Requester: NO email
-      const frp = complaint.frp ? await User.findById(complaint.frp).lean() : null;
-      const handlers = await User.find({ roles: { $in: ['admin', 'quality_coordinator'] } }).lean();
-
-      const pdfBuf = await generateComplaintPdfBuffer(complaint);
-      const attachments = pdfBuf
-        ? [{ filename: `customerComplaintReport-${complaint.complaintNumber}.pdf`, content: pdfBuf, contentType: 'application/pdf' }]
-        : undefined;
-
-      for (const h of handlers) {
-        await notifications.enqueue({
-          type: 'D4_NOTICE',
-          complaint: complaint._id,
-          recipient: h.email,
-          recipientUser: h._id,
-          attachments,
-          dedupeKey: `D4_NOTICE_HANDLER:${complaint._id}:${h.email}`,
-          message: movedToD4Stage(complaint, { recipientName: h.name }),
-        });
-        await inApp.createNotification({
-          recipient: h._id,
-          complaint: complaint._id,
-          title: 'Complaint Moved to D4 Stage',
-          message: `Complaint ${complaint.complaintNumber} has completed CAPA Implementation and moved to D4 Stage.`,
-          link: `/complaints/${complaint._id}?tab=D4`,
-        });
-      }
-
-      if (frp) {
-        await notifications.enqueue({
-          type: 'D4_NOTICE',
-          complaint: complaint._id,
-          recipient: frp.email,
-          recipientUser: frp._id,
-          dedupeKey: `D4_NOTICE_FRP:${complaint._id}:${frp.email}`,
-          message: movedToD4Stage(complaint, { recipientName: frp.name, frpName: frp.name, isFrp: true }),
-        });
-        await inApp.createNotification({
-          recipient: frp._id,
-          complaint: complaint._id,
-          title: 'CAPA Implementation Completed',
-          message: `CAPA Implementation for ${complaint.complaintNumber} is complete. Complaint is now in D4 stage.`,
-          link: `/complaints/${complaint._id}?tab=D4`,
-        });
-      }
-      notifications.nudge();
+      // Dispatch D4 Mails and In-App Notifications per SOP Step 32
+      await dispatchMovedToD4Notifications(complaint);
     }
   }
 
@@ -582,12 +692,131 @@ export async function closeCapa(capaId, { effectivenessReview, isClosed }, { use
   return capa;
 }
 
+/**
+ * Dispatch SOP Step 32.q and 32.r notifications when complaint advances to D4 stage.
+ * - Complaint Handler: gets email WITH official PDF report attachment + In-App notification
+ * - First Responsible Person (FRP): gets email WITHOUT attachment + In-App notification
+ * - Responsible Person(s): gets email + In-App notification
+ */
+export async function dispatchMovedToD4Notifications(complaint) {
+  try {
+    const cId = complaint._id;
+    const now = Date.now();
+
+    // 1. Generate SOP PDF Report buffer for attachment (with safe catch so failures never block emails)
+    let attachments;
+    try {
+      const pdfBuf = await generateComplaintPdfBuffer(complaint);
+      if (pdfBuf) {
+        attachments = [{
+          filename: `customerComplaintReport-${complaint.complaintNumber}.pdf`,
+          content: pdfBuf,
+          contentType: 'application/pdf',
+        }];
+      }
+    } catch (pdfErr) {
+      console.error('PDF buffer generation failed for D4 notice:', pdfErr);
+    }
+
+    // 2. Identify Complaint Handler(s)
+    const coordinatorId = complaint.coordinator?._id || complaint.coordinator;
+    const handlers = await User.find({
+      $or: [
+        ...(coordinatorId ? [{ _id: coordinatorId }] : []),
+        { roles: { $in: ['admin', 'quality_coordinator'] } },
+        { email: /chandan/i },
+      ],
+      isActive: true,
+    }, { _id: 1, email: 1, name: 1 }).lean();
+
+    for (const h of handlers) {
+      if (h.email) {
+        await notifications.enqueue({
+          type: 'D4_NOTICE',
+          complaint: cId,
+          recipient: h.email,
+          recipientUser: h._id,
+          attachments,
+          dedupeKey: `D4_NOTICE_HANDLER:${cId}:${h.email}:${now}`,
+          message: movedToD4Stage(complaint, { recipientName: h.name }),
+        });
+      }
+      await inApp.createNotification({
+        recipient: h._id,
+        complaint: cId,
+        title: 'Complaint Moved to D4 Stage',
+        message: `Complaint ${complaint.complaintNumber} has advanced to D4 (Effectiveness Review & Closure) stage.`,
+        link: `/complaints/${cId}?tab=D4`,
+      });
+    }
+
+    // 3. Identify First Responsible Person (FRP)
+    const frpId = complaint.frp?._id || complaint.frp;
+    const frp = frpId ? await User.findById(frpId, { _id: 1, email: 1, name: 1 }).lean() : null;
+    if (frp) {
+      if (frp.email) {
+        await notifications.enqueue({
+          type: 'D4_NOTICE',
+          complaint: cId,
+          recipient: frp.email,
+          recipientUser: frp._id,
+          dedupeKey: `D4_NOTICE_FRP:${cId}:${frp.email}:${now}`,
+          message: movedToD4Stage(complaint, { recipientName: frp.name, frpName: frp.name, isFrp: true }),
+        });
+      }
+      await inApp.createNotification({
+        recipient: frp._id,
+        complaint: cId,
+        title: 'CAPA Implementation Completed',
+        message: `CAPA Implementation for ${complaint.complaintNumber} is complete. Complaint is now in D4 stage.`,
+        link: `/complaints/${cId}?tab=D4`,
+      });
+    }
+
+    // 4. Identify Assigned Responsible Persons (RP - e.g. Deepak)
+    const capas = await CapaRecord.find({ complaint: cId, deletedAt: null }).lean();
+    for (const capa of capas) {
+      if (capa.responsiblePerson) {
+        const rp = await User.findById(capa.responsiblePerson, { _id: 1, email: 1, name: 1 }).lean();
+        if (rp) {
+          await inApp.createNotification({
+            recipient: rp._id,
+            complaint: cId,
+            title: 'Complaint Moved to D4 Stage',
+            message: `Complaint ${complaint.complaintNumber} has advanced to D4 Effectiveness Review.`,
+            link: `/complaints/${cId}?tab=D4`,
+          });
+          if (rp.email) {
+            await notifications.enqueue({
+              type: 'D4_NOTICE',
+              complaint: cId,
+              recipient: rp.email,
+              recipientUser: rp._id,
+              dedupeKey: `D4_NOTICE_RP:${cId}:${rp._id}:${now}`,
+              message: movedToD4Stage(complaint, { recipientName: rp.name }),
+            });
+          }
+        }
+      }
+    }
+
+    // 5. Nudge notifications worker immediately
+    notifications.nudge();
+  } catch (err) {
+    console.error('Failed to dispatch D4 notifications:', err);
+  }
+}
+
 export async function startD4(complaintId, { user, permissions }) {
   const complaint = await findVisible(complaintId, user, permissions);
   complaint.stage = STAGES.D4;
   complaint.status = S.D4_IN_PROGRESS;
   complaint.lastActivityAt = new Date();
   await complaint.save();
+
+  // Dispatch D4 emails and notifications
+  await dispatchMovedToD4Notifications(complaint);
+
   return getDetail(complaintId, user, permissions);
 }
 
@@ -599,5 +828,64 @@ export async function closeComplaint(complaintId, body, { user, permissions }) {
   complaint.closedBy = user._id;
   complaint.lastActivityAt = new Date();
   await complaint.save();
+
+  try {
+    if (complaint.requester?.email) {
+      await notifications.enqueue({
+        type: 'CLOSURE',
+        complaint: complaint._id,
+        recipient: complaint.requester.email,
+        dedupeKey: `CLOSURE_REQUESTER:${complaint._id}:${Date.now()}`,
+        message: complaintSuccessfullyClosed(complaint, { recipientName: complaint.requester.name, isHandler: false }),
+      });
+    }
+
+    const coordinatorId = complaint.coordinator?._id || complaint.coordinator;
+    const handlers = await User.find({
+      $or: [
+        ...(coordinatorId ? [{ _id: coordinatorId }] : []),
+        { roles: { $in: ['admin', 'quality_coordinator'] } },
+        { email: /chandan/i },
+      ],
+      isActive: true,
+    }, { _id: 1, email: 1, name: 1 }).lean();
+
+    let closureAttachments;
+    try {
+      const closurePdfBuf = await generateComplaintPdfBuffer(complaint);
+      if (closurePdfBuf) {
+        closureAttachments = [{
+          filename: `customerComplaintReport-${complaint.complaintNumber}.pdf`,
+          content: closurePdfBuf,
+          contentType: 'application/pdf',
+        }];
+      }
+    } catch {}
+
+    for (const h of handlers) {
+      if (h.email) {
+        await notifications.enqueue({
+          type: 'CLOSURE',
+          complaint: complaint._id,
+          recipient: h.email,
+          recipientUser: h._id,
+          attachments: closureAttachments,
+          dedupeKey: `CLOSURE_HANDLER:${complaint._id}:${h.email}:${Date.now()}`,
+          message: complaintSuccessfullyClosed(complaint, { recipientName: h.name, isHandler: true }),
+        });
+      }
+      await inApp.createNotification({
+        recipient: h._id,
+        complaint: complaint._id,
+        title: 'Complaint Successfully Closed',
+        message: `All CAPAs are closed. Complaint ${complaint.complaintNumber} has moved to Closed stage.`,
+        link: `/complaints/${complaint._id}?tab=D4`,
+      });
+    }
+    notifications.nudge();
+  } catch (err) {
+    console.error('Failed to dispatch close notifications:', err);
+  }
+
   return getDetail(complaintId, user, permissions);
 }

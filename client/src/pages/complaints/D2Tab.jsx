@@ -438,6 +438,36 @@ function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp, onSendMailTo
   );
 }
 
+export const DEFAULT_MANUFACTURING_LOCATIONS = [
+  { value: 'Inhouse' },
+  { value: 'CMO' },
+];
+
+export const DEFAULT_LOCATION_DETAILS = [
+  { parent: 'Inhouse', value: '5B (NRPL Pet)-1400' },
+  { parent: 'Inhouse', value: 'NRPL-Bangalore-1100' },
+  { parent: 'Inhouse', value: 'NRPL-Anniyalam-AHP-2000' },
+  { parent: 'Inhouse', value: 'NRPL-Anniyalam-HHP-2100' },
+  { parent: 'Inhouse', value: 'NLPL- Pithampur Indore-7000' },
+];
+
+export const DEFAULT_TYPES_OF_FAILURE = [
+  { value: 'Analytical Difference' },
+  { value: 'Assay' },
+  { value: 'Contaminants' },
+  { value: 'Documentation' },
+  { value: 'Efficacy' },
+  { value: 'Foreign matter' },
+  { value: 'Microbial Parameter' },
+  { value: 'Packaging Quality' },
+  { value: 'Physical properties (AOT)' },
+  { value: 'Physicochemical parameter' },
+  { value: 'Transit' },
+  { value: 'Food Safety' },
+  { value: 'Feed Safety' },
+  { value: 'Product Quality' },
+];
+
 /* ---------------- Edit form matching layout ---------------- */
 
 function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates = [] }) {
@@ -467,9 +497,13 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
     });
   };
 
-  const details = (lists.locationDetail || [])
-    .filter((d) => d.parent?.toLowerCase() === form.investigation.manufacturingLocation?.toLowerCase())
-    .map((d) => d.value);
+  const mfgLocations = (lists?.manufacturingLocation?.length ? lists.manufacturingLocation : DEFAULT_MANUFACTURING_LOCATIONS);
+  const locDetails = (lists?.locationDetail?.length ? lists.locationDetail : DEFAULT_LOCATION_DETAILS);
+  const failureTypes = (lists?.typeOfFailure?.length ? lists.typeOfFailure : DEFAULT_TYPES_OF_FAILURE);
+
+  const details = locDetails
+    .filter((d) => (d.parent || '').toLowerCase() === (form.investigation.manufacturingLocation || '').toLowerCase())
+    .map((d) => (typeof d === 'string' ? d : d.value));
 
   const numInputProps = { type: 'number', min: 0, step: 'any' };
 
@@ -607,12 +641,15 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                 onChange={setInv('manufacturingLocation')}
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
               >
-                <option value="">Select location</option>
-                {(lists.manufacturingLocation || []).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.value}
-                  </option>
-                ))}
+                <option value="">--None--</option>
+                {mfgLocations.map((o) => {
+                  const val = typeof o === 'string' ? o : o.value;
+                  return (
+                    <option key={val} value={val}>
+                      {val}
+                    </option>
+                  );
+                })}
               </select>
               {errors['investigation.manufacturingLocation'] && (
                 <p className="text-red-500 text-[11px] mt-0.5">{errors['investigation.manufacturingLocation']}</p>
@@ -629,7 +666,7 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                 disabled={!form.investigation.manufacturingLocation}
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white disabled:bg-slate-100"
               >
-                <option value="">Select detail</option>
+                <option value="">--None--</option>
                 {details.map((d) => (
                   <option key={d} value={d}>
                     {d}
@@ -711,12 +748,15 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                 onChange={setInv('typeOfFailure')}
                 className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
               >
-                <option value="">Select failure type</option>
-                {(lists.typeOfFailure || []).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.value}
-                  </option>
-                ))}
+                <option value="">--None--</option>
+                {failureTypes.map((o) => {
+                  const val = typeof o === 'string' ? o : o.value;
+                  return (
+                    <option key={val} value={val}>
+                      {val}
+                    </option>
+                  );
+                })}
               </select>
               {errors['investigation.typeOfFailure'] && (
                 <p className="text-red-500 text-[11px] mt-0.5">{errors['investigation.typeOfFailure']}</p>
@@ -1027,7 +1067,11 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [lists, setLists] = useState(null);
+  const [lists, setLists] = useState(() => ({
+    manufacturingLocation: DEFAULT_MANUFACTURING_LOCATIONS,
+    locationDetail: DEFAULT_LOCATION_DETAILS,
+    typeOfFailure: DEFAULT_TYPES_OF_FAILURE,
+  }));
   const [assignFrpOpen, setAssignFrpOpen] = useState(false);
   const [candidates, setCandidates] = useState([]);
   const [sendingFrpMail, setSendingFrpMail] = useState(false);
@@ -1048,13 +1092,13 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
   }, []);
 
   useEffect(() => {
-    if ((editing || assignFrpOpen) && !lists) {
-      lookupApi
-        .all()
-        .then((r) => setLists(r.data.lists))
-        .catch(() => setLists({ manufacturingLocation: [], locationDetail: [], typeOfFailure: [] }));
-    }
-  }, [editing, assignFrpOpen, lists]);
+    lookupApi
+      .all()
+      .then((r) => {
+        if (r.data?.lists) setLists(r.data.lists);
+      })
+      .catch(() => {});
+  }, []);
 
   const startEdit = async () => {
     if (c.status === 'D1_ACKNOWLEDGED') {
@@ -1172,8 +1216,8 @@ export function D2Tab({ detail, onSaved, refreshKey, editTrigger }) {
         />
       )}
 
-      {/* FRP Acknowledgement Section (Salesforce Styled) - Only visible to assigned FRP / Admin, or once acknowledged */}
-      {(c.d2?.frpAcknowledgement?.acknowledged || canAcknowledgeFrp) && (
+      {/* FRP Acknowledgement Section (Salesforce Styled) - Only visible to assigned FRP when pending, or visible to all once acknowledged */}
+      {(c.d2?.frpAcknowledgement?.acknowledged || isAssignedFrp) && (
         <SfSection title={c.d2?.frpAcknowledgement?.acknowledged ? "Acknowledgement (FRP)" : "Acknowledgement (FRP Only)"} defaultOpen={true}>
           <div className="p-4 text-xs">
             {c.d2?.frpAcknowledgement?.acknowledged ? (

@@ -2,12 +2,67 @@ import { LookupValue, LOOKUP_LISTS } from '../models/index.js';
 import { AppError } from '../utils/AppError.js';
 import * as audit from './auditService.js';
 
+export const DEFAULT_LOOKUPS = [
+  // Manufacturing Location (Salesforce QEQMS)
+  { list: 'manufacturingLocation', value: 'Inhouse', order: 1 },
+  { list: 'manufacturingLocation', value: 'CMO', order: 2 },
+
+  // Location detail (for Inhouse)
+  { list: 'locationDetail', parent: 'Inhouse', value: '5B (NRPL Pet)-1400', order: 1 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Bangalore-1100', order: 2 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-AHP-2000', order: 3 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-HHP-2100', order: 4 },
+  { list: 'locationDetail', parent: 'Inhouse', value: 'NLPL- Pithampur Indore-7000', order: 5 },
+
+  // Type of failure (Salesforce QEQMS)
+  { list: 'typeOfFailure', value: 'Analytical Difference', order: 1 },
+  { list: 'typeOfFailure', value: 'Assay', order: 2 },
+  { list: 'typeOfFailure', value: 'Contaminants', order: 3 },
+  { list: 'typeOfFailure', value: 'Documentation', order: 4 },
+  { list: 'typeOfFailure', value: 'Efficacy', order: 5 },
+  { list: 'typeOfFailure', value: 'Foreign matter', order: 6 },
+  { list: 'typeOfFailure', value: 'Microbial Parameter', order: 7 },
+  { list: 'typeOfFailure', value: 'Packaging Quality', order: 8 },
+  { list: 'typeOfFailure', value: 'Physical properties (AOT)', order: 9 },
+  { list: 'typeOfFailure', value: 'Physicochemical parameter', order: 10 },
+  { list: 'typeOfFailure', value: 'Transit', order: 11 },
+  { list: 'typeOfFailure', value: 'Food Safety', order: 12 },
+  { list: 'typeOfFailure', value: 'Feed Safety', order: 13 },
+  { list: 'typeOfFailure', value: 'Product Quality', order: 14 },
+];
+
 export async function all({ includeInactive = false } = {}) {
   const filter = includeInactive ? {} : { active: true };
-  const rows = await LookupValue.find(filter).sort({ list: 1, parent: 1, order: 1, value: 1 }).lean();
+  let rows = await LookupValue.find(filter).sort({ list: 1, parent: 1, order: 1, value: 1 }).lean();
+
+  // Merge default QEQMS lookups if not present in DB
+  const existingSet = new Set(rows.map((r) => `${r.list}|${(r.parent || '').toLowerCase()}|${r.value.toLowerCase()}`));
+  for (const d of DEFAULT_LOOKUPS) {
+    const key = `${d.list}|${(d.parent || '').toLowerCase()}|${d.value.toLowerCase()}`;
+    if (!existingSet.has(key)) {
+      rows.push({
+        _id: `default-${d.list}-${d.value}`,
+        list: d.list,
+        parent: d.parent,
+        value: d.value,
+        order: d.order,
+        active: true,
+      });
+      existingSet.add(key);
+    }
+  }
+
   const lists = {};
   for (const key of Object.keys(LOOKUP_LISTS)) lists[key] = [];
-  for (const r of rows) lists[r.list].push(r);
+  for (const r of rows) {
+    if (lists[r.list]) lists[r.list].push(r);
+  }
+
+  // Sort each list by order and then value
+  for (const key of Object.keys(lists)) {
+    lists[key].sort((a, b) => (a.order || 0) - (b.order || 0) || a.value.localeCompare(b.value));
+  }
+
   return { definitions: LOOKUP_LISTS, lists };
 }
 
@@ -73,6 +128,14 @@ export async function validateSelections({ manufacturingLocation, locationDetail
   const issues = [];
   const allowed = async (list, value, parent, currentValue) => {
     if (value === undefined || value === null || value === currentValue) return true;
+    const isDefault = DEFAULT_LOOKUPS.some(
+      (d) =>
+        d.list === list &&
+        d.value.toLowerCase() === String(value).toLowerCase() &&
+        (parent === undefined || (d.parent || '').toLowerCase() === String(parent).toLowerCase())
+    );
+    if (isDefault) return true;
+
     const q = { list, value, active: true };
     if (parent !== undefined) q.parent = parent;
     return Boolean(await LookupValue.exists(q).collation({ locale: 'en', strength: 2 }));
