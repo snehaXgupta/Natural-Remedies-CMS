@@ -413,6 +413,22 @@ function D2RecordView({ complaint: c, canEdit, onEdit, onAssignFrp, onSendMailTo
         </div>
       </SfSection>
 
+      {c.d2?.slaExtension?.status && (
+        <div className="px-4 py-2.5 text-xs border-t border-slate-200 bg-amber-50/70 text-amber-900 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">D2 SLA Extension:</span>
+            <span>Requested +{c.d2.slaExtension.requestedHours}h ({c.d2.slaExtension.reason || 'No reason specified'})</span>
+          </div>
+          <span className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+            c.d2.slaExtension.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' :
+            c.d2.slaExtension.status === 'REJECTED' ? 'bg-red-100 text-red-800' :
+            'bg-amber-100 text-amber-800'
+          }`}>
+            {c.d2.slaExtension.status}
+          </span>
+        </div>
+      )}
+
       {c.d2?.completedAt && (
         <div className="px-4 py-3 text-xs text-slate-500 bg-slate-50 border-t border-slate-200">
           D2 completed by {c.d2.completedBy?.name} on {formatDateTime(c.d2.completedAt)}.

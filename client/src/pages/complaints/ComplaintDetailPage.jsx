@@ -1060,7 +1060,7 @@ export function ComplaintDetailPage() {
               >
                 Edit
               </button>
-              {c.stage === 'D2' ? (
+              {c.stage === 'D2' && (
                 <>
                   {!c.frp && (
                     <button
@@ -1091,15 +1091,14 @@ export function ComplaintDetailPage() {
                     </button>
                   )}
                 </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleGeneratePdf}
-                  className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
-                >
-                  Generate PDF
-                </button>
               )}
+              <button
+                type="button"
+                onClick={handleGeneratePdf}
+                className="border-r border-slate-300 px-3.5 py-1.5 font-semibold text-[#0176d3] hover:bg-blue-50 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                Generate PDF
+              </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(true)}
