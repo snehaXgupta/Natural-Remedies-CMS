@@ -204,18 +204,32 @@ export function FishboneDiagram({
     }
   };
 
-  // SVG Geometry constants matching Salesforce QEQMS screenshot
-  const W = 960;
-  const H = 460;
-  const spineY = 230;
-  const spineStartX = 60;
-  const spineEndX = 680;
+  // SVG Geometry constants with generous spacing between categories and causes
+  const W = 1100;
+  const H = 600;
+  const spineY = 300;
+  const spineStartX = 40;
+  const spineEndX = 830;
 
   const cols = [
-    { xRib: 240, xPillTop: 140, xPillBottom: 140 },
-    { xRib: 410, xPillTop: 310, xPillBottom: 310 },
-    { xRib: 570, xPillTop: 470, xPillBottom: 470 },
+    { xRib: 320, xPillTop: 145, xPillBottom: 145 },
+    { xRib: 550, xPillTop: 375, xPillBottom: 375 },
+    { xRib: 780, xPillTop: 605, xPillBottom: 605 },
   ];
+
+  const getTopYLevel = (idx, total) => {
+    if (total <= 1) return 180;
+    if (total === 2) return idx === 0 ? 135 : 225;
+    const levels = [115, 180, 245];
+    return levels[idx] || 180;
+  };
+
+  const getBottomYLevel = (idx, total) => {
+    if (total <= 1) return 420;
+    if (total === 2) return idx === 0 ? 465 : 375;
+    const levels = [485, 420, 355];
+    return levels[idx] || 420;
+  };
 
   return (
     <div className="w-full bg-white rounded-md border border-slate-200 shadow-2xs overflow-hidden">
@@ -387,8 +401,8 @@ export function FishboneDiagram({
             <svg
               ref={svgRef}
               viewBox={`0 0 ${W} ${H}`}
-              className="w-full max-w-4xl h-auto select-none"
-              style={{ minWidth: '760px', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+              className="w-full max-w-5xl h-auto select-none"
+              style={{ minWidth: '850px', fontFamily: 'system-ui, -apple-system, sans-serif' }}
             >
               {/* Background */}
               <rect x="0" y="0" width={W} height={H} fill="#ffffff" />
@@ -412,9 +426,9 @@ export function FishboneDiagram({
               ].map(({ cat, colIdx, defaultText }) => {
                 const col = cols[colIdx];
                 const pillX = col.xPillTop;
-                const pillY = 65;
+                const pillY = 50;
                 const ribStartX = pillX;
-                const ribStartY = 78;
+                const ribStartY = 63;
                 const ribEndX = col.xRib;
                 const ribEndY = spineY;
 
@@ -459,15 +473,14 @@ export function FishboneDiagram({
 
                     {/* Sub-cause Horizontal Boxes along the diagonal rib */}
                     {displayCauses.slice(0, 3).map((textVal, idx) => {
-                      const yLevels = [145, 115, 175];
-                      const boxY = yLevels[idx] || 145;
+                      const boxY = getTopYLevel(idx, displayCauses.length);
                       const frac = (boxY - ribStartY) / (ribEndY - ribStartY);
                       const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
                       const lines = wrapSvgText(textVal, 20);
                       const maxLineLen = Math.max(...lines.map((l) => l.length));
                       const boxW = Math.max(90, Math.min(160, maxLineLen * 6.5 + 16));
                       const boxH = Math.max(26, lines.length * 12 + 10);
-                      const boxX = ribIntersectX - boxW - 8;
+                      const boxX = ribIntersectX - boxW - 10;
 
                       return (
                         <g key={idx}>
@@ -519,9 +532,9 @@ export function FishboneDiagram({
               ].map(({ cat, colIdx, defaultText }) => {
                 const col = cols[colIdx];
                 const pillX = col.xPillBottom;
-                const pillY = 395;
+                const pillY = 550;
                 const ribStartX = pillX;
-                const ribStartY = 382;
+                const ribStartY = 537;
                 const ribEndX = col.xRib;
                 const ribEndY = spineY;
 
@@ -566,15 +579,14 @@ export function FishboneDiagram({
 
                     {/* Sub-cause Horizontal Boxes along the diagonal rib */}
                     {displayCauses.slice(0, 3).map((textVal, idx) => {
-                      const yLevels = [315, 345, 285];
-                      const boxY = yLevels[idx] || 315;
+                      const boxY = getBottomYLevel(idx, displayCauses.length);
                       const frac = (ribStartY - boxY) / (ribStartY - ribEndY);
                       const ribIntersectX = ribStartX + frac * (ribEndX - ribStartX);
                       const lines = wrapSvgText(textVal, 20);
                       const maxLineLen = Math.max(...lines.map((l) => l.length));
                       const boxW = Math.max(90, Math.min(160, maxLineLen * 6.5 + 16));
                       const boxH = Math.max(26, lines.length * 12 + 10);
-                      const boxX = ribIntersectX - boxW - 8;
+                      const boxX = ribIntersectX - boxW - 10;
 
                       return (
                         <g key={idx}>
@@ -621,18 +633,18 @@ export function FishboneDiagram({
               {/* THE FISH HEAD (ORGANIC PEBBLE / EGG SHAPE IN BRIGHT MAGENTA) */}
               <g>
                 <path
-                  d="M 675,230 C 665,155 725,120 805,155 C 885,190 895,275 815,305 C 735,335 665,305 675,230 Z"
+                  d="M 825,300 C 815,190 885,150 970,195 C 1055,240 1065,360 980,405 C 895,450 815,410 825,300 Z"
                   fill="#e91e63"
                   stroke="#d81b60"
-                  strokeWidth="1.5"
+                  strokeWidth="2"
                 />
                 {(() => {
                   const headLines = wrapSvgText(rootCauseName || 'Identified Problem', 16).slice(0, 4);
-                  const startY = 230 - ((headLines.length - 1) * 7.5) + 4;
-                  const fSize = headLines.length > 3 ? '10' : (headLines.length > 2 ? '11.5' : '13.5');
+                  const startY = 300 - ((headLines.length - 1) * 8.5) + 5;
+                  const fSize = headLines.length > 3 ? '11' : (headLines.length > 2 ? '12.5' : '14');
                   return (
                     <text
-                      x="775"
+                      x="945"
                       y={startY}
                       textAnchor="middle"
                       fill="#ffffff"
@@ -640,7 +652,7 @@ export function FishboneDiagram({
                       fontWeight="700"
                     >
                       {headLines.map((ln, i) => (
-                        <tspan key={i} x="775" dy={i === 0 ? 0 : 15}>
+                        <tspan key={i} x="945" dy={i === 0 ? 0 : 17}>
                           {ln}
                         </tspan>
                       ))}
