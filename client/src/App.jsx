@@ -4,6 +4,8 @@ import { NAV } from './auth/navigation.js';
 import { AppShell } from './layout/AppShell.jsx';
 import { Loading } from './components/States.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage.jsx';
+import { ResetPasswordPage } from './pages/ResetPasswordPage.jsx';
 import { ChangePasswordPage } from './pages/ChangePasswordPage.jsx';
 import { DashboardPage } from './pages/DashboardPage.jsx';
 import { PlannedPage } from './pages/PlannedPage.jsx';
@@ -42,6 +44,8 @@ export default function App() {
   if (status === 'signedOut') {
     return (
       <Routes>
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
@@ -86,6 +90,8 @@ export default function App() {
           />
         ))}
         <Route path="account/password" element={<ChangePasswordPage />} />
+        <Route path="forgot-password" element={<Navigate to="/" replace />} />
+        <Route path="reset-password" element={<Navigate to="/" replace />} />
         <Route path="login" element={<Navigate to="/" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

@@ -22,6 +22,15 @@ export const loginLimiter = rateLimit({
   handler,
 });
 
+// Per-IP limit on password reset attempts.
+export const passwordResetLimiter = rateLimit({
+  windowMs: 15 * 60_000,
+  limit: env.isTest ? 10_000 : 10,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  handler,
+});
+
 // Meta sends bursts; this only stops floods of forged requests.
 export const webhookLimiter = rateLimit({
   windowMs: 60_000,

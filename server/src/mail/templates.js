@@ -1072,6 +1072,47 @@ ${button(link, 'View Complaint Record')}
 }
 
 /* --------------------------------------------------------------------------
+   PASSWORD RESET
+-------------------------------------------------------------------------- */
+export function passwordResetEmail({ user, resetUrl }) {
+  const subject = 'Reset Your Password - Complaint Management';
+  const name = user.name || 'User';
+  const bodyHtml = `
+    <p style="margin:0 0 14px 0;font-size:14px;color:#1e293b;">Dear <strong>${escapeHtml(name)}</strong>,</p>
+    <p style="margin:0 0 14px 0;font-size:13px;color:#334155;">
+      We received a request to reset your password for your <strong>Complaint Management</strong> account.
+    </p>
+    <p style="margin:0 0 14px 0;font-size:13px;color:#334155;">
+      Click the button below to choose a new password:
+    </p>
+    ${button(resetUrl, 'Reset Password')}
+    <p style="margin:14px 0 6px 0;font-size:12px;color:#64748b;">
+      Or copy and paste this link into your browser:
+    </p>
+    <p style="margin:0 0 16px 0;font-size:12px;word-break:break-all;color:#0176d3;">
+      <a href="${escapeHtml(resetUrl)}" style="color:#0176d3;">${escapeHtml(resetUrl)}</a>
+    </p>
+    <p style="margin:0 0 14px 0;font-size:12px;color:#e11d48;font-weight:600;">
+      Note: This link will expire in 30 minutes. If you did not request a password reset, you can safely ignore this email.
+    </p>
+  `;
+
+  const text = `Dear ${name},
+
+We received a request to reset your password for your Complaint Management account.
+
+Reset your password here:
+${resetUrl}
+
+Note: This link will expire in 30 minutes. If you did not request a password reset, you can safely ignore this email.
+
+Best Regards,
+Customer Relationship Management Team`;
+
+  return { subject, html: layout({ title: subject, bodyHtml }), text };
+}
+
+/* --------------------------------------------------------------------------
    Export Master Mapping
 -------------------------------------------------------------------------- */
 export const TEMPLATES = Object.freeze({
@@ -1092,4 +1133,5 @@ export const TEMPLATES = Object.freeze({
   ERP_ASSIGNMENT: erpAssignment,
   CAPA_CLOSED: capaClosedNotice,
   COMPLAINT_CLOSED: complaintSuccessfullyClosed,
+  PASSWORD_RESET: passwordResetEmail,
 });

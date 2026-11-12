@@ -33,3 +33,13 @@ export async function changePassword(req, res) {
   await user.populate('department', 'name code');
   return ok(res, authService.sessionPayload(user, [...req.permissions].sort()));
 }
+
+export async function forgotPassword(req, res) {
+  const result = await authService.requestPasswordReset(req.body.email, requestContext(req));
+  return ok(res, result);
+}
+
+export async function resetPassword(req, res) {
+  const result = await authService.resetPassword(req.body, requestContext(req));
+  return ok(res, result);
+}

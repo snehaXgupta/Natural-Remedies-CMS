@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { readError } from '../api/client.js';
 import { Field } from '../components/Field.jsx';
@@ -81,7 +82,11 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-ink-muted">Forgot your password? Ask an administrator to reset it.</p>
+        <div className="mt-4 text-center">
+          <Link to="/forgot-password" className="text-sm font-medium text-brand hover:underline">
+            Forgot your password?
+          </Link>
+        </div>
       </div>
     </div>
   );

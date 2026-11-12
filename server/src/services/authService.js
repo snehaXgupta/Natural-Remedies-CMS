@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { User } from '../models/index.js';
@@ -5,6 +6,9 @@ import env from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 import { permissionsFor } from './roleService.js';
 import * as audit from './auditService.js';
+import { mailer } from '../mail/mailer.js';
+import { passwordResetEmail } from '../mail/templates.js';
+import logger from '../config/logger.js';
 
 // With HTTPS the __Host- prefix makes browsers refuse the cookie unless it is
 // Secure, host-only and path=/, so a subdomain cannot overwrite the session.
@@ -115,10 +119,102 @@ export async function changePassword(userId, { currentPassword, newPassword }, c
   }
   await user.setPassword(newPassword);
   user.mustChangePassword = false;
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
   user.tokenVersion += 1; // signs out other sessions
   await user.save();
   await audit.record({ actor: user, action: 'auth.password.change', entityType: 'User', entityId: user._id, context });
   return { user, token: issueSessionToken(user) };
+}
+
+/**
+ * Request password reset link sent to user email.
+ * Always resolves without revealing whether the email exists.
+ */
+export async function requestPasswordReset(email, context) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) {
+    return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' };
+  }
+
+  const user = await User.findOne({ email: normalizedEmail, isActive: true });
+  if (!user) {
+    // Timing mitigation: perform a dummy sha256 calculation
+    crypto.createHash('sha256').update(crypto.randomBytes(32)).digest('hex');
+    return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' };
+  }
+
+  // Generate 32-byte secure random token
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+  user.passwordResetToken = hashedToken;
+  user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+  await user.save();
+
+  const resetUrl = `${env.APP_BASE_URL.replace(/\/$/, '')}/reset-password?token=${rawToken}`;
+  const template = passwordResetEmail({ user, resetUrl });
+
+  try {
+    await mailer().send({
+      to: user.email,
+      subject: template.subject,
+      html: template.html,
+      text: template.text,
+    });
+  } catch (err) {
+    logger.error({ err, userId: user._id, email: user.email }, 'Failed to send password reset email');
+  }
+
+  await audit.record({
+    actor: user,
+    action: 'auth.password.reset_requested',
+    entityType: 'User',
+    entityId: user._id,
+    context,
+  });
+
+  return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' };
+}
+
+/**
+ * Reset password using token received via email.
+ */
+export async function resetPassword({ token, newPassword }, context) {
+  if (!token) {
+    throw AppError.badRequest('Password reset token is required.');
+  }
+
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+  const user = await User.findOne({
+    passwordResetToken: hashedToken,
+    passwordResetExpires: { $gt: new Date() },
+    isActive: true,
+  }).select('+passwordResetToken +passwordResetExpires +passwordHash +tokenVersion');
+
+  if (!user) {
+    throw AppError.badRequest('Password reset link is invalid or has expired. Please request a new one.');
+  }
+
+  await user.setPassword(newPassword);
+  user.passwordResetToken = undefined;
+  user.passwordResetExpires = undefined;
+  user.mustChangePassword = false;
+  user.failedLoginAttempts = 0;
+  user.lockUntil = undefined;
+  user.tokenVersion = (user.tokenVersion || 0) + 1; // Invalidate all prior sessions
+  await user.save();
+
+  await audit.record({
+    actor: user,
+    action: 'auth.password.reset_completed',
+    entityType: 'User',
+    entityId: user._id,
+    context,
+  });
+
+  return { success: true, message: 'Your password has been successfully reset. You can now sign in with your new password.' };
 }
 
 export async function signOutEverywhere(user, context) {

@@ -19,7 +19,7 @@ api.interceptors.response.use(
     const status = error.response?.status;
     const code = error.response?.data?.error?.code;
     const url = error.config?.url || '';
-    const isAuthCall = url.includes('/auth/login') || url.includes('/auth/me');
+    const isAuthCall = url.includes('/auth/');
     if (status === 401 && !isAuthCall) sessionListeners.forEach((fn) => fn('expired'));
     if (code === 'PASSWORD_CHANGE_REQUIRED') sessionListeners.forEach((fn) => fn('password'));
     return Promise.reject(error);

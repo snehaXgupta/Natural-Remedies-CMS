@@ -19,6 +19,9 @@ const userSchema = new Schema(
     mustChangePassword: { type: Boolean, default: true },
     passwordChangedAt: { type: Date },
 
+    passwordResetToken: { type: String, select: false },
+    passwordResetExpires: { type: Date, select: false },
+
     isActive: { type: Boolean, default: true },
     failedLoginAttempts: { type: Number, default: 0, select: false },
     lockUntil: { type: Date, select: false },
@@ -37,6 +40,7 @@ userSchema.index({ employeeId: 1 }, { unique: true, partialFilterExpression: { e
 userSchema.index({ roles: 1, isActive: 1 });
 userSchema.index({ manager: 1 });
 userSchema.index({ name: 'text', email: 'text', employeeId: 'text' });
+userSchema.index({ passwordResetToken: 1 }, { sparse: true });
 
 userSchema.methods.setPassword = async function setPassword(plain) {
   this.passwordHash = await bcrypt.hash(plain, env.BCRYPT_ROUNDS);
@@ -58,6 +62,8 @@ userSchema.set('toJSON', {
     delete ret.failedLoginAttempts;
     delete ret.lockUntil;
     delete ret.tokenVersion;
+    delete ret.passwordResetToken;
+    delete ret.passwordResetExpires;
     return ret;
   },
 });
