@@ -1,6 +1,7 @@
 import * as authService from '../services/authService.js';
 import { ok } from '../utils/http.js';
 import { requestContext } from '../utils/http.js';
+import { isOriginAllowed } from '../middleware/originCheck.js';
 
 const { SESSION_COOKIE, sessionCookieOptions } = authService;
 
@@ -35,7 +36,25 @@ export async function changePassword(req, res) {
 }
 
 export async function forgotPassword(req, res) {
-  const result = await authService.requestPasswordReset(req.body.email, requestContext(req));
+  let origin = null;
+  const originHeader = req.get('origin');
+  if (originHeader && isOriginAllowed(originHeader)) {
+    origin = originHeader;
+  } else if (req.get('referer')) {
+    try {
+      const refOrigin = new URL(req.get('referer')).origin;
+      if (isOriginAllowed(refOrigin)) origin = refOrigin;
+    } catch {}
+  } else if (req.get('x-forwarded-host')) {
+    const proto = req.get('x-forwarded-proto') || 'https';
+    const candidate = `${proto}://${req.get('x-forwarded-host')}`;
+    if (isOriginAllowed(candidate)) origin = candidate;
+  }
+
+  const result = await authService.requestPasswordReset(req.body.email, {
+    ...requestContext(req),
+    origin,
+  });
   return ok(res, result);
 }
 

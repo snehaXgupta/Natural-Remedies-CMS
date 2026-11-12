@@ -11,13 +11,17 @@ export function isOriginAllowed(origin) {
     const host = u.hostname.toLowerCase();
     // Local development
     if (host === 'localhost' || host === '127.0.0.1') return true;
-    // Allow ngrok tunnels (all domains and subdomains)
+    // Allow ngrok tunnels, netlify, render, and company domains
     if (
       host.endsWith('.ngrok-free.app') ||
       host.endsWith('.ngrok-free.dev') ||
       host.endsWith('.ngrok.io') ||
       host.endsWith('.ngrok.app') ||
-      host.endsWith('.netlify.app')
+      host.endsWith('.netlify.app') ||
+      host.endsWith('.onrender.com') ||
+      host.endsWith('.naturalremedies.com') ||
+      host.endsWith('.naturalremedy.com') ||
+      host.endsWith('.simpel.ai')
     ) {
       return true;
     }

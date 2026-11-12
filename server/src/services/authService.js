@@ -9,6 +9,7 @@ import * as audit from './auditService.js';
 import { mailer } from '../mail/mailer.js';
 import { passwordResetEmail } from '../mail/templates.js';
 import logger from '../config/logger.js';
+import { isOriginAllowed } from '../middleware/originCheck.js';
 
 // With HTTPS the __Host- prefix makes browsers refuse the cookie unless it is
 // Secure, host-only and path=/, so a subdomain cannot overwrite the session.
@@ -131,7 +132,7 @@ export async function changePassword(userId, { currentPassword, newPassword }, c
  * Request password reset link sent to user email.
  * Always resolves without revealing whether the email exists.
  */
-export async function requestPasswordReset(email, context) {
+export async function requestPasswordReset(email, context = {}) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (!normalizedEmail) {
     return { success: true, message: 'If an account exists with this email, a password reset link has been sent.' };
@@ -152,7 +153,12 @@ export async function requestPasswordReset(email, context) {
   user.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
   await user.save();
 
-  const resetUrl = `${env.APP_BASE_URL.replace(/\/$/, '')}/reset-password?token=${rawToken}`;
+  // Use caller origin if available and allowed, otherwise configured APP_BASE_URL
+  const appBase = (context?.origin && isOriginAllowed(context.origin))
+    ? context.origin.replace(/\/$/, '')
+    : (env.APP_BASE_URL || 'https://naturalremediescms.netlify.app').replace(/\/$/, '');
+
+  const resetUrl = `${appBase}/reset-password?token=${rawToken}`;
   const template = passwordResetEmail({ user, resetUrl });
 
   try {
