@@ -37,11 +37,11 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-6 flex items-center gap-2.5">
-          <img src="/favicon.svg" alt="" className="h-7 w-7" />
+        <div className="mb-6 flex items-center gap-3">
+          <img src="/natural-remedies-logo.png" alt="Natural Remedies Logo" className="h-10 w-auto object-contain" />
           <div className="leading-tight">
-            <p className="font-semibold">SFA Complaint Management</p>
-            <p className="text-sm text-ink-muted">Sign in with your company account</p>
+            <p className="font-semibold text-base text-ink">Complaint Management</p>
+            <p className="text-sm text-ink-muted">Sign in with your company account only</p>
           </div>
         </div>
 
