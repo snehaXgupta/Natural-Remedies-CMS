@@ -42,7 +42,6 @@ import { ConfirmModal } from '../../components/ConfirmModal.jsx';
 import { NotificationStatus } from '../../components/NotificationStatus.jsx';
 import { NOTIFICATION_TYPES } from '../../lib/notifications.js';
 import { D4Tab } from './D4Tab.jsx';
-import { generateComplaintReport } from '../../lib/generateReportPdf.js';
 import { ComplaintReportModal } from './ComplaintReportModal.jsx';
 import { RpnGuide } from './RpnGuide.jsx';
 
@@ -196,33 +195,6 @@ function Item({ label, children, empty = 'Not provided' }) {
   );
 }
 
-function EmailStatus({ complaintId, refreshKey }) {
-  const emails = useAsync(() => complaintApi.notifications(complaintId), [complaintId, refreshKey]);
-  const ack = emails.data?.filter((n) => n.type === 'D1_ACKNOWLEDGEMENT') || [];
-  if (emails.loading && !emails.data) return null;
-  if (!ack.length) return null;
-  return (
-    <ul className="mt-3 space-y-2 px-4 pb-3">
-      {ack.map((n) => (
-        <li key={n._id} className="rounded border border-line px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <span>{NOTIFICATION_TYPES[n.type]} email to {n.recipient}</span>
-            <NotificationStatus status={n.status} />
-          </div>
-          <p className="mt-0.5 text-ink-muted">
-            {n.status === 'SENT' || n.status === 'DELIVERED'
-              ? `Sent ${formatDateTime(n.sentAt)}${n.attempts > 1 ? ` after ${n.attempts} attempts` : ''}.`
-              : n.status === 'FAILED'
-                ? `Failed after ${n.attempts} attempts: ${n.lastError}`
-                : n.attempts > 0
-                  ? `Attempt ${n.attempts} failed (${n.lastError}). Next try ${formatDateTime(n.nextAttemptAt)}.`
-                  : 'Queued; usually sent within a few seconds.'}
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 /* ---------------- D1 Tab (Salesforce Record Details View) ---------------- */
 

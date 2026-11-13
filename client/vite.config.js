@@ -19,4 +19,19 @@ export default defineConfig({
       '/externalsource1': { target: 'http://127.0.0.1:4000', changeOrigin: false },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/jspdf') || id.includes('node_modules/html2canvas') || id.includes('node_modules/dompurify')) {
+            return 'pdf-vendor';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'lucide-vendor';
+          }
+        },
+      },
+    },
+  },
 });

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext.jsx';
 import { NAV } from './auth/navigation.js';
@@ -8,18 +9,28 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage.jsx';
 import { ResetPasswordPage } from './pages/ResetPasswordPage.jsx';
 import { ChangePasswordPage } from './pages/ChangePasswordPage.jsx';
 import { DashboardPage } from './pages/DashboardPage.jsx';
-import { PlannedPage } from './pages/PlannedPage.jsx';
 import { NotFoundPage } from './pages/NotFoundPage.jsx';
-import { UsersRolesPage } from './pages/admin/UsersRolesPage.jsx';
-import { ComplaintsPage } from './pages/complaints/ComplaintsPage.jsx';
-import { NewComplaintPage } from './pages/complaints/NewComplaintPage.jsx';
-import { ComplaintDetailPage } from './pages/complaints/ComplaintDetailPage.jsx';
-import { NotificationLogsPage } from './pages/notifications/NotificationLogsPage.jsx';
-import { PendingReviewsPage } from './pages/reviews/PendingReviewsPage.jsx';
-import { SettingsPage } from './pages/settings/SettingsPage.jsx';
-import { ReportsPage } from './pages/reports/ReportsPage.jsx';
-import { SimulatorPage } from './pages/whatsapp/SimulatorPage.jsx';
-import { EmailDetailPage } from './pages/complaints/EmailDetailPage.jsx';
+
+// Route-level code splitting for heavy secondary pages
+const PlannedPage = lazy(() => import('./pages/PlannedPage.jsx').then((m) => ({ default: m.PlannedPage })));
+const UsersRolesPage = lazy(() => import('./pages/admin/UsersRolesPage.jsx').then((m) => ({ default: m.UsersRolesPage })));
+const ComplaintsPage = lazy(() => import('./pages/complaints/ComplaintsPage.jsx').then((m) => ({ default: m.ComplaintsPage })));
+const NewComplaintPage = lazy(() => import('./pages/complaints/NewComplaintPage.jsx').then((m) => ({ default: m.NewComplaintPage })));
+const ComplaintDetailPage = lazy(() => import('./pages/complaints/ComplaintDetailPage.jsx').then((m) => ({ default: m.ComplaintDetailPage })));
+const NotificationLogsPage = lazy(() => import('./pages/notifications/NotificationLogsPage.jsx').then((m) => ({ default: m.NotificationLogsPage })));
+const PendingReviewsPage = lazy(() => import('./pages/reviews/PendingReviewsPage.jsx').then((m) => ({ default: m.PendingReviewsPage })));
+const SettingsPage = lazy(() => import('./pages/settings/SettingsPage.jsx').then((m) => ({ default: m.SettingsPage })));
+const ReportsPage = lazy(() => import('./pages/reports/ReportsPage.jsx').then((m) => ({ default: m.ReportsPage })));
+const SimulatorPage = lazy(() => import('./pages/whatsapp/SimulatorPage.jsx').then((m) => ({ default: m.SimulatorPage })));
+const EmailDetailPage = lazy(() => import('./pages/complaints/EmailDetailPage.jsx').then((m) => ({ default: m.EmailDetailPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex h-64 items-center justify-center">
+      <Loading label="Loading..." />
+    </div>
+  );
+}
 
 /** Render children only if the user has one of the permissions. */
 function Guard({ any, children }) {
@@ -56,45 +67,47 @@ export default function App() {
   const planned = NAV.filter((n) => n.phase);
 
   return (
-    <Routes>
-      <Route element={<AppShell />}>
-        <Route index element={<DashboardPage />} />
-        <Route
-          path="admin/users"
-          element={
-            <Guard any={navFor('/admin/users').any}>
-              <UsersRolesPage />
-            </Guard>
-          }
-        />
-        <Route path="complaints" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintsPage key="all" /></Guard>} />
-        <Route path="complaints/new" element={<Guard any={['complaint.create.manual']}><NewComplaintPage /></Guard>} />
-        <Route path="complaints/:id" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintDetailPage /></Guard>} />
-        <Route path="complaints/:complaintId/emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><EmailDetailPage /></Guard>} />
-        <Route path="emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned', 'notifications.view']}><EmailDetailPage /></Guard>} />
-        <Route path="my-complaints" element={<Guard any={navFor('/my-complaints').any}><ComplaintsPage key="mine" mine /></Guard>} />
-        <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
-        <Route path="reports" element={<Guard any={navFor('/reports').any}><ReportsPage /></Guard>} />
-        <Route path="whatsapp-simulator" element={<Guard any={navFor('/whatsapp-simulator').any}><SimulatorPage /></Guard>} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="notifications" element={<Guard any={navFor('/notifications').any}><NotificationLogsPage /></Guard>} />
-        {planned.map((n) => (
+    <Suspense fallback={<PageFallback />}>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<DashboardPage />} />
           <Route
-            key={n.to}
-            path={n.to.slice(1)}
+            path="admin/users"
             element={
-              <Guard any={n.any}>
-                <PlannedPage title={n.label} phase={n.phase} />
+              <Guard any={navFor('/admin/users').any}>
+                <UsersRolesPage />
               </Guard>
             }
           />
-        ))}
-        <Route path="account/password" element={<ChangePasswordPage />} />
-        <Route path="forgot-password" element={<Navigate to="/" replace />} />
-        <Route path="reset-password" element={<Navigate to="/" replace />} />
-        <Route path="login" element={<Navigate to="/" replace />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+          <Route path="complaints" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintsPage key="all" /></Guard>} />
+          <Route path="complaints/new" element={<Guard any={['complaint.create.manual']}><NewComplaintPage /></Guard>} />
+          <Route path="complaints/:id" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><ComplaintDetailPage /></Guard>} />
+          <Route path="complaints/:complaintId/emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned']}><EmailDetailPage /></Guard>} />
+          <Route path="emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned', 'notifications.view']}><EmailDetailPage /></Guard>} />
+          <Route path="my-complaints" element={<Guard any={navFor('/my-complaints').any}><ComplaintsPage key="mine" mine /></Guard>} />
+          <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
+          <Route path="reports" element={<Guard any={navFor('/reports').any}><ReportsPage /></Guard>} />
+          <Route path="whatsapp-simulator" element={<Guard any={navFor('/whatsapp-simulator').any}><SimulatorPage /></Guard>} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="notifications" element={<Guard any={navFor('/notifications').any}><NotificationLogsPage /></Guard>} />
+          {planned.map((n) => (
+            <Route
+              key={n.to}
+              path={n.to.slice(1)}
+              element={
+                <Guard any={n.any}>
+                  <PlannedPage title={n.label} phase={n.phase} />
+                </Guard>
+              }
+            />
+          ))}
+          <Route path="account/password" element={<ChangePasswordPage />} />
+          <Route path="forgot-password" element={<Navigate to="/" replace />} />
+          <Route path="reset-password" element={<Navigate to="/" replace />} />
+          <Route path="login" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }

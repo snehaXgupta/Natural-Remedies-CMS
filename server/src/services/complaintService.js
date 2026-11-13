@@ -431,24 +431,69 @@ export async function history(id, user, permissions) {
 export async function dashboardSummary(user, permissions) {
   const scope = await visibilityFilter(user, permissions);
   const now = new Date();
+  const past24h = new Date(now.getTime() - 24 * 3600 * 1000);
 
-  // One indexed count per status is much cheaper than grouping every document.
-  const statusKeys = Object.values(S);
-  const [statusCounts, total, newToday, overdue, assignedToMe] = await Promise.all([
-    Promise.all(statusKeys.map((status) => Complaint.countDocuments({ $and: [scope, { status }] }))),
-    Complaint.countDocuments(scope),
-    Complaint.countDocuments({ $and: [scope, { createdAt: { $gte: new Date(now - 24 * 3600 * 1000) } }] }),
-    Complaint.countDocuments({ $and: [scope, { stageDueAt: { $type: 'date', $lt: now } }, { status: { $ne: S.CLOSED } }] }),
-    Complaint.countDocuments({ $and: [scope, { frp: user._id, status: { $ne: S.CLOSED } }] }),
+  const matchStage = Object.keys(scope).length ? [{ $match: scope }] : [];
+
+  const [aggResult] = await Complaint.aggregate([
+    ...matchStage,
+    {
+      $facet: {
+        byStatus: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
+        metrics: [
+          {
+            $group: {
+              _id: null,
+              total: { $sum: 1 },
+              newLast24h: {
+                $sum: { $cond: [{ $gte: ['$createdAt', past24h] }, 1, 0] },
+              },
+              overdue: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: [{ $type: '$stageDueAt' }, 'date'] },
+                        { $lt: ['$stageDueAt', now] },
+                        { $ne: ['$status', S.CLOSED] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              assignedToMe: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        user?._id ? { $eq: ['$frp', user._id] } : false,
+                        { $ne: ['$status', S.CLOSED] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
   ]);
-  const byStatus = statusKeys.map((key, i) => ({ _id: key, n: statusCounts[i] }));
 
-  const count = Object.fromEntries(byStatus.map((r) => [r._id, r.n]));
+  const count = {};
+  for (const item of aggResult?.byStatus || []) {
+    if (item._id) count[item._id] = item.count;
+  }
+  const metrics = aggResult?.metrics?.[0] || { total: 0, newLast24h: 0, overdue: 0, assignedToMe: 0 };
   const sum = (...keys) => keys.reduce((n, k) => n + (count[k] || 0), 0);
 
   return {
-    total,
-    newLast24h: newToday,
+    total: metrics.total || 0,
+    newLast24h: metrics.newLast24h || 0,
     awaitingAcknowledgement: sum(S.SUBMITTED, S.D1_ACK_PENDING),
     awaitingAssignment: sum(S.D1_ACKNOWLEDGED, S.D2_IN_PROGRESS),
     inInvestigation: sum(S.D2_COMPLETED, S.D3_IN_PROGRESS),
@@ -456,8 +501,8 @@ export async function dashboardSummary(user, permissions) {
     rework: sum(S.D3_REWORK),
     inD4: sum(S.D3_APPROVED, S.D4_IN_PROGRESS),
     closed: sum(S.CLOSED),
-    overdue,
-    assignedToMe,
+    overdue: metrics.overdue || 0,
+    assignedToMe: metrics.assignedToMe || 0,
     // Overdue needs SLA rules (OPEN_QUESTIONS Q6a); until then it is always 0.
     slaConfigured: false,
     byStatus: Object.values(S).map((key) => ({ key, label: STATUS_LABELS[key], count: count[key] || 0 })),
