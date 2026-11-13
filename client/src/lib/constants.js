@@ -593,9 +593,8 @@ export const INDIAN_HQS = [
  * - For international countries: returns the Country name itself as the default/available HQ.
  */
 export function getHqOptionsForCountry(country) {
-  if (!country || country === '--None--') return [];
   if (country === 'India') {
     return ['India', ...INDIAN_HQS];
   }
-  return [country];
+  return [];
 }

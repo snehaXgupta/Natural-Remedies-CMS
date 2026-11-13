@@ -148,17 +148,21 @@ export function D1Form({
             </select>
           )}
         </Field>
-        <Field label="Complaint Head Quarter" required error={err('headQuarter')}>
+        <Field label="Complaint Head Quarter" required={value.country === 'India'} error={err('headQuarter')}>
           {(p) => {
-            const hqOptions = getHqOptionsForCountry(value.country);
+            const isIndia = value.country === 'India';
+            const hqOptions = isIndia ? getHqOptionsForCountry('India') : [];
             return (
               <select
                 {...p}
-                className="field-input"
-                value={value.headQuarter || ''}
+                disabled={!isIndia}
+                className={`field-input ${
+                  !isIndia ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-slate-200' : ''
+                }`}
+                value={isIndia ? (value.headQuarter || '') : ''}
                 onChange={(e) => onChange({ ...value, headQuarter: e.target.value })}
               >
-                <option value="">--None--</option>
+                <option value="">{isIndia ? '--None--' : 'N/A (India only)'}</option>
                 {hqOptions.map((h) => (
                   <option key={h} value={h}>
                     {h}

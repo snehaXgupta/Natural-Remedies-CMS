@@ -216,7 +216,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
     if (!form.country) {
       clientErrors.country = 'Enter the country.';
     }
-    if (!form.headQuarter || form.headQuarter === '--None--') {
+    if (form.country === 'India' && (!form.headQuarter || form.headQuarter === '--None--')) {
       clientErrors.headQuarter = 'Select the Complaint Head Quarter.';
     }
     if (!form.shortDescription?.trim()) {
@@ -711,30 +711,42 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                 </div>
 
                 {/* Complaint Head Quarter */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
-                  <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
-                    <span className="text-red-600 mr-0.5">*</span>Complaint Head Quarter
-                  </label>
-                  <div className="flex-1 relative">
-                    <select
-                      value={form.headQuarter}
-                      onChange={(e) => {
-                        setForm({ ...form, headQuarter: e.target.value });
-                        if (errors.headQuarter) setErrors((prev) => ({ ...prev, headQuarter: undefined }));
-                      }}
-                      className="h-8 w-full rounded border border-slate-300 bg-white px-2.5 pr-8 text-xs text-slate-800 focus:border-blue-500 focus:outline-none appearance-none"
-                    >
-                      <option value="">--None--</option>
-                      {(form.country ? getHqOptionsForCountry(form.country) : []).map((h) => (
-                        <option key={h} value={h}>
-                          {h}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
-                    {errors.headQuarter && <p className="text-[10px] text-red-600 mt-1">{errors.headQuarter}</p>}
-                  </div>
-                </div>
+                {(() => {
+                  const isIndia = form.country === 'India';
+                  const hqOptions = isIndia ? getHqOptionsForCountry('India') : [];
+                  return (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">
+                      <label className="sm:w-36 sm:text-right text-[11px] font-semibold text-slate-700 shrink-0">
+                        {isIndia && <span className="text-red-600 mr-0.5">*</span>}
+                        <span className={!isIndia ? 'text-slate-400' : ''}>Complaint Head Quarter</span>
+                      </label>
+                      <div className="flex-1 relative">
+                        <select
+                          disabled={!isIndia}
+                          value={isIndia ? form.headQuarter : ''}
+                          onChange={(e) => {
+                            setForm({ ...form, headQuarter: e.target.value });
+                            if (errors.headQuarter) setErrors((prev) => ({ ...prev, headQuarter: undefined }));
+                          }}
+                          className={`h-8 w-full rounded border px-2.5 pr-8 text-xs appearance-none transition-colors ${
+                            !isIndia
+                              ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                              : 'border-slate-300 bg-white text-slate-800 focus:border-blue-500 focus:outline-none'
+                          }`}
+                        >
+                          <option value="">{isIndia ? '--None--' : 'N/A (India only)'}</option>
+                          {hqOptions.map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 ${!isIndia ? 'text-slate-300' : 'text-slate-500'}`} />
+                        {isIndia && errors.headQuarter && <p className="text-[10px] text-red-600 mt-1">{errors.headQuarter}</p>}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Origin */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5">

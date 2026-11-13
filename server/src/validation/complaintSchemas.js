@@ -49,9 +49,7 @@ const d1Fields = (empty) => ({
   }),
   sbu: text(80).min(1, 'Enter the SBU.'),
   country: text(80).min(1, 'Enter the country.'),
-  headQuarter: empty === null
-    ? optional(120, null)
-    : text(120).min(1, 'Select the Complaint Head Quarter.'),
+  headQuarter: optional(120, empty),
   shortDescription: text(500).min(5, 'Describe the complaint in at least 5 characters.'),
   additionalRemarks: optional(4000, empty),
   category: optional(120, empty),
@@ -65,15 +63,34 @@ const d1Fields = (empty) => ({
 });
 
 // Staff-entered complaints. WhatsApp complaints are created by the webhook.
-export const createComplaintBody = z.object({
-  ...d1Fields(undefined),
-  origin: z.enum(['Web', 'Email', 'Phone', 'Call'], 'Choose how the complaint was received.'),
-});
+export const createComplaintBody = z
+  .object({
+    ...d1Fields(undefined),
+    origin: z.enum(['Web', 'Email', 'Phone', 'Call'], 'Choose how the complaint was received.'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.country === 'India' && (!data.headQuarter || !data.headQuarter.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['headQuarter'],
+        message: 'Select the Complaint Head Quarter.',
+      });
+    }
+  });
 
 export const updateD1Body = z
   .object({ ...d1Fields(null), version: z.number().int().min(0) })
   .partial()
-  .required({ version: true });
+  .required({ version: true })
+  .superRefine((data, ctx) => {
+    if (data.country === 'India' && (!data.headQuarter || !data.headQuarter.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['headQuarter'],
+        message: 'Select the Complaint Head Quarter.',
+      });
+    }
+  });
 
 const csv = (values) =>
   z
