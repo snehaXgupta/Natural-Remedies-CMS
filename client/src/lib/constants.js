@@ -1,11 +1,5 @@
 export const SBUS = [
-  'AHP-Avicare',
-  'AHP-Omnicare',
-  'AHP-Rumicare',
-  'HHP',
-  'PET',
-  'PET-Online',
-  'SBP',
+  'AHP - Rumicare',
 ];
 
 export const COUNTRIES = [

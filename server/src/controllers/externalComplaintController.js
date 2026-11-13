@@ -2,9 +2,11 @@ import logger from '../config/logger.js';
 import { createComplaint } from '../services/complaintService.js';
 
 const VALID_SBUS = [
+  'AHP - Rumicare',
+  'AHP – Rumicare',
+  'AHP-Rumicare',
   'AHP-Avicare',
   'AHP-Omnicare',
-  'AHP-Rumicare',
   'HHP',
   'PET',
   'PET-Online',

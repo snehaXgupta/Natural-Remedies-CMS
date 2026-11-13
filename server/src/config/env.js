@@ -69,7 +69,7 @@ const schema = z.object({
   WHATSAPP_API_VERSION: z.string().regex(/^v\d+\.\d+$/).default('v21.0'),
   // Choices offered by the chatbot. Placeholders until the company confirms
   // its lists (OPEN_QUESTIONS Q6, Q18). Comma-separated.
-  WHATSAPP_SBUS: z.string().default('AHP-Rumicare,AHP-Poultry,AHP-Aqua'),
+  WHATSAPP_SBUS: z.string().default('AHP - Rumicare'),
   WHATSAPP_CATEGORIES: z.string().default('Packaging,Product quality,Efficacy,Labelling,Other'),
 
   // Public address of the web app, used for links in internal emails.

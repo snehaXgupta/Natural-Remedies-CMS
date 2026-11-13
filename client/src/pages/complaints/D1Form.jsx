@@ -122,6 +122,9 @@ export function D1Form({
                   {s}
                 </option>
               ))}
+              {value.sbu && !SBUS.includes(value.sbu) && (
+                <option value={value.sbu}>{value.sbu}</option>
+              )}
             </select>
           )}
         </Field>

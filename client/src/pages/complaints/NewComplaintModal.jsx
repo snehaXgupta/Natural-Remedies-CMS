@@ -46,7 +46,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
       mobile: '',
       type: 'Customer',
     },
-    sbu: '',
+    sbu: 'AHP - Rumicare',
     country: '',
     headQuarter: '',
     origin: 'Call',
@@ -119,7 +119,7 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
           mobile: '',
           type: 'Customer',
         },
-        sbu: '',
+        sbu: 'AHP - Rumicare',
         country: '',
         headQuarter: '',
         origin: 'Call',
@@ -637,6 +637,9 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
                           {s}
                         </option>
                       ))}
+                      {form.sbu && !SBUS.includes(form.sbu) && (
+                        <option value={form.sbu}>{form.sbu}</option>
+                      )}
                     </select>
                     <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-500" />
                     {errors.sbu && <p className="text-[10px] text-red-600 mt-1">{errors.sbu}</p>}
