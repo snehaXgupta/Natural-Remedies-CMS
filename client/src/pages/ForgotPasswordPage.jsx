@@ -33,11 +33,11 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-between px-4 py-8 overflow-hidden bg-gradient-to-br from-emerald-50/50 via-slate-50 to-teal-50/30">
-      {/* Soft Lite Green Ambient Aura */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-[480px] w-[480px] rounded-full bg-emerald-200/35 blur-3xl" />
-      <div className="pointer-events-none absolute top-1/3 -right-32 h-[480px] w-[480px] rounded-full bg-teal-100/40 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 left-1/4 h-[400px] w-[400px] rounded-full bg-green-100/30 blur-3xl" />
+    <div className="relative min-h-screen flex flex-col justify-between px-4 py-8 overflow-hidden bg-gradient-to-br from-sky-50/50 via-white to-blue-50/40">
+      {/* Pure Sky / Ice Blue Ambient Glow (Zero Green) */}
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-sky-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/3 -right-32 h-[500px] w-[500px] rounded-full bg-blue-100/35 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 left-1/4 h-[420px] w-[420px] rounded-full bg-sky-100/40 blur-3xl" />
 
       <div />
       <div className="relative z-10 w-full max-w-sm mx-auto my-auto">
