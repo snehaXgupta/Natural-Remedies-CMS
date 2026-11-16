@@ -89,7 +89,7 @@ export function LoginPage() {
           </Link>
         </div>
       </div>
-      <footer className="w-full text-center py-4 text-xs text-slate-500">
+      <footer className="w-full text-left py-4 text-xs text-slate-500">
         Copyright © 2027 Vetaura. All rights reserved.
       </footer>
     </div>

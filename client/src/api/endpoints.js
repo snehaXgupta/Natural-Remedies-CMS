@@ -107,7 +107,7 @@ export const notificationApi = {
 };
 
 export const inAppApi = {
-  list: () => data(api.get('/notifications/in-app')),
+  list: () => data(api.get('/notifications/in-app', { _silentAuth: true })),
   markAllRead: () => data(api.post('/notifications/in-app/mark-all-read')),
   markRead: (id) => data(api.post(`/notifications/in-app/${id}/read`)),
 };

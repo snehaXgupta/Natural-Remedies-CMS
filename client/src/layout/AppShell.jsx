@@ -601,7 +601,7 @@ export function AppShell() {
       </main>
 
       {/* Bottom Footer */}
-      <footer className="border-t border-slate-200 bg-white py-2.5 px-4 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white py-2.5 px-4 sm:px-6 text-left text-xs text-slate-500">
         Copyright © 2027 Vetaura. All rights reserved.
       </footer>
 
