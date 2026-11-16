@@ -1,2 +1,3 @@
-/api/*  https://natural-remedies-cms.onrender.com/api/:splat  200!
-/*      /index.html                                          200
+/externalsource1/*  https://natural-remedies-cms.onrender.com/externalsource1/:splat  200!
+/api/*              https://natural-remedies-cms.onrender.com/api/:splat              200!
+/*                  /index.html                                                      200
