@@ -90,7 +90,7 @@ export function LoginPage() {
         </div>
       </div>
       <footer className="w-full text-left py-4 text-xs text-slate-500">
-        Copyright © 2027 Vetaura. All rights reserved.
+        Copyright © 2027 VetAura. All rights reserved.
       </footer>
     </div>
   );
