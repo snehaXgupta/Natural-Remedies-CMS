@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send, X } from 'lucide-react';
 import { complaintApi, lookupApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -493,6 +493,25 @@ export const DEFAULT_TYPES_OF_FAILURE = [
 /* ---------------- Edit form matching layout ---------------- */
 
 function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates = [] }) {
+  const [frpSearch, setFrpSearch] = useState(() => {
+    if (form.assigneeId) {
+      const found = candidates.find((u) => u._id === form.assigneeId);
+      if (found) return found.name;
+    }
+    return c.frp?.name || '';
+  });
+  const [frpDropdownOpen, setFrpDropdownOpen] = useState(false);
+  const frpDropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (frpDropdownRef.current && !frpDropdownRef.current.contains(e.target)) {
+        setFrpDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const setVp = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((prev) => ({
@@ -813,20 +832,101 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                 First Responsible Person
               </label>
               <div className="flex items-center gap-2">
-                <select
-                  value={form.assigneeId || ''}
-                  onChange={(e) => setForm((prev) => ({ ...prev, assigneeId: e.target.value }))}
-                  className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
-                >
-                  <option value="">{c.frp ? `${c.frp.name} (Current FRP)` : 'Select FRP...'}</option>
-                  {candidates
-                    .filter((u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || ''))
-                    .map((u) => (
-                    <option key={u._id} value={u._id}>
-                      {u.name} {u.email ? `(${u.email})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div ref={frpDropdownRef} className="relative flex-1">
+                  <div className="relative flex items-center">
+                    <input
+                      type="text"
+                      value={frpSearch}
+                      onChange={(e) => {
+                        setFrpSearch(e.target.value);
+                        setFrpDropdownOpen(true);
+                      }}
+                      onFocus={() => setFrpDropdownOpen(true)}
+                      placeholder="Search FRP by name, email, department..."
+                      className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 pr-14 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
+                    />
+                    <div className="absolute right-1 flex items-center gap-0.5">
+                      {frpSearch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFrpSearch('');
+                            setForm((prev) => ({ ...prev, assigneeId: '' }));
+                          }}
+                          className="rounded p-1 text-slate-400 hover:text-slate-600"
+                          title="Clear"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setFrpDropdownOpen((prev) => !prev)}
+                        className="rounded p-1 text-slate-400 hover:text-slate-600"
+                        title="Toggle list"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {frpDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl z-50 divide-y divide-slate-100">
+                      {(() => {
+                        const cleanCandidates = candidates.filter((u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || ''));
+                        const frpQuery = (frpSearch || '').trim().toLowerCase();
+                        const filteredFrps = cleanCandidates.filter((u) => {
+                          if (!frpQuery) return true;
+                          const nameMatch = u.name?.toLowerCase().includes(frpQuery);
+                          const emailMatch = u.email?.toLowerCase().includes(frpQuery);
+                          const desigMatch = u.designation?.toLowerCase().includes(frpQuery);
+                          const dept = typeof u.department === 'string' ? u.department : u.department?.name;
+                          const deptMatch = dept?.toLowerCase().includes(frpQuery);
+                          return nameMatch || emailMatch || desigMatch || deptMatch;
+                        });
+
+                        if (filteredFrps.length === 0) {
+                          return (
+                            <div className="p-3 text-center text-xs text-slate-400">
+                              No investigators found matching &quot;{frpSearch}&quot;
+                            </div>
+                          );
+                        }
+
+                        return filteredFrps.map((u) => {
+                          const dept = typeof u.department === 'string' ? u.department : u.department?.name;
+                          const isSelected = form.assigneeId === u._id;
+                          return (
+                            <div
+                              key={u._id}
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, assigneeId: u._id }));
+                                setFrpSearch(u.name);
+                                setFrpDropdownOpen(false);
+                              }}
+                              className={`p-2 hover:bg-blue-50 cursor-pointer flex flex-col text-left transition-colors ${
+                                isSelected ? 'bg-blue-50/80 font-medium' : ''
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-slate-900 text-xs">{u.name}</span>
+                                {dept && (
+                                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {dept}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 flex items-center justify-between mt-0.5">
+                                <span>{u.designation || 'Investigator'}</span>
+                                {u.email && <span>{u.email}</span>}
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={onAssignFrp}
