@@ -86,14 +86,18 @@ export function ChangePasswordPage({ forced = false }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
+    <div className="flex min-h-screen flex-col justify-between px-4 py-8">
+      <div />
+      <div className="w-full max-w-sm mx-auto my-auto">
         <h1 className="mb-1 text-xl font-semibold">Set your password</h1>
         <p className="mb-5 text-ink-muted">
           Welcome, {user.name.split(' ')[0]}. Your account was set up with a temporary password. Choose your own before continuing.
         </p>
         {body}
       </div>
+      <footer className="w-full text-center py-4 text-xs text-slate-500">
+        Copyright © 2027 Vetaura. All rights reserved.
+      </footer>
     </div>
   );
 }

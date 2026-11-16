@@ -36,10 +36,11 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="w-full max-w-sm">
+    <div className="flex min-h-screen flex-col justify-between px-4 py-8">
+      <div />
+      <div className="w-full max-w-sm mx-auto my-auto">
         <div className="mb-6 flex items-center gap-3">
-          <img src="/natural-remedies-logo.png" alt="Natural Remedies Logo" className="h-10 w-auto object-contain" />
+          <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-11 w-auto object-contain" />
           <div className="leading-tight">
             <p className="font-semibold text-base text-ink">Complaint Management</p>
             <p className="text-sm text-ink-muted">Sign in with your company account only</p>
@@ -88,6 +89,9 @@ export function LoginPage() {
           </Link>
         </div>
       </div>
+      <footer className="w-full text-center py-4 text-xs text-slate-500">
+        Copyright © 2027 Vetaura. All rights reserved.
+      </footer>
     </div>
   );
 }

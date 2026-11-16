@@ -21,6 +21,7 @@ export function isOriginAllowed(origin) {
       host.endsWith('.onrender.com') ||
       host.endsWith('.naturalremedies.com') ||
       host.endsWith('.naturalremedy.com') ||
+      host.endsWith('.vetaura.com') ||
       host.endsWith('.simpel.ai')
     ) {
       return true;

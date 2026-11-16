@@ -47,17 +47,17 @@ function drawSopHeader(doc, margin, y, pageWidth, effDate) {
   // Logo in left box (upper 18mm)
   try {
     if (NATURAL_REMEDIES_LOGO) {
-      const logoW = 26;
-      const logoH = 14;
+      const logoW = 44;
+      const logoH = 11.2;
       const logoX = margin + (102 - logoW) / 2;
       const logoY = y + (18 - logoH) / 2;
-      doc.addImage(NATURAL_REMEDIES_LOGO, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
+      doc.addImage(NATURAL_REMEDIES_LOGO, 'JPEG', logoX, logoY, logoW, logoH, undefined, 'FAST');
     }
   } catch {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(34, 139, 34);
-    doc.text('natural REMEDIES', margin + 51, y + 11, { align: 'center' });
+    doc.setFontSize(12);
+    doc.setTextColor(29, 91, 184);
+    doc.text('VetAura', margin + 51, y + 11, { align: 'center' });
   }
 
   // Row 4: QAD (centered in left box)

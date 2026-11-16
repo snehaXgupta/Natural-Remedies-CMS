@@ -267,7 +267,7 @@ export function AppShell() {
       <header className="sticky top-0 z-40 bg-white border-b border-slate-200 shadow-2xs">
         {/* Top utility row */}
         <div className="flex h-11 items-center justify-between px-3 sm:px-5 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((o) => !o)}
@@ -276,8 +276,9 @@ export function AppShell() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <span className="hidden sm:inline-block text-[11px] font-medium text-slate-400">
-              Natural Remedies
+            <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-6 w-auto object-contain" />
+            <span className="hidden md:inline-block text-[11px] font-medium text-slate-400 pl-1 border-l border-slate-200">
+              Complaint Management
             </span>
           </div>
 
@@ -598,6 +599,11 @@ export function AppShell() {
       <main className="flex-1 w-full px-3 sm:px-4 py-2 sm:py-3">
         <Outlet />
       </main>
+
+      {/* Bottom Footer */}
+      <footer className="border-t border-slate-200 bg-white py-2.5 px-4 text-center text-xs text-slate-500">
+        Copyright © 2027 Vetaura. All rights reserved.
+      </footer>
 
 
 
