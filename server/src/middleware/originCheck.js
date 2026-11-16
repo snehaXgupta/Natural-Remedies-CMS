@@ -18,6 +18,7 @@ export function isOriginAllowed(origin) {
       host.endsWith('.ngrok.io') ||
       host.endsWith('.ngrok.app') ||
       host.endsWith('.netlify.app') ||
+      host.endsWith('.vercel.app') ||
       host.endsWith('.onrender.com') ||
       host.endsWith('.naturalremedies.com') ||
       host.endsWith('.naturalremedy.com') ||
