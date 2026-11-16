@@ -33,23 +33,20 @@ export function ForgotPasswordPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-between px-4 py-8 overflow-hidden bg-gradient-to-br from-sky-50/50 via-white to-blue-50/40">
-      {/* Pure Sky / Ice Blue Ambient Glow (Zero Green) */}
-      <div className="pointer-events-none absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-sky-200/30 blur-3xl" />
-      <div className="pointer-events-none absolute top-1/3 -right-32 h-[500px] w-[500px] rounded-full bg-blue-100/35 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-32 left-1/4 h-[420px] w-[420px] rounded-full bg-sky-100/40 blur-3xl" />
-
+    <div
+      className="relative min-h-screen flex flex-col justify-between px-4 py-8 bg-[#f5f9fd] bg-cover bg-center bg-no-repeat"
+      style={{ backgroundImage: "url('/login-bg.jpg')" }}
+    >
       <div />
-      <div className="relative z-10 w-full max-w-sm mx-auto my-auto">
-        <div className="mb-6 flex items-center gap-3">
-          <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-11 w-auto object-contain" />
-          <div className="leading-tight">
-            <p className="font-semibold text-base text-ink">Complaint Management</p>
-            <p className="text-sm text-ink-muted">Password Recovery</p>
+      <div className="relative z-10 w-full max-w-[420px] mx-auto my-auto">
+        <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-sky-100 shadow-[0_12px_40px_rgba(15,23,42,0.08)] p-7 sm:p-8">
+          <div className="flex items-center justify-between mb-5">
+            <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-10 w-auto object-contain" />
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200/60">
+              Complaint Management
+            </span>
           </div>
-        </div>
 
-        <div className="rounded-lg border border-slate-200/90 bg-white p-6 shadow-sm">
           {sent ? (
             <div className="space-y-4 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
