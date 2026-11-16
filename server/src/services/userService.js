@@ -89,7 +89,11 @@ export async function getUser(id) {
 
 /** Lightweight active-user lookup for assignment pickers. */
 export async function directory({ role, search }) {
-  const filter = { isActive: true };
+  const filter = {
+    isActive: true,
+    name: { $not: /demo/i },
+    email: { $not: /demo|example\.test/i },
+  };
   if (role) filter.roles = role;
   if (search) filter.name = new RegExp(escapeRegex(search.trim()), 'i');
   const users = await User.find(filter, { name: 1, email: 1, phone: 1, designation: 1, department: 1, roles: 1 })

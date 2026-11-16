@@ -32,6 +32,27 @@ const DEMO_LOOKUPS = [
   { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-AHP-2000', order: 3 },
   { list: 'locationDetail', parent: 'Inhouse', value: 'NRPL-Anniyalam-HHP-2100', order: 4 },
   { list: 'locationDetail', parent: 'Inhouse', value: 'NLPL- Pithampur Indore-7000', order: 5 },
+  // CMO locations (Salesforce QEQMS)
+  { list: 'locationDetail', parent: 'CMO', value: 'Indus spray-3003', order: 10 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Karsgy health care-3009', order: 11 },
+  { list: 'locationDetail', parent: 'CMO', value: 'JCK-3004', order: 12 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Maven lab-3005', order: 13 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Ratna biotek-3006', order: 14 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Venkat pharma-3007', order: 15 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Laxmi herbals-3012', order: 16 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Purex laboratories (Bangalore)-3015', order: 17 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Primacy industries-3016', order: 18 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Peenya pharma-3029', order: 19 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Medi chem labs-3031', order: 20 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Mahadeshwara herbals-3032', order: 21 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Shamanur pharma-3033', order: 22 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Varshita Herbals-3011', order: 23 },
+  { list: 'locationDetail', parent: 'CMO', value: '5B (NRPL Pet)-1400', order: 24 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Pai Veterinary-4000', order: 25 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Pondchy Pharma-4200', order: 26 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Harshavardhan-4200', order: 27 },
+  { list: 'locationDetail', parent: 'CMO', value: 'B&K Products-1400', order: 28 },
+  { list: 'locationDetail', parent: 'CMO', value: 'Neos Park Hyderabad-4000', order: 29 },
   { list: 'typeOfFailure', value: 'Analytical Difference', order: 1 },
   { list: 'typeOfFailure', value: 'Assay', order: 2 },
   { list: 'typeOfFailure', value: 'Contaminants', order: 3 },
@@ -49,13 +70,10 @@ const DEMO_LOOKUPS = [
 ];
 
 const DEMO_USERS = [
-  { name: 'Demo Quality Coordinator', email: 'qc@example.test', roles: ['quality_coordinator'], dept: 'QA' },
   { name: 'Sneha', email: 'sneha@naturalremedies.com', designation: 'Quality Coordinator (Omnicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-OMNI' },
   { name: 'Unnati', email: 'unnati@naturalremedies.com', designation: 'Quality Coordinator (Remicare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-REMI' },
   { name: 'Shweta', email: 'shweta@naturalremedies.com', designation: 'Quality Coordinator (Packaging & Phytocare)', roles: ['quality_coordinator', 'employee'], dept: 'QA-PHYTO' },
   { name: 'FRP (Sneha)', email: 'snehaa1078@gmail.com', designation: 'Production Executive', roles: ['frp', 'employee'], dept: 'PROD' },
-  { name: 'Demo Reviewer', email: 'reviewer@naturalremedies.com', roles: ['reviewer'], dept: 'QA' },
-  { name: 'Demo Employee', email: 'employee@example.test', roles: ['employee'], dept: 'CRM' },
 ];
 
 async function ensureUser({ name, email, roles, department, password, mustChangePassword }) {

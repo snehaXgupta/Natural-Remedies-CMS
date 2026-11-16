@@ -82,7 +82,12 @@ export function NewComplaintModal({ open, onClose, onCreated }) {
     userApi
       .directory()
       .then((data) => {
-        if (active) setEmployees(Array.isArray(data) ? data : []);
+        if (active) {
+          const list = (Array.isArray(data) ? data : []).filter(
+            (u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || '')
+          );
+          setEmployees(list);
+        }
       })
       .catch((err) => {
         console.error('Failed to load employee directory:', err);

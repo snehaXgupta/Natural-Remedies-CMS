@@ -444,11 +444,33 @@ export const DEFAULT_MANUFACTURING_LOCATIONS = [
 ];
 
 export const DEFAULT_LOCATION_DETAILS = [
+  // Inhouse locations
   { parent: 'Inhouse', value: '5B (NRPL Pet)-1400' },
   { parent: 'Inhouse', value: 'NRPL-Bangalore-1100' },
   { parent: 'Inhouse', value: 'NRPL-Anniyalam-AHP-2000' },
   { parent: 'Inhouse', value: 'NRPL-Anniyalam-HHP-2100' },
   { parent: 'Inhouse', value: 'NLPL- Pithampur Indore-7000' },
+  // CMO locations (Salesforce QEQMS)
+  { parent: 'CMO', value: 'Indus spray-3003' },
+  { parent: 'CMO', value: 'Karsgy health care-3009' },
+  { parent: 'CMO', value: 'JCK-3004' },
+  { parent: 'CMO', value: 'Maven lab-3005' },
+  { parent: 'CMO', value: 'Ratna biotek-3006' },
+  { parent: 'CMO', value: 'Venkat pharma-3007' },
+  { parent: 'CMO', value: 'Laxmi herbals-3012' },
+  { parent: 'CMO', value: 'Purex laboratories (Bangalore)-3015' },
+  { parent: 'CMO', value: 'Primacy industries-3016' },
+  { parent: 'CMO', value: 'Peenya pharma-3029' },
+  { parent: 'CMO', value: 'Medi chem labs-3031' },
+  { parent: 'CMO', value: 'Mahadeshwara herbals-3032' },
+  { parent: 'CMO', value: 'Shamanur pharma-3033' },
+  { parent: 'CMO', value: 'Varshita Herbals-3011' },
+  { parent: 'CMO', value: '5B (NRPL Pet)-1400' },
+  { parent: 'CMO', value: 'Pai Veterinary-4000' },
+  { parent: 'CMO', value: 'Pondchy Pharma-4200' },
+  { parent: 'CMO', value: 'Harshavardhan-4200' },
+  { parent: 'CMO', value: 'B&K Products-1400' },
+  { parent: 'CMO', value: 'Neos Park Hyderabad-4000' },
 ];
 
 export const DEFAULT_TYPES_OF_FAILURE = [
@@ -497,9 +519,12 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
     });
   };
 
-  const mfgLocations = (lists?.manufacturingLocation?.length ? lists.manufacturingLocation : DEFAULT_MANUFACTURING_LOCATIONS);
-  const locDetails = (lists?.locationDetail?.length ? lists.locationDetail : DEFAULT_LOCATION_DETAILS);
-  const failureTypes = (lists?.typeOfFailure?.length ? lists.typeOfFailure : DEFAULT_TYPES_OF_FAILURE);
+  const mfgLocations = (lists?.manufacturingLocation?.length ? lists.manufacturingLocation : DEFAULT_MANUFACTURING_LOCATIONS)
+    .filter((o) => !/demo/i.test(typeof o === 'string' ? o : (o.value || '')));
+  const locDetails = (lists?.locationDetail?.length ? lists.locationDetail : DEFAULT_LOCATION_DETAILS)
+    .filter((o) => !/demo/i.test(typeof o === 'string' ? o : (o.value || '')));
+  const failureTypes = (lists?.typeOfFailure?.length ? lists.typeOfFailure : DEFAULT_TYPES_OF_FAILURE)
+    .filter((o) => !/demo/i.test(typeof o === 'string' ? o : (o.value || '')));
 
   const details = locDetails
     .filter((d) => (d.parent || '').toLowerCase() === (form.investigation.manufacturingLocation || '').toLowerCase())
@@ -794,7 +819,9 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                   className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
                 >
                   <option value="">{c.frp ? `${c.frp.name} (Current FRP)` : 'Select FRP...'}</option>
-                  {candidates.map((u) => (
+                  {candidates
+                    .filter((u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || ''))
+                    .map((u) => (
                     <option key={u._id} value={u._id}>
                       {u.name} {u.email ? `(${u.email})` : ''}
                     </option>
@@ -874,7 +901,7 @@ export function AssignFrpModal({ open, complaint, onClose, onDone }) {
     }
   };
 
-  const options = candidates.data || [];
+  const options = (candidates.data || []).filter((u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || ''));
   const selectedPerson = options.find((u) => u._id === selected);
 
   return (

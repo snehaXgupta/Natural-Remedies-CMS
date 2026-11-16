@@ -156,7 +156,12 @@ export async function update(id, { version, verifiedProduct, investigation, prio
 /** Active users whose roles let them do D3 work, i.e. who can act as FRP. */
 export async function frpCandidates({ search } = {}) {
   const roles = await Role.find({ permissions: P.COMPLAINT_D3_EDIT }, { key: 1 }).lean();
-  const filter = { isActive: true, roles: { $in: roles.map((r) => r.key) } };
+  const filter = {
+    isActive: true,
+    roles: { $in: roles.map((r) => r.key) },
+    name: { $not: /demo/i },
+    email: { $not: /demo|example\.test/i },
+  };
   if (search) filter.name = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   const users = await User.find(filter, { name: 1, email: 1, designation: 1, department: 1 })
     .sort({ name: 1 })
