@@ -137,7 +137,7 @@ export function LoginPage() {
 
           <div className="mt-4 text-center">
             <Link to="/forgot-password" className="text-xs font-medium text-[#0066cc] hover:underline">
-              Need help signing in?
+              Forgot password?
             </Link>
           </div>
         </div>
