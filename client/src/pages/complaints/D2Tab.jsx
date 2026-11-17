@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send, X } from 'lucide-react';
+import { Pencil, UserPlus, Lock, ChevronDown, User, Check, ExternalLink, Mail, Send, X, Loader2, Search } from 'lucide-react';
 import { complaintApi, lookupApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
@@ -834,6 +834,9 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
               <div className="flex items-center gap-2">
                 <div ref={frpDropdownRef} className="relative flex-1">
                   <div className="relative flex items-center">
+                    <div className="pointer-events-none absolute left-2 flex h-4.5 w-4.5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
+                      <User className="h-3 w-3" />
+                    </div>
                     <input
                       type="text"
                       value={frpSearch}
@@ -842,8 +845,8 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
                         setFrpDropdownOpen(true);
                       }}
                       onFocus={() => setFrpDropdownOpen(true)}
-                      placeholder="Search FRP by name, email, department..."
-                      className="w-full rounded-xs border border-slate-300 px-2.5 py-1.5 pr-14 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
+                      placeholder="Type 2-3 letters to search FRP..."
+                      className="w-full rounded-xs border border-slate-300 pl-8 pr-14 py-1.5 text-xs text-slate-800 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none bg-white"
                     />
                     <div className="absolute right-1 flex items-center gap-0.5">
                       {frpSearch && (
@@ -967,6 +970,9 @@ function D2RecordForm({ form, setForm, errors, lists, c, onAssignFrp, candidates
 export function AssignFrpModal({ open, complaint, onClose, onDone }) {
   const candidates = useAsync(() => (open ? complaintApi.frpCandidates() : Promise.resolve({ data: [] })), [open]);
   const [selected, setSelected] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const [reason, setReason] = useState('');
   const [sendMail, setSendMail] = useState(true);
   const [errors, setErrors] = useState({});
@@ -974,8 +980,21 @@ export function AssignFrpModal({ open, complaint, onClose, onDone }) {
   const reassigning = Boolean(complaint.frp);
 
   useEffect(() => {
+    function handleClickOutside(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
     if (open) {
-      setSelected(complaint.frp?._id || '');
+      const initialId = complaint.frp?._id || '';
+      setSelected(initialId);
+      setSearchQuery(complaint.frp?.name || '');
+      setDropdownOpen(false);
       setReason('');
       setSendMail(true);
       setErrors({});
@@ -1004,13 +1023,24 @@ export function AssignFrpModal({ open, complaint, onClose, onDone }) {
   const options = (candidates.data || []).filter((u) => !/demo/i.test(u.name || '') && !/demo/i.test(u.email || ''));
   const selectedPerson = options.find((u) => u._id === selected);
 
+  const query = searchQuery.trim().toLowerCase();
+  const filteredOptions = options.filter((u) => {
+    if (!query) return true;
+    const nameMatch = u.name?.toLowerCase().includes(query);
+    const emailMatch = u.email?.toLowerCase().includes(query);
+    const desigMatch = u.designation?.toLowerCase().includes(query);
+    const dept = typeof u.department === 'string' ? u.department : u.department?.name;
+    const deptMatch = dept?.toLowerCase().includes(query);
+    return nameMatch || emailMatch || desigMatch || deptMatch;
+  });
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       width="max-w-xl"
       title={reassigning ? 'Reassign First Responsible Person' : 'Assign First Responsible Person'}
-      description={`${complaint.complaintNumber}. The selected person will be assigned as FRP for this complaint.`}
+      description={`${complaint.complaintNumber}. Type to search employee and select from the suggestions list.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -1034,42 +1064,146 @@ export function AssignFrpModal({ open, complaint, onClose, onDone }) {
           No other active employee has a role that can investigate complaints. An administrator can assign the First Responsible Person role.
         </p>
       ) : (
-        <fieldset>
-          <legend className="mb-1.5 text-xs font-medium text-slate-700">
-            Select Employee<span className="ml-0.5 text-red-500">*</span>
-          </legend>
-          <div className="max-h-56 divide-y divide-slate-200 overflow-y-auto rounded-xs border border-slate-200">
-            {options.map((u) => (
-              <label
-                key={u._id}
-                className={`flex cursor-pointer items-center gap-3 px-3 py-2 text-xs ${
-                  selected === u._id ? 'bg-blue-50/80 font-medium' : 'hover:bg-slate-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="frp"
-                  className="accent-[#0176d3]"
-                  checked={selected === u._id}
-                  onChange={() => setSelected(u._id)}
-                />
-                <span className="flex-1">
-                  <span className="font-semibold text-slate-900">{u.name}</span>
-                  {u._id === complaint.frp?._id && (
-                    <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-700">
-                      Currently Assigned
-                    </span>
-                  )}
-                  <span className="block text-[11px] text-slate-500">
-                    {[u.designation, u.department?.name].filter(Boolean).join(', ') || u.email}
-                  </span>
-                </span>
-                <span className="text-[11px] text-slate-500">{u.openComplaints} open</span>
-              </label>
-            ))}
+        <div className="space-y-3">
+          <label className="block text-xs font-semibold text-slate-700">
+            <span className="text-red-500 mr-0.5">*</span>First Responsible Person (Type 2-3 letters to search)
+          </label>
+          <div className="relative" ref={dropdownRef}>
+            <div className="relative flex items-center">
+              <div className="pointer-events-none absolute left-2.5 flex h-5 w-5 items-center justify-center rounded-xs bg-[#0176d3] text-white">
+                <User className="h-3.5 w-3.5" />
+              </div>
+              <input
+                type="text"
+                placeholder="Type name, email, or department to search FRP..."
+                value={searchQuery}
+                onFocus={() => setDropdownOpen(true)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setDropdownOpen(true);
+                  if (!e.target.value) {
+                    setSelected('');
+                  }
+                }}
+                className="h-9 w-full rounded border border-slate-300 bg-white pl-9 pr-14 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#0176d3] focus:ring-1 focus:ring-[#0176d3] focus:outline-none"
+              />
+              <div className="absolute right-1 flex items-center">
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSelected('');
+                      setDropdownOpen(true);
+                    }}
+                    className="rounded p-1 text-slate-400 hover:text-slate-600"
+                    title="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((prev) => !prev)}
+                  className="rounded p-1 text-slate-400 hover:text-slate-600"
+                  title="Toggle employee list"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Suggestions dropdown list */}
+            {dropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-1 max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl z-50 divide-y divide-slate-100">
+                {filteredOptions.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400">
+                    No employees found matching &quot;{searchQuery}&quot;
+                  </div>
+                ) : (
+                  filteredOptions.map((u) => {
+                    const dept = typeof u.department === 'string' ? u.department : u.department?.name;
+                    const isSelected = selected === u._id;
+                    const isCurrent = u._id === complaint.frp?._id;
+                    return (
+                      <div
+                        key={u._id}
+                        onClick={() => {
+                          setSelected(u._id);
+                          setSearchQuery(u.name);
+                          setDropdownOpen(false);
+                          if (errors.assigneeId) setErrors((prev) => ({ ...prev, assigneeId: undefined }));
+                        }}
+                        className={`p-2.5 hover:bg-blue-50 cursor-pointer flex flex-col text-left transition-colors ${
+                          isSelected ? 'bg-blue-50/80 font-medium' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-slate-900 text-xs">{u.name}</span>
+                            {isCurrent && (
+                              <span className="rounded bg-blue-100 px-1.5 py-0.2 text-[10px] font-semibold text-blue-700">
+                                Currently Assigned
+                              </span>
+                            )}
+                          </div>
+                          {dept && (
+                            <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              {dept}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono text-slate-600">{u.email}</span>
+                          {u.designation && <span>• {u.designation}</span>}
+                          {typeof u.openComplaints === 'number' && (
+                            <span className="ml-auto text-[10px] text-slate-400">{u.openComplaints} open</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
-          {errors.assigneeId && <p className="mt-1 text-xs text-red-500">{errors.assigneeId}</p>}
-        </fieldset>
+          {errors.assigneeId && <p className="text-xs text-red-500 mt-1">{errors.assigneeId}</p>}
+
+          {/* Selected FRP summary badge */}
+          {selectedPerson && (
+            <div className="rounded-md border border-blue-200 bg-blue-50/70 p-2.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0176d3] text-white font-bold text-xs uppercase">
+                  {selectedPerson.name?.charAt(0) || 'U'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-xs text-slate-900">{selectedPerson.name}</span>
+                    <span className="text-[10px] font-medium text-blue-700 bg-white border border-blue-200 px-1.5 py-0.2 rounded">
+                      Selected FRP
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-600 flex items-center gap-2">
+                    <span>{selectedPerson.email}</span>
+                    {selectedPerson.department?.name && <span>• {selectedPerson.department.name}</span>}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelected('');
+                  setSearchQuery('');
+                  setDropdownOpen(true);
+                }}
+                className="text-xs text-slate-400 hover:text-slate-600 p-1"
+                title="Change FRP"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* Send Mail to FRP Checkbox */}
