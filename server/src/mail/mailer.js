@@ -25,24 +25,57 @@ function fileDriver(dir) {
   };
 }
 
-/** Production: the company's SMTP relay. */
+/** Production: the company's SMTP relay with automatic port 587 / 465 fallback. */
 function smtpDriver() {
-  const transport = nodemailer.createTransport({
-    host: env.SMTP_HOST,
-    port: env.SMTP_PORT,
-    secure: env.SMTP_SECURE,
-    auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
-    pool: true,
-    connectionTimeout: 15_000,
-    socketTimeout: 30_000,
-  });
+  const isExplicit465 = Number(env.SMTP_PORT) === 465 || env.SMTP_SECURE === 'true' || env.SMTP_SECURE === true;
+  // Gmail on cloud platforms (e.g. Render) blocks/times out on port 587 STARTTLS,
+  // whereas port 465 SSL is direct, fast, and works reliably.
+  const isGmail = (env.SMTP_HOST || '').toLowerCase().includes('gmail');
+  const prefer465 = isExplicit465 || isGmail;
+
+  const createTransport = (port, secure) =>
+    nodemailer.createTransport({
+      host: env.SMTP_HOST || 'smtp.gmail.com',
+      port,
+      secure,
+      auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASSWORD } : undefined,
+      connectionTimeout: 8_000,
+      socketTimeout: 20_000,
+    });
+
+  const primaryPort = prefer465 ? 465 : (Number(env.SMTP_PORT) || 587);
+  const primarySecure = prefer465 ? true : isExplicit465;
+  const fallbackPort = prefer465 ? 587 : 465;
+  const fallbackSecure = !primarySecure;
+
+  const primary = createTransport(primaryPort, primarySecure);
+  const fallback = createTransport(fallbackPort, fallbackSecure);
+
   return {
     name: 'smtp',
     async send(msg) {
-      const info = await transport.sendMail({ from: env.MAIL_FROM, ...msg });
-      // An SMTP server can accept some recipients and reject others.
-      if (info.rejected?.length) throw new Error(`Rejected by mail server: ${info.rejected.join(', ')}`);
-      return { messageId: info.messageId };
+      try {
+        const info = await primary.sendMail({ from: env.MAIL_FROM, ...msg });
+        if (info.rejected?.length) throw new Error(`Rejected by mail server: ${info.rejected.join(', ')}`);
+        return { messageId: info.messageId };
+      } catch (err) {
+        // If connection timeout or refused on primary port, automatically fallback to alternative port
+        const isConnErr = err.message && (
+          err.message.includes('timeout') ||
+          err.message.includes('ECONNREFUSED') ||
+          err.message.includes('ETIMEDOUT') ||
+          err.message.includes('ESOCKET') ||
+          err.code === 'ETIMEDOUT' ||
+          err.code === 'ECONNREFUSED'
+        );
+        if (isConnErr) {
+          console.warn(`[Mailer] Primary SMTP transport (port ${primaryPort}) failed (${err.message}), trying fallback port ${fallbackPort}...`);
+          const fallbackInfo = await fallback.sendMail({ from: env.MAIL_FROM, ...msg });
+          if (fallbackInfo.rejected?.length) throw new Error(`Rejected by fallback mail server: ${fallbackInfo.rejected.join(', ')}`);
+          return { messageId: fallbackInfo.messageId };
+        }
+        throw err;
+      }
     },
   };
 }
