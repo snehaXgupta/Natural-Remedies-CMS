@@ -44,7 +44,18 @@ export function createApp() {
   if (!env.isTest) app.use(pinoHttp({ logger, autoLogging: { ignore: (req) => req.url === '/api/health' } }));
 
   // Root welcome check
-  app.get('/', (_req, res) => res.json({ status: 'ok', message: 'Natural Remedies CMS Backend API is running.', app: 'https://naturalremediescms.netlify.app' }));
+  app.get('/', (_req, res) =>
+    res.json({
+      status: 'ok',
+      message: 'Natural Remedies CMS Backend API is running.',
+      app: 'https://complaints.vetaura.com',
+      env: env.NODE_ENV,
+      mailDriver: env.MAIL_DRIVER,
+      hasSmtpHost: Boolean(env.SMTP_HOST),
+      hasSmtpUser: Boolean(env.SMTP_USER),
+      hasSmtpPass: Boolean(env.SMTP_PASSWORD),
+    })
+  );
 
   // Liveness: the process is up. Readiness: it can reach the database.
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));

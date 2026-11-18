@@ -161,14 +161,17 @@ export async function requestPasswordReset(email, context = {}) {
   const resetUrl = `${appBase}/reset-password?token=${rawToken}`;
   const template = passwordResetEmail({ user, resetUrl });
 
+  let sendError = null;
   try {
-    await mailer().send({
+    const info = await mailer().send({
       to: user.email,
       subject: template.subject,
       html: template.html,
       text: template.text,
     });
+    logger.info({ userId: user._id, email: user.email, messageId: info?.messageId, driver: mailer().name }, 'Password reset email sent');
   } catch (err) {
+    sendError = err;
     logger.error({ err, userId: user._id, email: user.email }, 'Failed to send password reset email');
   }
 
@@ -177,6 +180,9 @@ export async function requestPasswordReset(email, context = {}) {
     action: 'auth.password.reset_requested',
     entityType: 'User',
     entityId: user._id,
+    summary: sendError
+      ? `Password reset requested; mail delivery failed: ${sendError.message}`
+      : `Password reset link sent to ${user.email} (driver: ${mailer().name})`,
     context,
   });
 

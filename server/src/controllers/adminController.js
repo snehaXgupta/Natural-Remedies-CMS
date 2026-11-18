@@ -90,3 +90,20 @@ export async function updateSystemSettings(req, res) {
   });
   return ok(res, updated.value);
 }
+
+/** Test email diagnostic for administrators. */
+export async function testEmail(req, res) {
+  const { mailer } = await import('../mail/mailer.js');
+  const env = (await import('../config/env.js')).default;
+  const targetEmail = req.body?.to || req.user?.email || 'sneha@simpel.ai';
+  try {
+    const info = await mailer().send({
+      to: targetEmail,
+      subject: 'SMTP Diagnostics Test Email',
+      text: `This is an SMTP diagnostic email from Natural Remedies CMS.\nDriver: ${env.MAIL_DRIVER}\nMailer Name: ${mailer().name}\nHost: ${env.SMTP_HOST || 'none'}\nUser: ${env.SMTP_USER || 'none'}`,
+    });
+    return ok(res, { success: true, driver: env.MAIL_DRIVER, mailer: mailer().name, info });
+  } catch (err) {
+    return res.status(500).json({ error: { message: err.message, stack: err.stack, driver: env.MAIL_DRIVER, mailer: mailer().name } });
+  }
+}

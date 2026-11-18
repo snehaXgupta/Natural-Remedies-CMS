@@ -44,6 +44,7 @@ r.patch('/lookups/:id', requirePermission(P.SETTINGS_MANAGE), validate({ params:
 // eQMS System Settings: SLA, Risk Matrix, Notification templates
 r.get('/settings', c.getSystemSettings);
 r.put('/settings/:key', requirePermission(P.SETTINGS_MANAGE), c.updateSystemSettings);
+r.post('/test-email', requirePermission(P.SETTINGS_MANAGE), c.testEmail);
 
 r.get('/audit-logs', requirePermission(P.AUDIT_VIEW), c.listAudit);
 
