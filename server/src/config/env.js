@@ -37,8 +37,8 @@ const schema = z.object({
   UPLOAD_MAX_FILES: z.coerce.number().int().positive().max(20).default(5),
 
   // Email. 'file' writes each message as a .eml file to MAIL_OUTBOX_DIR
-  // (development); 'smtp' sends through the company's SMTP server.
-  MAIL_DRIVER: z.enum(['file', 'smtp']).default('file'),
+  // (development); 'smtp' sends through the company's SMTP server; 'resend' / 'brevo' use HTTPS API.
+  MAIL_DRIVER: z.enum(['file', 'smtp', 'resend', 'brevo']).default('file'),
   MAIL_FROM: z.string().min(3).default('Customer Relationship Management <no-reply@example.test>'),
   MAIL_OUTBOX_DIR: z.string().default('./mail-outbox'),
   SMTP_HOST: z.string().optional(),
@@ -46,6 +46,8 @@ const schema = z.object({
   SMTP_SECURE: z.enum(['true', 'false']).default('false'),
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
+  RESEND_API_KEY: z.string().optional(),
+  BREVO_API_KEY: z.string().optional(),
 
   // Background sending. Failed emails are retried with increasing delays
   // until NOTIFY_MAX_ATTEMPTS, then marked failed for manual retry.

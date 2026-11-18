@@ -80,10 +80,73 @@ function smtpDriver() {
   };
 }
 
+/** HTTPS API Driver for Resend (bypasses cloud SMTP port blocks) */
+function resendDriver(apiKey) {
+  return {
+    name: 'resend',
+    async send(msg) {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: env.MAIL_FROM.includes('<') ? env.MAIL_FROM : `VetAura Quality Assurance <${env.MAIL_FROM}>`,
+          to: Array.isArray(msg.to) ? msg.to : [msg.to],
+          subject: msg.subject,
+          html: msg.html,
+          text: msg.text,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error?.message || 'Resend delivery failed');
+      return { messageId: data.id };
+    },
+  };
+}
+
+/** HTTPS API Driver for Brevo (Sendinblue) */
+function brevoDriver(apiKey) {
+  return {
+    name: 'brevo',
+    async send(msg) {
+      const senderEmail = env.SMTP_USER || (env.MAIL_FROM.match(/<([^>]+)>/)?.[1] || env.MAIL_FROM);
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: 'VetAura Quality Assurance', email: senderEmail },
+          to: (Array.isArray(msg.to) ? msg.to : [msg.to]).map((e) => ({ email: e })),
+          subject: msg.subject,
+          htmlContent: msg.html,
+          textContent: msg.text,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Brevo delivery failed');
+      return { messageId: data.messageId };
+    },
+  };
+}
+
 let driver;
 
 export function mailer() {
-  if (!driver) driver = env.MAIL_DRIVER === 'smtp' ? smtpDriver() : fileDriver(env.MAIL_OUTBOX_DIR);
+  if (!driver) {
+    if (env.RESEND_API_KEY || env.MAIL_DRIVER === 'resend') {
+      driver = resendDriver(env.RESEND_API_KEY);
+    } else if (env.BREVO_API_KEY || env.MAIL_DRIVER === 'brevo') {
+      driver = brevoDriver(env.BREVO_API_KEY);
+    } else if (env.MAIL_DRIVER === 'smtp') {
+      driver = smtpDriver();
+    } else {
+      driver = fileDriver(env.MAIL_OUTBOX_DIR);
+    }
+  }
   return driver;
 }
 
