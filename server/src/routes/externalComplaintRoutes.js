@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { webhookLimiter } from '../middleware/rateLimits.js';
-import { captureComplaintWebhook } from '../controllers/externalComplaintController.js';
+import { captureComplaintWebhook, syncMediaWebhook } from '../controllers/externalComplaintController.js';
 
 const router = Router();
 
@@ -30,5 +30,17 @@ router.post(
   captureComplaintWebhook,
 );
 
-export default router;
+// 3. Standalone media sync route matching vendor middleware
+router.post(
+  '/api/media-sync',
+  webhookLimiter,
+  syncMediaWebhook,
+);
 
+router.post(
+  '/externalsource1/api/media-sync',
+  webhookLimiter,
+  syncMediaWebhook,
+);
+
+export default router;

@@ -68,7 +68,7 @@ export function createApp() {
   // needs the raw body for signature verification and is called by Meta.
   app.use('/api/webhooks/whatsapp', rateLimitWebhook, whatsappRoutes);
 
-  app.use(express.json({ limit: '200kb' }));
+  app.use(express.json({ limit: '25mb' }));
   app.use(cookieParser());
 
   // NRPL external WhatsApp complaint webhook (Salesforce replacement)
