@@ -85,21 +85,41 @@ function resendDriver(apiKey) {
   return {
     name: 'resend',
     async send(msg) {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: env.MAIL_FROM.includes('<') ? env.MAIL_FROM : `VetAura Quality Assurance <${env.MAIL_FROM}>`,
-          to: Array.isArray(msg.to) ? msg.to : [msg.to],
-          subject: msg.subject,
-          html: msg.html,
-          text: msg.text,
-        }),
-      });
-      const data = await res.json();
+      const sendWithFrom = async (fromAddress) => {
+        return fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: fromAddress,
+            to: Array.isArray(msg.to) ? msg.to : [msg.to],
+            subject: msg.subject,
+            html: msg.html,
+            text: msg.text,
+          }),
+        });
+      };
+
+      const preferredFrom = env.RESEND_FROM || (env.MAIL_FROM.includes('<') ? env.MAIL_FROM : `VetAura Quality Assurance <${env.MAIL_FROM}>`);
+      let res = await sendWithFrom(preferredFrom);
+      let data = await res.json();
+
+      // If custom domain is not yet verified on Resend, automatically fallback to Resend's test sender
+      const isDomainError = !res.ok && (
+        res.status === 403 ||
+        data.message?.toLowerCase().includes('domain') ||
+        data.error?.message?.toLowerCase().includes('domain')
+      );
+
+      if (isDomainError) {
+        console.warn(`[Resend] Custom sender '${preferredFrom}' unverified on Resend. Falling back to test sender 'VetAura Quality Assurance <onboarding@resend.dev>'...`);
+        const fallbackFrom = 'VetAura Quality Assurance <onboarding@resend.dev>';
+        res = await sendWithFrom(fallbackFrom);
+        data = await res.json();
+      }
+
       if (!res.ok) throw new Error(data.message || data.error?.message || 'Resend delivery failed');
       return { messageId: data.id };
     },

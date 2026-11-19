@@ -47,6 +47,7 @@ const schema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM: z.string().optional(),
   BREVO_API_KEY: z.string().optional(),
 
   // Background sending. Failed emails are retried with increasing delays
