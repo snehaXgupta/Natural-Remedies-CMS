@@ -21,6 +21,7 @@ const NotificationLogsPage = lazy(() => import('./pages/notifications/Notificati
 const PendingReviewsPage = lazy(() => import('./pages/reviews/PendingReviewsPage.jsx').then((m) => ({ default: m.PendingReviewsPage })));
 const SettingsPage = lazy(() => import('./pages/settings/SettingsPage.jsx').then((m) => ({ default: m.SettingsPage })));
 const ReportsPage = lazy(() => import('./pages/reports/ReportsPage.jsx').then((m) => ({ default: m.ReportsPage })));
+const DashboardsPage = lazy(() => import('./pages/dashboards/DashboardsPage.jsx').then((m) => ({ default: m.DashboardsPage })));
 const SimulatorPage = lazy(() => import('./pages/whatsapp/SimulatorPage.jsx').then((m) => ({ default: m.SimulatorPage })));
 const EmailDetailPage = lazy(() => import('./pages/complaints/EmailDetailPage.jsx').then((m) => ({ default: m.EmailDetailPage })));
 
@@ -70,7 +71,7 @@ export default function App() {
     <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<DashboardPage />} />
+          <Route index element={<ComplaintsPage key="home" />} />
           <Route
             path="admin/users"
             element={
@@ -86,9 +87,10 @@ export default function App() {
           <Route path="emails/:emailId" element={<Guard any={['complaint.view.all', 'complaint.view.assigned', 'notifications.view']}><EmailDetailPage /></Guard>} />
           <Route path="my-complaints" element={<Guard any={navFor('/my-complaints').any}><ComplaintsPage key="mine" mine /></Guard>} />
           <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
-          <Route path="reports" element={<Guard any={navFor('/reports').any}><ReportsPage /></Guard>} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="dashboards" element={<DashboardsPage />} />
           <Route path="whatsapp-simulator" element={<Guard any={navFor('/whatsapp-simulator').any}><SimulatorPage /></Guard>} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings" element={<Guard any={['settings.manage']}><SettingsPage /></Guard>} />
           <Route path="notifications" element={<Guard any={navFor('/notifications').any}><NotificationLogsPage /></Guard>} />
           {planned.map((n) => (
             <Route

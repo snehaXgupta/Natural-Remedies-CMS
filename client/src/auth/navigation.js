@@ -19,12 +19,13 @@ import {
  * `phase` marks screens whose features arrive in a later build phase.
  */
 export const NAV = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, any: [] },
-  { to: '/complaints', label: 'Complaints', icon: ClipboardList, any: ['complaint.view.all'] },
+  { to: '/', label: 'Home', icon: LayoutDashboard, any: [] },
+  { to: '/complaints', label: 'Complaints', icon: ClipboardList, any: [] },
+  { to: '/reports', label: 'Reports', icon: BarChart3, any: [] },
+  { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, any: [] },
   { to: '/my-complaints', label: 'My assigned complaints', icon: UserCheck, any: ['complaint.view.assigned', 'complaint.view.all'] },
   { to: '/reviews', label: 'Pending reviews', icon: CheckSquare, any: ['complaint.d1.acknowledge', 'complaint.d3.review'] },
   { to: '/rca-capa', label: 'Root cause and CAPA', icon: GitBranch, any: ['complaint.d3.edit', 'complaint.d3.review'], phase: 6 },
-  { to: '/reports', label: 'Reports', icon: BarChart3, any: ['reports.view'] },
   { to: '/admin/users', label: 'Users and roles', icon: Users, any: ['users.manage', 'roles.manage', 'departments.manage'], group: 'admin' },
   { to: '/notifications', label: 'Notification logs', icon: Mail, any: ['notifications.view'], group: 'admin' },
   { to: '/whatsapp-simulator', label: 'WhatsApp simulator', icon: MessageCircle, any: ['settings.manage', 'complaint.create.manual'], group: 'admin' },

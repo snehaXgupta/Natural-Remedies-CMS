@@ -101,24 +101,19 @@ function UserMenu() {
   );
 }
 
-const EQMS_TABS = [
-  { label: 'Complaints', to: '/complaints', hasDropdown: true },
-  { label: 'Settings', to: '/settings', hasDropdown: true },
-  { label: 'Change Control Requests', to: '#', hasDropdown: true },
-  { label: 'Change Controls', to: '#', hasDropdown: true },
-  { label: 'Chatter', to: '#', hasDropdown: false },
-  { label: 'Reports', to: '/reports', hasDropdown: true },
-  { label: 'Dashboards', to: '/', hasDropdown: true },
-  { label: 'Deviations', to: '#', hasDropdown: true },
-  { label: 'Deviation Request', to: '#', hasDropdown: true },
-  { label: 'AuditPlans', to: '#', hasDropdown: true },
-  { label: 'More', to: '#', hasDropdown: true },
-];
-
 export function AppShell() {
+  const { user, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  const navTabs = [
+    { label: 'Home', to: '/', hasDropdown: false },
+    { label: 'Complaints', to: '/complaints', hasDropdown: true },
+    { label: 'Reports', to: '/reports', hasDropdown: false },
+    { label: 'Dashboards', to: '/dashboards', hasDropdown: false },
+    ...(isAdmin ? [{ label: 'Settings', to: '/settings', hasDropdown: true }] : []),
+  ];
 
   // 1. Global Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -544,17 +539,15 @@ export function AppShell() {
 
             {/* Tabs List */}
             <nav className="flex items-center h-full text-xs">
-              {EQMS_TABS.map((tab) => {
+              {navTabs.map((tab) => {
                 const isMatch =
-                  tab.to !== '#' &&
-                  (tab.to === '/' ? location.pathname === '/' : location.pathname.startsWith(tab.to));
+                  tab.to === '/'
+                    ? location.pathname === '/'
+                    : location.pathname.startsWith(tab.to);
                 return (
                   <NavLink
                     key={tab.label}
                     to={tab.to}
-                    onClick={(e) => {
-                      if (tab.to === '#') e.preventDefault();
-                    }}
                     className={`inline-flex items-center gap-1 whitespace-nowrap h-full px-3 font-medium transition-colors border-b-2 -mb-[1px] ${
                       isMatch
                         ? 'border-blue-600 text-blue-700 bg-blue-50/70 font-semibold'
