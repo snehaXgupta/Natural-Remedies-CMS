@@ -28,7 +28,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-1',
     name: 'Non - Confirmed Complaints',
-    description: 'Complaints assessed as non-confirmed or invalid product defects (e.g. handling/transit damage or unsubstantiated claims).',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '8/1/2024, 3:17 pm',
@@ -45,7 +45,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-2',
     name: 'Complaints Closed within SLA',
-    description: 'Complaints fully investigated, verified with CAPA, and closed within regulatory SLA target (<= 15 days).',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '2/2/2024, 5:20 pm',
@@ -64,7 +64,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-3',
     name: 'No of Previous Complaints Year',
-    description: 'Historical year-over-year cumulative complaint volume comparison across preceding annual cycles.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '14/3/2023, 12:10 pm',
@@ -80,7 +80,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-4',
     name: 'Complaints Not Closed within SLA',
-    description: 'Complaints exceeding SLA turnaround threshold requiring root-cause escalation and coordinator intervention.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '27/3/2023, 7:46 pm',
@@ -95,7 +95,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-5',
     name: 'Reduction in repeated Complaints',
-    description: 'Post-CAPA recurrence tracking measuring the reduction of recurring defects across the same formulations.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '16/3/2023, 11:49 am',
@@ -111,7 +111,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-6',
     name: 'Non - Confirmed: Complaints SLA Reports',
-    description: 'Turnaround duration for screening, testing, and notifying customers regarding invalid/non-confirmed complaints.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '2/2/2024, 5:08 pm',
@@ -128,7 +128,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-7',
     name: 'No of Previous Year Complaints Month wis',
-    description: 'Chronological month-wise breakdown (January to December) of previous calendar year complaint volumes.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '20/9/2023, 4:06 pm',
@@ -153,7 +153,7 @@ const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-8',
     name: 'Confirmed : Complaints SLA Reports',
-    description: 'Comprehensive SLA adherence tracking across problem definition (D1), root cause (D3), and effectiveness (D4) for confirmed complaints.',
+    description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '2/2/2024, 5:20 pm',
@@ -231,7 +231,7 @@ export function ReportsPage() {
     const newEntry = {
       id: `rep-${Date.now()}`,
       name: newReportName.trim(),
-      description: 'Custom quality report authored by Narayan Rao Vakamudi',
+      description: '',
       folder: 'Complaint Management Reports',
       createdBy: 'Narayan Rao Vakamudi',
       createdOn: new Date().toLocaleString(),
@@ -521,9 +521,9 @@ export function ReportsPage() {
                         {report.name}
                       </td>
 
-                      {/* Description */}
+                      {/* Description (Empty matching screenshot) */}
                       <td className="py-2.5 px-3 text-slate-500 truncate max-w-sm hidden sm:table-cell">
-                        {report.description || '—'}
+                        {report.description || ''}
                       </td>
 
                       {/* Folder Link */}
