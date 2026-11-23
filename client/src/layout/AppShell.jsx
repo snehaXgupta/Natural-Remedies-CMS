@@ -278,7 +278,7 @@ export function AppShell() {
             >
               <Menu className="h-5 w-5" />
             </button>
-            <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-6 w-auto object-contain" />
+            <img src="/vetaura-logo.png" alt="VetAura Logo" className="h-7 w-auto object-contain" />
             <span className="hidden md:inline-block text-[11px] font-medium text-slate-400 pl-1 border-l border-slate-200">
               Complaint Management
             </span>
@@ -385,11 +385,10 @@ export function AppShell() {
               <button
                 type="button"
                 onClick={() => setFavoritesOpen((o) => !o)}
-                className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${
-                  isCurrentFavorite
-                    ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100'
-                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-amber-500'
-                }`}
+                className={`flex h-7 w-7 items-center justify-center rounded border transition-colors ${isCurrentFavorite
+                  ? 'border-amber-300 bg-amber-50 text-amber-500 hover:bg-amber-100'
+                  : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-amber-500'
+                  }`}
                 title="Favorites"
               >
                 <Star className={`h-3.5 w-3.5 ${isCurrentFavorite ? 'fill-amber-500' : ''}`} />
@@ -555,11 +554,10 @@ export function AppShell() {
                   <NavLink
                     key={tab.label}
                     to={tab.to}
-                    className={`inline-flex items-center gap-1 whitespace-nowrap h-full px-3 font-medium transition-colors border-b-2 -mb-[1px] ${
-                      isMatch
-                        ? 'border-blue-600 text-blue-700 bg-blue-50/70 font-semibold'
-                        : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-50'
-                    }`}
+                    className={`inline-flex items-center gap-1 whitespace-nowrap h-full px-3 font-medium transition-colors border-b-2 -mb-[1px] ${isMatch
+                      ? 'border-blue-600 text-blue-700 bg-blue-50/70 font-semibold'
+                      : 'border-transparent text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                      }`}
                   >
                     <span>{tab.label}</span>
                     {tab.hasDropdown && (

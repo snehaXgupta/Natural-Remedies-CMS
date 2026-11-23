@@ -3,42 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { readError } from '../api/client.js';
 
-/* VetAura Brand Wordmark SVG (with medical cross in 'A' and paw in 'a') */
+/* Official VetAura Logo */
 function VetAuraLogo({ className = 'h-8 sm:h-9 w-auto' }) {
   return (
-    <svg viewBox="0 0 385 88" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-label="VetAura Logo">
-      {/* V */}
-      <path d="M4 12H25.5L39 54L52.5 12H73L49 76H28L4 12Z" fill="#1A459E" />
-      {/* e */}
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M95.5 77.5C79.5 77.5 69 67.2 69 52.8C69 38.2 79.8 28 95.2 28C110.2 28 119.5 37.8 119.5 51.8C119.5 53.6 119.3 55.3 119 56.8H86.8C87.9 62 91.5 64.8 97 64.8C101.4 64.8 104.5 63.1 106.4 60L118.5 66.8C113.8 73.8 105.8 77.5 95.5 77.5ZM86.9 46.8H102.6C101.9 42 99 39.5 94.9 39.5C90.6 39.5 87.7 42.1 86.9 46.8Z"
-        fill="#1A459E"
-      />
-      {/* t */}
-      <path d="M124.5 29.5H131.5V16.5H149.5V29.5H159V42.5H149.5V58.8C149.5 62.2 151.1 63.7 154.6 63.7C156.2 63.7 157.7 63.4 159 63V76.2C156.4 77.1 153 77.5 149.4 77.5C137.4 77.5 131.5 71.8 131.5 60.2V42.5H124.5V29.5Z" fill="#1A459E" />
-      {/* A with rounded white medical cross cutout */}
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M188.5 12H210.5L236.5 76H215.5L210.9 63.8H188.1L183.5 76H163L188.5 12ZM199.5 27.5C197.6 27.5 196.1 29 196.1 30.9V36.4H190.6C188.7 36.4 187.2 37.9 187.2 39.8C187.2 41.7 188.7 43.2 190.6 43.2H196.1V48.7C196.1 50.6 197.6 52.1 199.5 52.1C201.4 52.1 202.9 50.6 202.9 48.7V43.2H208.4C210.3 43.2 211.8 41.7 211.8 39.8C211.8 37.9 210.3 36.4 208.4 36.4H202.9V30.9C202.9 29 201.4 27.5 199.5 27.5Z"
-        fill="#1A459E"
-      />
-      {/* u */}
-      <path d="M238.5 29.5H256.5V54.5C256.5 59.8 259.2 62.8 263.6 62.8C268.1 62.8 271.1 59.7 271.1 54.3V29.5H289.1V76H271.6V69.6C268.5 74.6 263.1 77.5 256.4 77.5C245.3 77.5 238.5 69.8 238.5 57.6V29.5Z" fill="#1A459E" />
-      {/* r */}
-      <path d="M296.5 29.5H314V37.4C316.6 31.3 321.8 28.2 328.5 28.2C330.2 28.2 331.7 28.4 332.8 28.7V45.4C331.2 44.9 329.2 44.6 327 44.6C319.2 44.6 314.5 48.7 314.5 56.8V76H296.5V29.5Z" fill="#1A459E" />
-      {/* a with paw print cutout */}
-      <path d="M359 28C372.8 28 383 38.4 383 52.8V76H366.2V70.4C362.7 74.9 357.3 77.5 350.5 77.5C337.4 77.5 328 67.2 328 52.8C328 38.4 337.4 28 350.5 28H359Z" fill="#1A459E" />
-      <g transform="translate(343, 40) rotate(-14)">
-        <path d="M12 13.5C8.6 13.5 6.2 16 6.2 18.8C6.2 20.9 7.8 22.1 9.8 22.1C10.8 22.1 11.4 21.7 12 21.7C12.6 21.7 13.2 22.1 14.2 22.1C16.2 22.1 17.8 20.9 17.8 18.8C17.8 16 15.4 13.5 12 13.5Z" fill="white" />
-        <ellipse cx="6.2" cy="10.8" rx="1.7" ry="2.5" transform="rotate(-18 6.2 10.8)" fill="white" />
-        <ellipse cx="10.1" cy="8.5" rx="1.8" ry="2.7" transform="rotate(-6 10.1 8.5)" fill="white" />
-        <ellipse cx="14.3" cy="8.7" rx="1.8" ry="2.7" transform="rotate(8 14.3 8.7)" fill="white" />
-        <ellipse cx="17.9" cy="11.3" rx="1.7" ry="2.5" transform="rotate(20 17.9 11.3)" fill="white" />
-      </g>
-    </svg>
+    <img
+      src="/vetaura-logo.png"
+      alt="VetAura Logo"
+      className={`${className} object-contain`}
+    />
   );
 }
 
