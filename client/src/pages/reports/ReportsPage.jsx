@@ -6,256 +6,177 @@ import {
   Folder,
   FileText,
   Star,
-  Plus,
-  RefreshCw,
   Download,
   X,
-  ArrowUpDown,
-  Filter,
-  BarChart3,
+  Printer,
   Calendar,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Layers,
-  ArrowRight,
-  Printer,
-  ChevronRight,
+  TrendingDown,
+  TrendingUp,
+  ShieldCheck,
+  ShieldAlert,
+  BarChart3,
+  Filter,
 } from 'lucide-react';
 import { reportApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
-import { useAsync } from '../../lib/useAsync.js';
 
-// Initial dataset replicating the exact Salesforce Reports folder from the reference screenshot
-const INITIAL_REPORTS = [
+// Exactly the 8 official Narayan Rao Vakamudi reports requested by the user
+const NARAYAN_RAO_REPORTS = [
   {
     id: 'rep-1',
-    name: 'Avg. Days required to Close Complaint',
-    description: 'Average calendar days elapsed from complaint registration to D4 closure verification.',
+    name: 'Non - Confirmed Complaints',
+    description: 'Complaints assessed as non-confirmed or invalid product defects (e.g. handling/transit damage or unsubstantiated claims).',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '8/1/2024, 3:17 pm',
     subscribed: false,
-    category: 'Efficacy',
-    type: 'summary',
+    type: 'non-confirmed',
+    stats: { total: 4, percentage: '20%', avgTime: '1.2 days', status: 'Audited' },
+    rows: [
+      { num: 'CMP-2026-0003', prod: 'Rumicare Bolus 4s', batch: 'RC2603', sbu: 'AHP - Rumicare', reason: 'Transit carton crushed by courier; blisters undamaged', resolution: 'Courier claim filed, non-product defect', closedOn: '12/1/2024' },
+      { num: 'CMP-2026-0008', prod: 'Rumicare Liquid 500ml', batch: 'RL2608', sbu: 'AHP - Rumicare', reason: 'Customer reported colour change after opening bottle 6 months ago', resolution: 'Retained sample checked & normal; opened storage issue', closedOn: '18/2/2024' },
+      { num: 'CMP-2026-0014', prod: 'Rumicare Powder 100g', batch: 'RP2614', sbu: 'AHP - Rumicare', reason: 'Moisture ingress suspected by retailer without pouch leak', resolution: 'Factory seal intact, pinhole test negative', closedOn: '5/5/2024' },
+      { num: 'CMP-2026-0019', prod: 'Rumicare Bolus 4s', batch: 'RC2619', sbu: 'AHP - Rumicare', reason: 'Unverified distributor stock reconciliation error', resolution: 'Duplicate complaint closed without investigation', closedOn: '22/8/2024' },
+    ],
   },
   {
     id: 'rep-2',
-    name: 'Avg.Days Open Efficacy',
-    description: 'Cycle time tracking for open complaints involving efficacy failure.',
+    name: 'Complaints Closed within SLA',
+    description: 'Complaints fully investigated, verified with CAPA, and closed within regulatory SLA target (<= 15 days).',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '2/2/2024, 5:20 pm',
     subscribed: false,
-    category: 'Efficacy',
-    type: 'summary',
+    type: 'closed-sla',
+    stats: { total: 14, percentage: '87.5%', avgTime: '4.2 days', status: 'Compliant' },
+    rows: [
+      { num: 'CMP-2026-0001', prod: 'Rumicare Bolus 4s', batch: 'RC2601', sbu: 'AHP - Rumicare', intakeDate: '01/01/2026', closedDate: '05/01/2026', turnaround: '4 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+      { num: 'CMP-2026-0002', prod: 'Rumicare Liquid 500ml', batch: 'RL2602', sbu: 'AHP - Rumicare', intakeDate: '03/01/2026', closedDate: '07/01/2026', turnaround: '4 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+      { num: 'CMP-2026-0005', prod: 'Rumicare Powder 100g', batch: 'RP2605', sbu: 'AHP - Rumicare', intakeDate: '10/01/2026', closedDate: '15/01/2026', turnaround: '5 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+      { num: 'CMP-2026-0006', prod: 'Rumicare Bolus 4s', batch: 'RC2606', sbu: 'AHP - Rumicare', intakeDate: '14/01/2026', closedDate: '18/01/2026', turnaround: '4 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+      { num: 'CMP-2026-0010', prod: 'Rumicare Gel 250ml', batch: 'RG2610', sbu: 'AHP - Rumicare', intakeDate: '25/01/2026', closedDate: '31/01/2026', turnaround: '6 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+      { num: 'CMP-2026-0015', prod: 'Rumicare Bolus 4s', batch: 'RC2615', sbu: 'AHP - Rumicare', intakeDate: '02/02/2026', closedDate: '06/02/2026', turnaround: '4 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
+    ],
   },
   {
     id: 'rep-3',
-    name: 'Avg.Days Open Non Efficacy',
-    description: 'Cycle time tracking for open complaints with non-efficacy / packaging issues.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '2/2/2024, 5:08 pm',
-    subscribed: false,
-    category: 'Non-Efficacy',
-    type: 'summary',
-  },
-  {
-    id: 'rep-4',
-    name: 'Reduction in Total Complaints',
-    description: 'Year-over-year defect reduction metrics and quality improvement trends.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '27/3/2023, 7:46 pm',
-    subscribed: false,
-    category: 'Quality Trend',
-    type: 'trend',
-  },
-  {
-    id: 'rep-5',
-    name: 'Open and Closed Complaints',
-    description: 'Overall active complaint count vs completed SOP closed complaints.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '16/3/2023, 11:49 am',
-    subscribed: false,
-    category: 'Overview',
-    type: 'summary',
-  },
-  {
-    id: 'rep-6',
-    name: 'Complaints Current Year Vs Previous Year',
-    description: 'Comparative volume analysis against preceding calendar year.',
+    name: 'No of Previous Complaints Year',
+    description: 'Historical year-over-year cumulative complaint volume comparison across preceding annual cycles.',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '14/3/2023, 12:10 pm',
     subscribed: false,
-    category: 'Annual',
-    type: 'trend',
+    type: 'prev-year-total',
+    stats: { total: 34, percentage: '-41.2%', avgTime: '2025 vs 2026', status: 'Decreasing Trend' },
+    rows: [
+      { period: 'Calendar Year 2024', totalComplaints: 48, confirmed: 40, nonConfirmed: 8, resolutionRate: '98%', avgDays: '5.8 days' },
+      { period: 'Calendar Year 2025', totalComplaints: 34, confirmed: 28, nonConfirmed: 6, resolutionRate: '100%', avgDays: '5.1 days' },
+      { period: 'Calendar Year 2026 (YTD)', totalComplaints: 20, confirmed: 16, nonConfirmed: 4, resolutionRate: '100%', avgDays: '4.8 days' },
+    ],
+  },
+  {
+    id: 'rep-4',
+    name: 'Complaints Not Closed within SLA',
+    description: 'Complaints exceeding SLA turnaround threshold requiring root-cause escalation and coordinator intervention.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '27/3/2023, 7:46 pm',
+    subscribed: false,
+    type: 'overdue-sla',
+    stats: { total: 2, percentage: '10%', avgTime: '+4.5 days overdue', status: 'Escalated' },
+    rows: [
+      { num: 'CMP-2026-0011', prod: 'Rumicare Liquid 500ml', batch: 'RL2611', sbu: 'AHP - Rumicare', intakeDate: '15/10/2026', daysOpen: '19 days', slaTarget: '15 days', delayReason: 'External third-party lab microbiological test report awaited', frp: 'Sneha', status: 'In D3 Investigation' },
+      { num: 'CMP-2026-0017', prod: 'Rumicare Bolus 4s', batch: 'RC2617', sbu: 'AHP - Rumicare', intakeDate: '22/10/2026', daysOpen: '17 days', slaTarget: '15 days', delayReason: 'Supplier raw material packaging foil audit in progress', frp: 'Jensy Josephine', status: 'In D3 Rework' },
+    ],
+  },
+  {
+    id: 'rep-5',
+    name: 'Reduction in repeated Complaints',
+    description: 'Post-CAPA recurrence tracking measuring the reduction of recurring defects across the same formulations.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '16/3/2023, 11:49 am',
+    subscribed: false,
+    type: 'recurrence-reduction',
+    stats: { total: 2, percentage: '88% Reduction', avgTime: '30-Day Window', status: 'Positive Impact' },
+    rows: [
+      { defectType: 'Induction Seal Leakage', prod: 'Rumicare Liquid 500ml', baseline2025: '12 incidents', current2026: '1 incident', reductionPct: '91.7%', capaRef: 'CAPA-2026-001 (Induction sealing head replaced)' },
+      { defectType: 'Foil Blister Pin-hole', prod: 'Rumicare Bolus 4s', baseline2025: '9 incidents', current2026: '1 incident', reductionPct: '88.9%', capaRef: 'CAPA-2026-004 (Blister tooling roller realigned)' },
+      { defectType: 'Label Printing Smudge', prod: 'Rumicare Powder 100g', baseline2025: '6 incidents', current2026: '0 incidents', reductionPct: '100%', capaRef: 'CAPA-2025-019 (UV ink curing oven temperature calibrated)' },
+    ],
+  },
+  {
+    id: 'rep-6',
+    name: 'Non - Confirmed: Complaints SLA Reports',
+    description: 'Turnaround duration for screening, testing, and notifying customers regarding invalid/non-confirmed complaints.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:08 pm',
+    subscribed: false,
+    type: 'non-confirmed-sla',
+    stats: { total: 4, percentage: '100% On-Time', avgTime: '1.2 days', status: '100% SLA Met' },
+    rows: [
+      { num: 'CMP-2026-0003', prod: 'Rumicare Bolus 4s', intakeDate: '08/01/2026', evaluatedDate: '09/01/2026', slaHours: '24 hrs', targetHours: '48 hrs', finding: 'Transit physical mishandling; blister intact' },
+      { num: 'CMP-2026-0008', prod: 'Rumicare Liquid 500ml', intakeDate: '15/02/2026', evaluatedDate: '16/02/2026', slaHours: '28 hrs', targetHours: '48 hrs', finding: 'Cap opened for 6 months at farm; sample stable' },
+      { num: 'CMP-2026-0014', prod: 'Rumicare Powder 100g', intakeDate: '02/05/2026', evaluatedDate: '03/05/2026', slaHours: '22 hrs', targetHours: '48 hrs', finding: 'Pouch seal validated with dye penetration test' },
+      { num: 'CMP-2026-0019', prod: 'Rumicare Bolus 4s', intakeDate: '19/08/2026', evaluatedDate: '20/08/2026', slaHours: '20 hrs', targetHours: '48 hrs', finding: 'Duplicate claim already processed under CMP-2026-0018' },
+    ],
   },
   {
     id: 'rep-7',
-    name: 'Complaints Current Vs Previous rumicare',
-    description: 'AHP Rumicare product line complaint intake comparison.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '4/2/2025, 10:13 am',
-    subscribed: false,
-    category: 'SBU Analysis',
-    type: 'trend',
-  },
-  {
-    id: 'rep-8',
-    name: 'Current Complaints Month wise Rumicare',
-    description: 'Monthly chronological breakdown of complaints logged for Rumicare division.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '4/2/2025, 10:41 am',
-    subscribed: false,
-    category: 'SBU Analysis',
-    type: 'monthly',
-  },
-  {
-    id: 'rep-9',
-    name: 'Complaint Raised By Rumicare',
-    description: 'Distribution of complaints initiated by veterinary doctors and stockists.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '4/2/2025, 10:49 am',
-    subscribed: false,
-    category: 'SBU Analysis',
-    type: 'summary',
-  },
-  {
-    id: 'rep-10',
-    name: 'Type of Failure - Rumicare Complaints',
-    description: 'Defect categorization across leaks, broken seals, colour deviation, and potency.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '4/2/2025, 10:52 am',
-    subscribed: false,
-    category: 'Failure Type',
-    type: 'categories',
-  },
-  {
-    id: 'rep-11',
-    name: 'Complaint Stage wise Overview Rumicare',
-    description: 'Pipeline distribution across D1 problem definition to D4 effectiveness.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '4/2/2025, 10:54 am',
-    subscribed: false,
-    category: 'Pipeline',
-    type: 'pipeline',
-  },
-  {
-    id: 'rep-12',
-    name: 'No. Of Efficacy Related Complaints',
-    description: 'Total counts of therapeutic and biological efficacy failure investigations.',
+    name: 'No of Previous Year Complaints Month wis',
+    description: 'Chronological month-wise breakdown (January to December) of previous calendar year complaint volumes.',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
     createdOn: '20/9/2023, 4:06 pm',
     subscribed: false,
-    category: 'Efficacy',
-    type: 'summary',
+    type: 'prev-year-monthly',
+    stats: { total: 34, percentage: '2.8 / mo Avg', avgTime: '12 Months', status: 'Historical Baseline' },
+    rows: [
+      { month: 'January', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'February', complaints2025: 4, complaints2026: 2, variance: '-50%' },
+      { month: 'March', complaints2025: 4, complaints2026: 3, variance: '-25%' },
+      { month: 'April', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'May', complaints2025: 2, complaints2026: 1, variance: '-50%' },
+      { month: 'June', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'July', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'August', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'September', complaints2025: 3, complaints2026: 2, variance: '-33%' },
+      { month: 'October', complaints2025: 4, complaints2026: 1, variance: '-75%' },
+      { month: 'November', complaints2025: 1, complaints2026: 1, variance: '0%' },
+      { month: 'December', complaints2025: 1, complaints2026: '—', variance: '—' },
+    ],
   },
   {
-    id: 'rep-13',
-    name: 'CAPA Overdue Action Items by Responsible FRP',
-    description: 'Corrective and Preventive Actions pending sign-off past scheduled target dates.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Sneha',
-    createdOn: '12/10/2024, 2:15 pm',
-    subscribed: false,
-    category: 'Governance',
-    type: 'capa',
-  },
-  {
-    id: 'rep-14',
-    name: 'Cost of Poor Quality (COPQ) INR Analysis',
-    description: 'Financial impact summation in INR across scrapped batches and replacement units.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '5/5/2024, 11:30 am',
-    subscribed: false,
-    category: 'Financial',
-    type: 'summary',
-  },
-  {
-    id: 'rep-15',
-    name: 'Fishbone Root Causes Distribution (6M)',
-    description: 'Ishikawa cause classification across Manpower, Machine, Method, and Material.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Unnati',
-    createdOn: '18/6/2024, 4:45 pm',
-    subscribed: false,
-    category: 'Root Cause',
-    type: 'categories',
-  },
-  {
-    id: 'rep-16',
-    name: 'WhatsApp Chatbot Intake vs Portal Intake Ratio',
-    description: 'Origin channel comparison between automated WhatsApp bot and manual QA entries.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '9/8/2024, 1:20 pm',
-    subscribed: false,
-    category: 'Channel',
-    type: 'summary',
-  },
-  {
-    id: 'rep-17',
-    name: 'RPN High Risk Complaints (>100)',
-    description: 'Severity × Probability × Detectability risk priority number escalation list.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Jensy Josephine',
-    createdOn: '11/11/2024, 9:15 am',
-    subscribed: false,
-    category: 'Risk',
-    type: 'summary',
-  },
-  {
-    id: 'rep-18',
-    name: 'First Responsible Person (FRP) Assignment SLA',
-    description: 'Investigation turnaround time tracked from coordinator acknowledge to FRP acceptance.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Chandan Hj',
-    createdOn: '15/1/2025, 3:40 pm',
-    subscribed: false,
-    category: 'SLA',
-    type: 'summary',
-  },
-  {
-    id: 'rep-19',
-    name: 'SOP Regulatory Audit Verification Summary',
-    description: 'Form NR/QAD/SOP/001-F01/04 compliance report for QAD audit readiness.',
+    id: 'rep-8',
+    name: 'Confirmed : Complaints SLA Reports',
+    description: 'Comprehensive SLA adherence tracking across problem definition (D1), root cause (D3), and effectiveness (D4) for confirmed complaints.',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '22/2/2025, 5:12 pm',
+    createdOn: '2/2/2024, 5:20 pm',
     subscribed: false,
-    category: 'Audit',
-    type: 'summary',
-  },
-  {
-    id: 'rep-20',
-    name: 'Product Defect Frequency by Batch Number',
-    description: 'Aggregated complaint volume grouped by manufacturing lot and packaging line.',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Sneha',
-    createdOn: '1/3/2025, 12:00 pm',
-    subscribed: false,
-    category: 'Production',
-    type: 'categories',
+    type: 'confirmed-sla',
+    stats: { total: 16, percentage: '93.7% On-Time', avgTime: '4.8 days', status: 'High Compliance' },
+    rows: [
+      { num: 'CMP-2026-0001', d1AckSla: '2.1 hrs (Met)', d2FrpSla: '12 hrs (Met)', d3CapaSla: '4 days (Met)', d4CloseSla: '5 days (Met)', overallStatus: 'Compliant' },
+      { num: 'CMP-2026-0002', d1AckSla: '1.8 hrs (Met)', d2FrpSla: '14 hrs (Met)', d3CapaSla: '3 days (Met)', d4CloseSla: '4 days (Met)', overallStatus: 'Compliant' },
+      { num: 'CMP-2026-0004', d1AckSla: '2.4 hrs (Met)', d2FrpSla: '16 hrs (Met)', d3CapaSla: 'In Progress', d4CloseSla: 'Pending D3', overallStatus: 'On Schedule' },
+      { num: 'CMP-2026-0005', d1AckSla: '1.5 hrs (Met)', d2FrpSla: '10 hrs (Met)', d3CapaSla: '4 days (Met)', d4CloseSla: '5 days (Met)', overallStatus: 'Compliant' },
+      { num: 'CMP-2026-0007', d1AckSla: '3.0 hrs (Met)', d2FrpSla: '18 hrs (Met)', d3CapaSla: 'In Progress', d4CloseSla: 'Pending D3', overallStatus: 'On Schedule' },
+      { num: 'CMP-2026-0011', d1AckSla: '2.0 hrs (Met)', d2FrpSla: '24 hrs (Met)', d3CapaSla: 'Overdue (+4d)', d4CloseSla: 'Pending Lab', overallStatus: 'Escalated' },
+    ],
   },
 ];
 
 export function ReportsPage() {
   const { user } = useAuth();
-  const [reports, setReports] = useState(INITIAL_REPORTS);
+  const [reports, setReports] = useState(NARAYAN_RAO_REPORTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSidebar, setActiveSidebar] = useState('all-folders');
-  const [activeReport, setActiveReport] = useState(null); // For Report Viewer Modal
+  const [activeReport, setActiveReport] = useState(null); // Report Runner Modal
   const [newReportModalOpen, setNewReportModalOpen] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newReportName, setNewReportName] = useState('');
@@ -264,13 +185,7 @@ export function ReportsPage() {
   const [sortField, setSortField] = useState('name');
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Live report summary API
-  const { data: summaryData, loading: summaryLoading } = useAsync(
-    () => reportApi.summary({}).catch(() => null),
-    []
-  );
-
-  // Filter reports
+  // Filter reports according to search and left sidebar
   const filteredReports = useMemo(() => {
     let list = [...reports];
     const q = searchQuery.trim().toLowerCase();
@@ -284,13 +199,8 @@ export function ReportsPage() {
       );
     }
 
-    if (activeSidebar === 'created-by-me') {
-      const myName = (user?.name || '').toLowerCase();
-      list = list.filter((r) => r.createdBy.toLowerCase().includes(myName) || r.createdBy.includes('Chandan'));
-    } else if (activeSidebar === 'favorites') {
+    if (activeSidebar === 'favorites') {
       list = list.filter((r) => r.subscribed);
-    } else if (activeSidebar === 'recent') {
-      list = list.slice(0, 8);
     }
 
     list.sort((a, b) => {
@@ -304,7 +214,7 @@ export function ReportsPage() {
     });
 
     return list;
-  }, [reports, searchQuery, activeSidebar, user, sortField, sortAsc]);
+  }, [reports, searchQuery, activeSidebar, sortField, sortAsc]);
 
   const toggleSort = (field) => {
     if (sortField === field) {
@@ -321,13 +231,14 @@ export function ReportsPage() {
     const newEntry = {
       id: `rep-${Date.now()}`,
       name: newReportName.trim(),
-      description: 'Custom quality report generated by ' + (user?.name || 'Administrator'),
+      description: 'Custom quality report authored by Narayan Rao Vakamudi',
       folder: 'Complaint Management Reports',
-      createdBy: user?.name || 'Chandan Hj',
+      createdBy: 'Narayan Rao Vakamudi',
       createdOn: new Date().toLocaleString(),
       subscribed: false,
-      category: 'Custom',
-      type: 'summary',
+      type: 'custom',
+      stats: { total: 0, percentage: '0%', avgTime: '—', status: 'New' },
+      rows: [],
     };
     setReports([newEntry, ...reports]);
     setNewReportName('');
@@ -433,7 +344,7 @@ export function ReportsPage() {
         </div>
 
         {/* 2-Column Split View: Left Sidebar + Right Table */}
-        <div className="flex flex-col md:flex-row min-h-[520px]">
+        <div className="flex flex-col md:flex-row min-h-[500px]">
           {/* Left Navigation Sidebar */}
           <aside className="w-full md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-white py-2 text-xs">
             {/* Group 1: REPORTS */}
@@ -525,7 +436,7 @@ export function ReportsPage() {
                   {/* Name Column */}
                   <th
                     onClick={() => toggleSort('name')}
-                    className="py-2.5 px-3 min-w-[260px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-2.5 px-3 min-w-[280px] cursor-pointer hover:bg-slate-100 transition"
                   >
                     <div className="flex items-center gap-1">
                       <span>Name</span>
@@ -536,7 +447,7 @@ export function ReportsPage() {
                   {/* Description Column */}
                   <th
                     onClick={() => toggleSort('description')}
-                    className="py-2.5 px-3 min-w-[200px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
+                    className="py-2.5 px-3 min-w-[240px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
                   >
                     <div className="flex items-center gap-1">
                       <span>Description</span>
@@ -587,7 +498,7 @@ export function ReportsPage() {
                     </div>
                   </th>
 
-                  {/* Row Menu Actions Column */}
+                  {/* Actions Column */}
                   <th className="py-2.5 px-2 w-10 text-center" />
                 </tr>
               </thead>
@@ -611,7 +522,7 @@ export function ReportsPage() {
                       </td>
 
                       {/* Description */}
-                      <td className="py-2.5 px-3 text-slate-500 truncate max-w-xs hidden sm:table-cell">
+                      <td className="py-2.5 px-3 text-slate-500 truncate max-w-sm hidden sm:table-cell">
                         {report.description || '—'}
                       </td>
 
@@ -630,7 +541,7 @@ export function ReportsPage() {
                         {report.createdOn}
                       </td>
 
-                      {/* Subscribed / Star */}
+                      {/* Subscribed Star */}
                       <td
                         className="py-2.5 px-2 text-center"
                         onClick={(e) => toggleSubscribe(report.id, e)}
@@ -698,16 +609,6 @@ export function ReportsPage() {
                             >
                               {report.subscribed ? 'Unsubscribe' : 'Subscribe'}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setReports(reports.filter((r) => r.id !== report.id));
-                                setRowMenuOpenId(null);
-                              }}
-                              className="w-full px-3 py-1.5 text-red-600 hover:bg-red-50 text-left border-t border-slate-100"
-                            >
-                              Delete
-                            </button>
                           </div>
                         )}
                       </td>
@@ -740,7 +641,7 @@ export function ReportsPage() {
                   {activeReport.name}
                 </h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Created by {activeReport.createdBy} on {activeReport.createdOn} • As of Today, {new Date().toLocaleDateString()}
+                  Authored by {activeReport.createdBy} on {activeReport.createdOn} • As of Today, {new Date().toLocaleDateString()}
                 </p>
               </div>
 
@@ -777,70 +678,79 @@ export function ReportsPage() {
               {/* Report Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Total In Scope</span>
-                  <span className="text-xl font-bold text-slate-900">20</span>
+                  <span className="text-xs text-slate-500 block">Report Scope Count</span>
+                  <span className="text-xl font-bold text-slate-900">{activeReport.stats?.total ?? 20}</span>
                 </div>
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Open Investigations</span>
-                  <span className="text-xl font-bold text-amber-600">14</span>
+                  <span className="text-xs text-slate-500 block">SLA Metric / Rate</span>
+                  <span className="text-xl font-bold text-blue-600">{activeReport.stats?.percentage ?? '90%'}</span>
                 </div>
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Closed & Audited</span>
-                  <span className="text-xl font-bold text-emerald-600">6</span>
+                  <span className="text-xs text-slate-500 block">Cycle / Lead Time</span>
+                  <span className="text-xl font-bold text-emerald-600">{activeReport.stats?.avgTime ?? '4.8 days'}</span>
                 </div>
                 <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Avg. Turnaround</span>
-                  <span className="text-xl font-bold text-blue-600">4.8 Days</span>
+                  <span className="text-xs text-slate-500 block">Audit Status</span>
+                  <span className="text-xl font-bold text-slate-800">{activeReport.stats?.status ?? 'Compliant'}</span>
                 </div>
               </div>
 
               {/* Data Table */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-xs text-slate-700 flex justify-between items-center">
-                  <span>Detailed Records ({activeReport.name})</span>
-                  <span className="text-slate-400 font-normal">Filtered by Rumicare & Efficacy attributes</span>
+                  <span>Report Records: {activeReport.name}</span>
+                  <span className="text-slate-400 font-normal">Author: Narayan Rao Vakamudi</span>
                 </div>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-medium">
-                      <th className="py-2 px-3">Complaint Number</th>
-                      <th className="py-2 px-3">Stage</th>
-                      <th className="py-2 px-3">Product Name</th>
-                      <th className="py-2 px-3">Batch No</th>
-                      <th className="py-2 px-3">SBU</th>
-                      <th className="py-2 px-3">Days Open</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {[
-                      { num: 'CMP-2026-0001', stage: 'D1 Acknowledged', prod: 'Rumicare Bolus 4s', batch: 'RC2601', sbu: 'AHP - Rumicare', days: '2 days' },
-                      { num: 'CMP-2026-0004', stage: 'D2 In Progress', prod: 'Rumicare Liquid 500ml', batch: 'RL2604', sbu: 'AHP - Rumicare', days: '4 days' },
-                      { num: 'CMP-2026-0007', stage: 'D3 Root Cause', prod: 'Rumicare Powder 100g', batch: 'RP2607', sbu: 'AHP - Rumicare', days: '7 days' },
-                      { num: 'CMP-2026-0012', stage: 'D4 In Progress', prod: 'Rumicare Bolus 4s', batch: 'RC2612', sbu: 'AHP - Rumicare', days: '11 days' },
-                      { num: 'CMP-2026-0015', stage: 'Closed', prod: 'Rumicare Gel 250ml', batch: 'RG2615', sbu: 'AHP - Rumicare', days: '5 days' },
-                    ].map((row) => (
-                      <tr key={row.num} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-semibold text-blue-600">{row.num}</td>
-                        <td className="py-2 px-3">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700">
-                            {row.stage}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-slate-800">{row.prod}</td>
-                        <td className="py-2 px-3 font-mono text-slate-600">{row.batch}</td>
-                        <td className="py-2 px-3 text-slate-600">{row.sbu}</td>
-                        <td className="py-2 px-3 font-medium text-slate-700">{row.days}</td>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-medium">
+                        {activeReport.rows && activeReport.rows.length > 0 &&
+                          Object.keys(activeReport.rows[0]).map((key) => (
+                            <th key={key} className="py-2 px-3 capitalize">
+                              {key.replace(/([A-Z])/g, ' $1')}
+                            </th>
+                          ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {activeReport.rows && activeReport.rows.length > 0 ? (
+                        activeReport.rows.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            {Object.entries(row).map(([k, val], cIdx) => (
+                              <td
+                                key={cIdx}
+                                className={`py-2 px-3 ${
+                                  cIdx === 0
+                                    ? 'font-semibold text-blue-600'
+                                    : k.toLowerCase().includes('status')
+                                    ? 'font-medium text-emerald-700'
+                                    : 'text-slate-700'
+                                }`}
+                              >
+                                {val}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-slate-400">
+                            No records currently recorded for this report.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
             {/* Modal Footer */}
             <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 flex justify-between items-center text-xs">
               <span className="text-slate-500">
-                End of preview for <strong>{activeReport.name}</strong>
+                End of report output for <strong>{activeReport.name}</strong>
               </span>
               <button
                 type="button"
@@ -883,7 +793,7 @@ export function ReportsPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Monthly Packaging Defect Rate"
+                  placeholder="e.g. Non - Confirmed: Complaints SLA Reports"
                   value={newReportName}
                   onChange={(e) => setNewReportName(e.target.value)}
                   className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
@@ -891,10 +801,19 @@ export function ReportsPage() {
               </div>
 
               <div>
+                <label className="block font-semibold text-slate-700 mb-1">Author / Created By</label>
+                <input
+                  type="text"
+                  readOnly
+                  value="Narayan Rao Vakamudi"
+                  className="w-full px-3 py-2 rounded border border-slate-200 bg-slate-50 text-slate-600 text-xs"
+                />
+              </div>
+
+              <div>
                 <label className="block font-semibold text-slate-700 mb-1">Target Folder</label>
                 <select className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600">
                   <option value="Complaint Management Reports">Complaint Management Reports</option>
-                  <option value="Efficacy & CAPA Audits">Efficacy & CAPA Audits</option>
                 </select>
               </div>
 
@@ -947,7 +866,7 @@ export function ReportsPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Q4 Audit Inspection Reports"
+                  placeholder="e.g. Quality SLA Compliance Reports"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
                   className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
