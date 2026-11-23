@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   ChevronDown,
+  ChevronRight,
+  ChevronUp,
   Settings,
   Folder,
   FileText,
+  FileSpreadsheet,
   Star,
   Download,
   X,
@@ -19,11 +22,17 @@ import {
   ShieldAlert,
   BarChart3,
   Filter,
+  Pencil,
+  RotateCw,
+  ArrowLeft,
+  Trash2,
+  Layers,
+  Copy,
+  Check,
 } from 'lucide-react';
-import { reportApi } from '../../api/endpoints.js';
+import { reportApi, complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
-// All official complaint reports authored under Narayan Rao Vakamudi
 const NARAYAN_RAO_REPORTS = [
   // 1. Screenshot Report 1
   {
@@ -674,19 +683,90 @@ const NARAYAN_RAO_REPORTS = [
   },
 ];
 
+
+const KNOWN_PRODUCTS = [
+  'Manual preparation test',
+  'Kolin',
+  'Kolin plus',
+  'Rumicare Bolus 4s',
+  'Rumicare Liquid 500ml',
+  'Rumicare Powder 100g',
+  'Rumicare Gel 250ml',
+  'HEPASURE',
+  'Fresh me up Foam',
+  'Judiclean',
+  'Lushme up',
+  'Lush Me Up 175 ml',
+  'Nellife 30 ml',
+  'Reliflam',
+  'Fresh Me Up',
+  'Orthoron Tablets',
+];
+
+const INITIAL_REPORT_ROWS = [
+  // Database complaints
+  { id: 'c1', requestedBy: '', complaintNo: 'AHP-26-11-001', distributor: '', productName: 'Manual preparation test' },
+  { id: 'c2', requestedBy: '', complaintNo: 'AHP-26-11-002', distributor: '', productName: 'Manual preparation test' },
+  { id: 'c3', requestedBy: '', complaintNo: 'AHP-26-11-003', distributor: '', productName: 'Manual preparation test' },
+  { id: 'c4', requestedBy: '', complaintNo: 'AHP-26-11-004', distributor: '', productName: 'Kolin' },
+  { id: 'c5', requestedBy: '', complaintNo: 'AHP-26-11-005', distributor: '', productName: 'Kolin plus' },
+  { id: 'c6', requestedBy: '', complaintNo: 'AHP-26-11-006', distributor: '', productName: 'Kolin Plus' },
+  { id: 'c7', requestedBy: '', complaintNo: 'AHP-26-11-007', distributor: '', productName: 'Kolin plus' },
+  // Product entries where complaints have no data for now (blank complaintNo and blank distributor)
+  { id: 'c8', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Bolus 4s' },
+  { id: 'c9', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Liquid 500ml' },
+  { id: 'c10', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Powder 100g' },
+  { id: 'c11', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Gel 250ml' },
+  { id: 'c12', requestedBy: '', complaintNo: '', distributor: '', productName: 'HEPASURE' },
+  { id: 'c13', requestedBy: '', complaintNo: '', distributor: '', productName: 'Fresh me up Foam' },
+  { id: 'c14', requestedBy: '', complaintNo: '', distributor: '', productName: 'Judiclean' },
+  { id: 'c15', requestedBy: '', complaintNo: '', distributor: '', productName: 'Lushme up' },
+  { id: 'c16', requestedBy: '', complaintNo: '', distributor: '', productName: 'Lush Me Up 175 ml' },
+  { id: 'c17', requestedBy: '', complaintNo: '', distributor: '', productName: 'Nellife 30 ml' },
+  { id: 'c18', requestedBy: '', complaintNo: '', distributor: '', productName: 'Reliflam' },
+  { id: 'c19', requestedBy: '', complaintNo: '', distributor: '', productName: 'Fresh Me Up' },
+  { id: 'c20', requestedBy: '', complaintNo: '', distributor: '', productName: 'Orthoron Tablets' },
+];
+
 export function ReportsPage() {
   const { user } = useAuth();
   const [reports, setReports] = useState(NARAYAN_RAO_REPORTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSidebar, setActiveSidebar] = useState('all-folders');
-  const [activeReport, setActiveReport] = useState(null); // Report Runner Modal
+  const [activeReport, setActiveReport] = useState(null); // Active Salesforce Report Runner View
   const [newReportModalOpen, setNewReportModalOpen] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newReportName, setNewReportName] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [rowMenuOpenId, setRowMenuOpenId] = useState(null);
+  const [editMenuOpen, setEditMenuOpen] = useState(false);
+  const [reportToDelete, setReportToDelete] = useState(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [groupCollapsed, setGroupCollapsed] = useState(false);
   const [sortField, setSortField] = useState('name');
   const [sortAsc, setSortAsc] = useState(true);
+  const [dbComplaints, setDbComplaints] = useState([]);
+
+  const [toggles, setToggles] = useState({
+    rowCounts: true,
+    detailRows: true,
+    subtotals: true,
+    grandTotal: true,
+  });
+
+  // Fetch real complaints from MongoDB on mount to merge dynamically
+  useEffect(() => {
+    complaintApi
+      .list({ limit: 100 })
+      .then((res) => {
+        const items = res?.items || (Array.isArray(res) ? res : []);
+        if (items.length > 0) {
+          setDbComplaints(items);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Filter reports according to search and left sidebar
   const filteredReports = useMemo(() => {
@@ -718,6 +798,43 @@ export function ReportsPage() {
     return list;
   }, [reports, searchQuery, activeSidebar, sortField, sortAsc]);
 
+  // Compute the rows to reflect for the active report
+  const activeReportRows = useMemo(() => {
+    if (!activeReport) return [];
+
+    // If real complaints are fetched from MongoDB, map them
+    if (dbComplaints.length > 0) {
+      const realRows = dbComplaints.map((c, i) => ({
+        id: c._id || `db-${i}`,
+        requestedBy: c.complainant?.name || c.createdBy?.name || '',
+        complaintNo: c.complaintNumber || '',
+        distributor: c.complainant?.name || c.distributorName || '',
+        productName:
+          c.reportedProduct?.name ||
+          c.productDetails?.productName ||
+          c.productName ||
+          'Kolin plus',
+      }));
+
+      // Add remaining products with blank complaint data
+      const existingProductNames = new Set(realRows.map((r) => r.productName.toLowerCase()));
+      const blankProductRows = KNOWN_PRODUCTS.filter(
+        (p) => !existingProductNames.has(p.toLowerCase())
+      ).map((p, idx) => ({
+        id: `blank-${idx}`,
+        requestedBy: '',
+        complaintNo: '',
+        distributor: '',
+        productName: p,
+      }));
+
+      return [...realRows, ...blankProductRows];
+    }
+
+    // Default rows with database complaints + blank complaints for remaining products
+    return INITIAL_REPORT_ROWS;
+  }, [activeReport, dbComplaints]);
+
   const toggleSort = (field) => {
     if (sortField === field) {
       setSortAsc(!sortAsc);
@@ -748,12 +865,470 @@ export function ReportsPage() {
   };
 
   const toggleSubscribe = (id, e) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     setReports((prev) =>
       prev.map((r) => (r.id === id ? { ...r, subscribed: !r.subscribed } : r))
     );
   };
 
+  // Export any report directly to CSV format
+  const handleExportReport = (report) => {
+    const rows = activeReportRows.length > 0 ? activeReportRows : INITIAL_REPORT_ROWS;
+    const headers = ['Requested By', 'Complaint: Complaint No', 'Distributor / Retailer Name', 'Product name'];
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((r) => [
+        `"${(r.requestedBy || '').replace(/"/g, '""')}"`,
+        `"${(r.complaintNo || '').replace(/"/g, '""')}"`,
+        `"${(r.distributor || '').replace(/"/g, '""')}"`,
+        `"${(r.productName || '').replace(/"/g, '""')}"`,
+      ].join(',')),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${(report.name || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Delete any report permanently
+  const handleDeleteReport = (report) => {
+    if (!report) return;
+    setReports((prev) => prev.filter((r) => r.id !== report.id));
+    if (activeReport?.id === report.id) {
+      setActiveReport(null);
+    }
+    setReportToDelete(null);
+    setRowMenuOpenId(null);
+    setEditMenuOpen(false);
+  };
+
+  // -------------------------------------------------------------
+  // VIEW 1: SALESFORCE LIGHTNING REPORT DETAIL VIEW (SCREENSHOT)
+  // -------------------------------------------------------------
+  if (activeReport) {
+    return (
+      <div className="space-y-0 pb-8 text-slate-800 animate-in fade-in">
+        {/* Top Breadcrumb Navigation */}
+        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2 text-xs">
+          <div className="flex items-center gap-2 text-slate-500 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setActiveReport(null)}
+              className="inline-flex items-center gap-1 font-semibold text-[#0176d3] hover:underline cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Back to Reports</span>
+            </button>
+            <span className="text-slate-300">/</span>
+            <button
+              type="button"
+              onClick={() => setActiveReport(null)}
+              className="text-[#0176d3] hover:underline"
+            >
+              All Folders
+            </button>
+            <span className="text-slate-300">&gt;</span>
+            <button
+              type="button"
+              onClick={() => setActiveReport(null)}
+              className="text-[#0176d3] hover:underline"
+            >
+              Complaint Management Reports
+            </button>
+            <span className="text-slate-300">&gt;</span>
+            <span className="font-semibold text-slate-800">{activeReport.name}</span>
+          </div>
+
+          <div className="text-[11px] text-slate-400">
+            Authored by {activeReport.createdBy}
+          </div>
+        </div>
+
+        {/* Outer Salesforce Lightning Card */}
+        <div className="bg-white border-x border-b border-slate-300 shadow-2xs">
+          {/* Header Banner (Exact Match to Salesforce Screenshot) */}
+          <div className="border-b border-slate-200 px-5 sm:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {/* Salesforce Teal-Green Report Icon */}
+              <div className="w-10 h-10 rounded bg-[#05a081] flex items-center justify-center text-white shadow-xs shrink-0">
+                <FileSpreadsheet className="h-5 w-5" />
+              </div>
+
+              <div>
+                <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide block">
+                  Report: Complaints
+                </span>
+                {isEditingTitle ? (
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <input
+                      type="text"
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      className="text-base sm:text-lg font-bold text-slate-900 border border-blue-500 rounded px-2 py-0.5 focus:outline-none"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editedTitle.trim()) {
+                          setReports((prev) =>
+                            prev.map((r) =>
+                              r.id === activeReport.id ? { ...r, name: editedTitle.trim() } : r
+                            )
+                          );
+                          setActiveReport((prev) => ({ ...prev, name: editedTitle.trim() }));
+                        }
+                        setIsEditingTitle(false);
+                      }}
+                      className="px-2.5 py-1 bg-[#0176d3] text-white text-xs font-semibold rounded hover:bg-blue-700"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditingTitle(false)}
+                      className="px-2 py-1 bg-slate-200 text-slate-700 text-xs rounded hover:bg-slate-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+                    {activeReport.name}
+                  </h1>
+                )}
+              </div>
+            </div>
+
+            {/* Right Action Tools Group */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
+              >
+                <Pencil className="h-3.5 w-3.5 text-blue-600" />
+                <span>Enable Field Editing</span>
+              </button>
+
+              <button
+                type="button"
+                className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs"
+                title="Search"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs"
+              >
+                <BarChart3 className="h-3.5 w-3.5 text-slate-600" />
+                <span>Add Chart</span>
+              </button>
+
+              <button
+                type="button"
+                className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs"
+                title="Filter"
+              >
+                <Filter className="h-4 w-4" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  // Re-fetch complaints from backend
+                  complaintApi
+                    .list({ limit: 100 })
+                    .then((res) => {
+                      const items = res?.items || (Array.isArray(res) ? res : []);
+                      if (items.length > 0) setDbComplaints(items);
+                    })
+                    .catch(() => {});
+                }}
+                className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs"
+                title="Refresh"
+              >
+                <RotateCw className="h-4 w-4" />
+              </button>
+
+              {/* Edit Split Button with Dropdown (Delete / Export / Save As) */}
+              <div className="relative inline-flex rounded shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditedTitle(activeReport.name);
+                    setIsEditingTitle(true);
+                  }}
+                  className="px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 rounded-l transition"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditMenuOpen(!editMenuOpen)}
+                  className="px-2 py-1.5 border-t border-b border-r border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-600 rounded-r transition hover:bg-slate-100"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Dropdown Options: Export, Delete, Save As, Subscribe */}
+                {editMenuOpen && (
+                  <div
+                    className="absolute right-0 top-9 z-50 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs animate-in fade-in"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportReport(activeReport);
+                        setEditMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-50 font-medium"
+                    >
+                      <Download className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Export Details</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReportToDelete(activeReport);
+                        setEditMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-red-600 hover:bg-red-50 font-medium"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Delete Report</span>
+                    </button>
+                    <div className="my-1 border-t border-slate-100" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clone = {
+                          ...activeReport,
+                          id: `rep-${Date.now()}`,
+                          name: `${activeReport.name} (Copy)`,
+                        };
+                        setReports([clone, ...reports]);
+                        setActiveReport(clone);
+                        setEditMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-50"
+                    >
+                      <Copy className="h-3.5 w-3.5 text-slate-500" />
+                      <span>Save As Copy</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSubscribe(activeReport.id);
+                        setActiveReport((prev) => ({ ...prev, subscribed: !prev.subscribed }));
+                        setEditMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-50"
+                    >
+                      <Star
+                        className={`h-3.5 w-3.5 ${
+                          activeReport.subscribed ? 'text-amber-500 fill-amber-400' : 'text-slate-400'
+                        }`}
+                      />
+                      <span>{activeReport.subscribed ? 'Unsubscribe' : 'Subscribe'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Total Records Row (Mirroring Screenshot) */}
+          <div className="bg-[#f8fafc] border-b border-slate-200 px-6 py-2.5">
+            <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
+            <span className="text-[16px] font-bold text-slate-900 leading-tight">
+              {activeReportRows.length}
+            </span>
+          </div>
+
+          {/* Main Salesforce Lightning Data Table */}
+          <div className="overflow-x-auto min-h-[360px]">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-[#f3f3f3] text-slate-700 font-semibold border-b border-slate-300 select-none">
+                <tr>
+                  <th className="py-2.5 px-3 w-10 text-center border-r border-slate-300">
+                    <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[150px] border-r border-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span>Requested By ↑</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[180px] border-r border-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span>Complaint: Complaint No</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[220px] border-r border-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span>Distributor / Retailer Name</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+                  <th className="py-2.5 px-3 min-w-[220px]">
+                    <div className="flex items-center justify-between">
+                      <span>Product name</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Group Header Row: [ ] - (20) */}
+                <tr className="bg-[#fafafb] font-medium text-slate-700 border-b border-slate-200">
+                  <td className="py-2 px-3 text-center border-r border-slate-200">
+                    <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                  </td>
+                  <td className="py-2 px-3 border-r border-slate-200 font-medium" colSpan={4}>
+                    <button
+                      type="button"
+                      onClick={() => setGroupCollapsed(!groupCollapsed)}
+                      className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-semibold text-xs cursor-pointer"
+                    >
+                      <span className="w-3 text-center">{groupCollapsed ? '+' : '−'}</span>
+                      <span>({activeReportRows.length})</span>
+                    </button>
+                  </td>
+                </tr>
+
+                {/* Detail Rows: Database Products and Blank Complaint Records */}
+                {!groupCollapsed &&
+                  activeReportRows.map((row, idx) => (
+                    <tr
+                      key={row.id || idx}
+                      className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                    >
+                      <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400">
+                        {/* checkbox spacing */}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700">
+                        {row.requestedBy || ''}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-200 font-mono text-xs">
+                        {row.complaintNo ? (
+                          <span className="text-[#0176d3] hover:underline cursor-pointer">
+                            {row.complaintNo}
+                          </span>
+                        ) : (
+                          ''
+                        )}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700">
+                        {row.distributor || ''}
+                      </td>
+                      <td className="py-2 px-3 text-slate-900 font-medium uppercase tracking-tight">
+                        {row.productName || ''}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom Toolbar Toggles (Row Counts, Detail Rows, Subtotals, Grand Total) */}
+          <div className="bg-[#f3f3f3] border-t border-slate-300 px-6 py-2.5 flex items-center gap-6 text-xs text-slate-700 select-none overflow-x-auto">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="font-semibold text-slate-700">Row Counts</span>
+              <input
+                type="checkbox"
+                checked={toggles.rowCounts}
+                onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-0"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="font-semibold text-slate-700">Detail Rows</span>
+              <input
+                type="checkbox"
+                checked={toggles.detailRows}
+                onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-0"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="font-semibold text-slate-700">Subtotals</span>
+              <input
+                type="checkbox"
+                checked={toggles.subtotals}
+                onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-0"
+              />
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="font-semibold text-slate-700">Grand Total</span>
+              <input
+                type="checkbox"
+                checked={toggles.grandTotal}
+                onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-0"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Delete Confirmation Modal */}
+        {reportToDelete && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
+            onClick={() => setReportToDelete(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 text-red-600">
+                <div className="p-2 rounded-full bg-red-100">
+                  <Trash2 className="h-6 w-6" />
+                </div>
+                <h3 className="text-base font-bold text-slate-900">Delete Report</h3>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>? This action will remove the report from your reports panel.
+              </p>
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setReportToDelete(null)}
+                  className="px-3.5 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteReport(reportToDelete)}
+                  className="px-4 py-1.5 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------
+  // VIEW 2: SALESFORCE LIGHTNING REPORTS LIST (36 ITEMS)
+  // -------------------------------------------------------------
   return (
     <div className="space-y-3 pb-8">
       {/* Outer Salesforce Lightning Card */}
@@ -798,9 +1373,9 @@ export function ReportsPage() {
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
                   >
-                    ×
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
@@ -809,52 +1384,51 @@ export function ReportsPage() {
               <button
                 type="button"
                 onClick={() => setNewReportModalOpen(true)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 hover:text-[#0176d3] transition shadow-2xs"
+                className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
               >
                 New Report
               </button>
 
-              {/* New Folder Button */}
-              <button
-                type="button"
-                onClick={() => setNewFolderModalOpen(true)}
-                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 hover:text-[#0176d3] transition shadow-2xs"
-              >
-                New Folder
-              </button>
+              {/* New Folder Split Button */}
+              <div className="inline-flex rounded shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setNewFolderModalOpen(true)}
+                  className="px-3 py-1.5 rounded-l border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 transition"
+                >
+                  New Folder
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewFolderModalOpen(true)}
+                  className="px-2 py-1.5 rounded-r border-t border-b border-r border-slate-300 bg-white hover:bg-slate-50 text-slate-600 text-xs transition"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+              </div>
 
-              {/* Dropdown Chevron Button */}
+              {/* Settings Icon Button */}
               <button
                 type="button"
-                className="p-1.5 border border-slate-300 rounded hover:bg-slate-50 text-slate-600"
-                title="More Actions"
+                className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs transition"
+                title="Table Settings"
               >
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Settings Gear Button */}
-              <button
-                type="button"
-                className="flex items-center gap-0.5 p-1.5 border border-slate-300 rounded hover:bg-slate-50 text-slate-600"
-                title="Folder Display Settings"
-              >
-                <Settings className="h-3.5 w-3.5" />
-                <ChevronDown className="h-2.5 w-2.5" />
+                <Settings className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* 2-Column Split View: Left Sidebar + Right Table */}
+        {/* Card Body: Sidebar + Table Layout */}
         <div className="flex flex-col md:flex-row min-h-[500px]">
           {/* Left Navigation Sidebar */}
-          <aside className="w-full md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-white py-2 text-xs">
-            {/* Group 1: REPORTS */}
-            <div className="mb-3">
-              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
-                REPORTS
+          <aside className="w-full md:w-48 border-r border-slate-200 bg-[#fafafb] p-3 text-xs shrink-0 select-none">
+            {/* REPORTS SECTION */}
+            <div className="mb-4">
+              <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Reports
               </span>
-              <ul className="space-y-0.5">
+              <ul className="space-y-0.5 mt-1">
                 {[
                   { id: 'recent', label: 'Recent' },
                   { id: 'created-by-me', label: 'Created by Me' },
@@ -866,10 +1440,10 @@ export function ReportsPage() {
                     <button
                       type="button"
                       onClick={() => setActiveSidebar(item.id)}
-                      className={`w-full text-left px-4 py-1.5 transition ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded transition ${
                         activeSidebar === item.id
-                          ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
-                          : 'text-slate-700 hover:bg-slate-50'
+                          ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
+                          : 'text-slate-600 hover:bg-slate-200/60'
                       }`}
                     >
                       {item.label}
@@ -879,12 +1453,12 @@ export function ReportsPage() {
               </ul>
             </div>
 
-            {/* Group 2: FOLDERS */}
-            <div className="mb-3 border-t border-slate-100 pt-2">
-              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
-                FOLDERS
+            {/* FOLDERS SECTION */}
+            <div className="mb-4">
+              <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Folders
               </span>
-              <ul className="space-y-0.5">
+              <ul className="space-y-0.5 mt-1">
                 {[
                   { id: 'all-folders', label: 'All Folders' },
                   { id: 'folders-created-by-me', label: 'Created by Me' },
@@ -894,10 +1468,10 @@ export function ReportsPage() {
                     <button
                       type="button"
                       onClick={() => setActiveSidebar(item.id)}
-                      className={`w-full text-left px-4 py-1.5 transition ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded transition ${
                         activeSidebar === item.id
-                          ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
-                          : 'text-slate-700 hover:bg-slate-50'
+                          ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
+                          : 'text-slate-600 hover:bg-slate-200/60'
                       }`}
                     >
                       {item.label}
@@ -907,46 +1481,52 @@ export function ReportsPage() {
               </ul>
             </div>
 
-            {/* Group 3: FAVORITES */}
-            <div className="border-t border-slate-100 pt-2">
-              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
-                FAVORITES
+            {/* FAVORITES SECTION */}
+            <div>
+              <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Favorites
               </span>
-              <ul className="space-y-0.5">
+              <ul className="space-y-0.5 mt-1">
                 <li>
                   <button
                     type="button"
                     onClick={() => setActiveSidebar('favorites')}
-                    className={`w-full text-left px-4 py-1.5 transition ${
+                    className={`w-full text-left px-2.5 py-1.5 rounded transition flex items-center justify-between ${
                       activeSidebar === 'favorites'
-                        ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
-                        : 'text-slate-700 hover:bg-slate-50'
+                        ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
+                        : 'text-slate-600 hover:bg-slate-200/60'
                     }`}
                   >
-                    All Favorites
+                    <span>All Favorites</span>
+                    <Star className="h-3 w-3 text-amber-500 fill-amber-400" />
                   </button>
                 </li>
               </ul>
             </div>
           </aside>
 
-          {/* Right Main Table */}
-          <main className="flex-1 overflow-x-auto">
+          {/* Right Main Table Area */}
+          <main className="flex-1 overflow-x-auto bg-white">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-semibold select-none">
+              {/* Table Header with Salesforce Sorting */}
+              <thead className="bg-[#f3f3f3] text-slate-700 font-semibold border-b border-slate-300 select-none">
+                <tr>
                   {/* Name Column */}
                   <th
                     onClick={() => toggleSort('name')}
-                    className="py-2.5 px-3 min-w-[280px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-2.5 px-3 min-w-[260px] cursor-pointer hover:bg-slate-100 transition"
                   >
                     <div className="flex items-center gap-1">
                       <span>Name</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                      <ChevronDown
+                        className={`h-3 w-3 text-slate-400 transition-transform ${
+                          sortField === 'name' && !sortAsc ? 'rotate-180' : ''
+                        }`}
+                      />
                     </div>
                   </th>
 
-                  {/* Description Column */}
+                  {/* Description Column (Header present, cells empty) */}
                   <th
                     onClick={() => toggleSort('description')}
                     className="py-2.5 px-3 min-w-[120px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
@@ -960,7 +1540,7 @@ export function ReportsPage() {
                   {/* Folder Column */}
                   <th
                     onClick={() => toggleSort('folder')}
-                    className="py-2.5 px-3 min-w-[190px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-2.5 px-3 min-w-[200px] cursor-pointer hover:bg-slate-100 transition hidden md:table-cell"
                   >
                     <div className="flex items-center gap-1">
                       <span>Folder</span>
@@ -982,7 +1562,7 @@ export function ReportsPage() {
                   {/* Created On Column */}
                   <th
                     onClick={() => toggleSort('createdOn')}
-                    className="py-2.5 px-3 min-w-[140px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-2.5 px-3 min-w-[140px] cursor-pointer hover:bg-slate-100 transition hidden lg:table-cell"
                   >
                     <div className="flex items-center gap-1">
                       <span>Created On</span>
@@ -991,71 +1571,68 @@ export function ReportsPage() {
                   </th>
 
                   {/* Subscribed Column */}
-                  <th
-                    className="py-2.5 px-2 w-14 text-center cursor-pointer hover:bg-slate-100 transition"
-                    title="Subscribed"
-                  >
-                    <div className="flex items-center justify-center gap-0.5">
-                      <span>Subscribed</span>
-                    </div>
+                  <th className="py-2.5 px-3 text-center w-24">
+                    <span>Subscribed</span>
                   </th>
 
-                  {/* Actions Column */}
-                  <th className="py-2.5 px-2 w-10 text-center" />
+                  {/* Row Actions Column */}
+                  <th className="py-2.5 px-2 w-10 text-center"></th>
                 </tr>
               </thead>
+
+              {/* Table Body */}
               <tbody className="divide-y divide-slate-100">
                 {filteredReports.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
-                      No reports match the current filter or search criteria.
+                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                      No reports found in this folder.
                     </td>
                   </tr>
                 ) : (
                   filteredReports.map((report) => (
                     <tr
                       key={report.id}
-                      className="hover:bg-blue-50/40 transition group cursor-pointer"
                       onClick={() => setActiveReport(report)}
+                      className="hover:bg-[#f8fafc] transition-colors group cursor-pointer"
                     >
-                      {/* Name Link */}
-                      <td className="py-2.5 px-3 font-medium text-[#0176d3] group-hover:underline">
+                      {/* Name with Blue Hyperlink */}
+                      <td className="py-2.5 px-3 font-normal text-[#0176d3] group-hover:underline">
                         {report.name}
                       </td>
 
-                      {/* Description (Empty matching screenshot) */}
-                      <td className="py-2.5 px-3 text-slate-500 truncate max-w-sm hidden sm:table-cell">
+                      {/* Description: empty cells matching screenshot */}
+                      <td className="py-2.5 px-3 text-slate-500 hidden sm:table-cell">
                         {report.description || ''}
                       </td>
 
                       {/* Folder Link */}
-                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline">
+                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline hidden md:table-cell">
                         {report.folder}
                       </td>
 
-                      {/* Created By */}
-                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline">
+                      {/* Created By (Narayan Rao Vakamudi) */}
+                      <td className="py-2.5 px-3 text-slate-700">
                         {report.createdBy}
                       </td>
 
                       {/* Created On */}
-                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap hidden lg:table-cell">
                         {report.createdOn}
                       </td>
 
-                      {/* Subscribed Star */}
-                      <td
-                        className="py-2.5 px-2 text-center"
-                        onClick={(e) => toggleSubscribe(report.id, e)}
-                      >
+                      {/* Subscribed Star / Checkbox */}
+                      <td className="py-2.5 px-3 text-center">
                         <button
                           type="button"
-                          className="text-slate-300 hover:text-amber-500 transition"
+                          onClick={(e) => toggleSubscribe(report.id, e)}
+                          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-amber-500"
                           title={report.subscribed ? 'Subscribed' : 'Subscribe'}
                         >
                           <Star
-                            className={`h-3.5 w-3.5 mx-auto ${
-                              report.subscribed ? 'text-amber-500 fill-amber-500' : ''
+                            className={`h-4 w-4 ${
+                              report.subscribed
+                                ? 'text-amber-500 fill-amber-400'
+                                : 'text-slate-300 hover:text-amber-400'
                             }`}
                           />
                         </button>
@@ -1079,7 +1656,7 @@ export function ReportsPage() {
                         {/* Row Dropdown Action Menu */}
                         {rowMenuOpenId === report.id && (
                           <div
-                            className="absolute right-2 top-8 z-30 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs"
+                            className="absolute right-2 top-8 z-30 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
@@ -1092,19 +1669,33 @@ export function ReportsPage() {
                             >
                               Run Report
                             </button>
-                            <a
-                              href={reportApi.csvUrl({})}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={() => setRowMenuOpenId(null)}
-                              className="block w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left"
-                            >
-                              Export Details
-                            </a>
                             <button
                               type="button"
                               onClick={() => {
-                                toggleSubscribe(report.id, { stopPropagation: () => {} });
+                                handleExportReport(report);
+                                setRowMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left flex items-center gap-1.5"
+                            >
+                              <Download className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Export</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReportToDelete(report);
+                                setRowMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-red-600 hover:bg-red-50 text-left flex items-center gap-1.5 font-medium"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete</span>
+                            </button>
+                            <div className="my-1 border-t border-slate-100" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleSubscribe(report.id);
                                 setRowMenuOpenId(null);
                               }}
                               className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left"
@@ -1123,161 +1714,57 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {/* ----------------- INTERACTIVE REPORT RUNNER MODAL ----------------- */}
-      {activeReport && (
+      {/* Delete Confirmation Modal */}
+      {reportToDelete && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6 animate-in fade-in"
-          onClick={() => setActiveReport(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
+          onClick={() => setReportToDelete(null)}
         >
           <div
-            className="relative w-full max-w-4xl rounded-lg border border-slate-300 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div className="border-t-4 border-t-[#0176d3] border-b border-slate-200 bg-[#f8fafc] px-5 py-3.5 flex items-start justify-between">
-              <div>
-                <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider block">
-                  Report Run • {activeReport.folder}
-                </span>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  {activeReport.name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Authored by {activeReport.createdBy} on {activeReport.createdOn} • As of Today, {new Date().toLocaleDateString()}
-                </p>
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2 rounded-full bg-red-100">
+                <Trash2 className="h-6 w-6" />
               </div>
-
-              <div className="flex items-center gap-2">
-                <a
-                  href={reportApi.csvUrl({})}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition shadow-2xs"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Export Details</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                  title="Print"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveReport(null)}
-                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+              <h3 className="text-base font-bold text-slate-900">Delete Report</h3>
             </div>
-
-            {/* Modal Body / Report Execution Content */}
-            <div className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700">
-              {/* Report Summary Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Report Scope Count</span>
-                  <span className="text-xl font-bold text-slate-900">{activeReport.stats?.total ?? 20}</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">SLA Metric / Rate</span>
-                  <span className="text-xl font-bold text-blue-600">{activeReport.stats?.percentage ?? '90%'}</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Cycle / Lead Time</span>
-                  <span className="text-xl font-bold text-emerald-600">{activeReport.stats?.avgTime ?? '4.8 days'}</span>
-                </div>
-                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-                  <span className="text-xs text-slate-500 block">Audit Status</span>
-                  <span className="text-xl font-bold text-slate-800">{activeReport.stats?.status ?? 'Compliant'}</span>
-                </div>
-              </div>
-
-              {/* Data Table */}
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-xs text-slate-700 flex justify-between items-center">
-                  <span>Report Records: {activeReport.name}</span>
-                  <span className="text-slate-400 font-normal">Author: Narayan Rao Vakamudi</span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-medium">
-                        {activeReport.rows && activeReport.rows.length > 0 &&
-                          Object.keys(activeReport.rows[0]).map((key) => (
-                            <th key={key} className="py-2 px-3 capitalize">
-                              {key.replace(/([A-Z])/g, ' $1')}
-                            </th>
-                          ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {activeReport.rows && activeReport.rows.length > 0 ? (
-                        activeReport.rows.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            {Object.entries(row).map(([k, val], cIdx) => (
-                              <td
-                                key={cIdx}
-                                className={`py-2 px-3 ${
-                                  cIdx === 0
-                                    ? 'font-semibold text-blue-600'
-                                    : k.toLowerCase().includes('status')
-                                    ? 'font-medium text-emerald-700'
-                                    : 'text-slate-700'
-                                }`}
-                              >
-                                {val}
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="py-8 text-center text-slate-400">
-                            No records currently recorded for this report.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 flex justify-between items-center text-xs">
-              <span className="text-slate-500">
-                End of report output for <strong>{activeReport.name}</strong>
-              </span>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>? This action will remove the report from your reports panel.
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setActiveReport(null)}
-                className="px-4 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700 transition"
+                onClick={() => setReportToDelete(null)}
+                className="px-3.5 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Close Report
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteReport(reportToDelete)}
+                className="px-4 py-1.5 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
+              >
+                Delete
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ----------------- NEW REPORT MODAL ----------------- */}
+      {/* New Report Modal */}
       {newReportModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
           onClick={() => setNewReportModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="font-bold text-slate-800 text-sm">Create New Report</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Create New Report</h3>
               <button
                 type="button"
                 onClick={() => setNewReportModalOpen(false)}
@@ -1287,7 +1774,7 @@ export function ReportsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateReport} className="space-y-3 text-xs">
+            <form onSubmit={handleCreateReport} className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Report Name <span className="text-red-500">*</span>
@@ -1295,7 +1782,7 @@ export function ReportsPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Non - Confirmed: Complaints SLA Reports"
+                  placeholder="e.g. Monthly Efficacy Breakdown"
                   value={newReportName}
                   onChange={(e) => setNewReportName(e.target.value)}
                   className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
@@ -1303,20 +1790,13 @@ export function ReportsPage() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Author / Created By</label>
+                <label className="block font-semibold text-slate-700 mb-1">Folder</label>
                 <input
                   type="text"
                   readOnly
-                  value="Narayan Rao Vakamudi"
-                  className="w-full px-3 py-2 rounded border border-slate-200 bg-slate-50 text-slate-600 text-xs"
+                  value="Complaint Management Reports"
+                  className="w-full px-3 py-2 rounded border border-slate-200 bg-slate-100 text-slate-500 text-xs"
                 />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Target Folder</label>
-                <select className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600">
-                  <option value="Complaint Management Reports">Complaint Management Reports</option>
-                </select>
               </div>
 
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1331,7 +1811,7 @@ export function ReportsPage() {
                   type="submit"
                   className="px-3.5 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700"
                 >
-                  Create &amp; Run
+                  Save Report
                 </button>
               </div>
             </form>
@@ -1339,18 +1819,18 @@ export function ReportsPage() {
         </div>
       )}
 
-      {/* ----------------- NEW FOLDER MODAL ----------------- */}
+      {/* New Folder Modal */}
       {newFolderModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
           onClick={() => setNewFolderModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-2xl space-y-4"
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="font-bold text-slate-800 text-sm">Create New Folder</h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900">Create New Folder</h3>
               <button
                 type="button"
                 onClick={() => setNewFolderModalOpen(false)}
@@ -1360,7 +1840,7 @@ export function ReportsPage() {
               </button>
             </div>
 
-            <div className="space-y-3 text-xs">
+            <div className="space-y-4 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Folder Name <span className="text-red-500">*</span>
