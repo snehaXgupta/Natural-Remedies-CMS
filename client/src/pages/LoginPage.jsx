@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { readError } from '../api/client.js';
 
@@ -43,6 +43,7 @@ function VetAuraLogo({ className = 'h-8 sm:h-9 w-auto' }) {
 }
 
 export function LoginPage() {
+  const navigate = useNavigate();
   const { login, notice } = useAuth();
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -72,6 +73,7 @@ export function LoginPage() {
     setError(null);
     try {
       await login(emailVal, passVal);
+      navigate('/', { replace: true });
     } catch (err) {
       setError(readError(err));
       setBusy(false);

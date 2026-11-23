@@ -27,6 +27,7 @@ import { complaintApi } from '../api/endpoints.js';
 
 function UserMenu() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const initials = user?.name
     ? user.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -44,6 +45,12 @@ function UserMenu() {
       window.removeEventListener('mousedown', close);
     };
   }, [open]);
+
+  const handleSignOut = async (everywhere = false) => {
+    setOpen(false);
+    navigate('/', { replace: true });
+    await logout(everywhere);
+  };
 
   return (
     <div className="relative" onMouseDown={(e) => e.stopPropagation()}>
@@ -82,7 +89,7 @@ function UserMenu() {
           <button
             role="menuitem"
             type="button"
-            onClick={() => logout(false)}
+            onClick={() => handleSignOut(false)}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
           >
             <LogOut className="h-3.5 w-3.5 text-slate-400" aria-hidden /> Sign out
@@ -90,7 +97,7 @@ function UserMenu() {
           <button
             role="menuitem"
             type="button"
-            onClick={() => logout(true)}
+            onClick={() => handleSignOut(true)}
             className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-50"
           >
             <LogOut className="h-3.5 w-3.5" aria-hidden /> Sign out on all devices

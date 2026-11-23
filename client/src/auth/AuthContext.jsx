@@ -38,6 +38,16 @@ export function AuthProvider({ children }) {
       await (everywhere ? authApi.logoutAll() : authApi.logout());
     } finally {
       setState({ status: 'signedOut', user: null, permissions: [], notice: null });
+      try {
+        if (
+          typeof window !== 'undefined' &&
+          window.location.pathname !== '/' &&
+          !window.location.pathname.startsWith('/reset-password') &&
+          !window.location.pathname.startsWith('/forgot-password')
+        ) {
+          window.history.replaceState(null, '', '/');
+        }
+      } catch {}
     }
   }, []);
 
