@@ -23,10 +23,231 @@ import {
 import { reportApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
-// Exactly the 8 official Narayan Rao Vakamudi reports requested by the user
+// All official complaint reports authored under Narayan Rao Vakamudi
 const NARAYAN_RAO_REPORTS = [
+  // 1. Screenshot Report 1
   {
     id: 'rep-1',
+    name: 'Avg. Days required to Close Complaint',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '8/1/2024, 3:17 pm',
+    subscribed: false,
+    type: 'turnaround-close',
+    stats: { total: 20, percentage: '92% On-Time', avgTime: '4.8 days', status: 'Compliant' },
+    rows: [
+      { num: 'CMP-2026-0001', prod: 'Rumicare Bolus 4s', batch: 'RC2601', sbu: 'AHP - Rumicare', intakeDate: '01/01/2026', closedDate: '05/01/2026', daysToClose: '4 days', slaTarget: '15 days' },
+      { num: 'CMP-2026-0002', prod: 'Rumicare Liquid 500ml', batch: 'RL2602', sbu: 'AHP - Rumicare', intakeDate: '03/01/2026', closedDate: '07/01/2026', daysToClose: '4 days', slaTarget: '15 days' },
+      { num: 'CMP-2026-0005', prod: 'Rumicare Powder 100g', batch: 'RP2605', sbu: 'AHP - Rumicare', intakeDate: '10/01/2026', closedDate: '15/01/2026', daysToClose: '5 days', slaTarget: '15 days' },
+      { num: 'CMP-2026-0006', prod: 'Rumicare Bolus 4s', batch: 'RC2606', sbu: 'AHP - Rumicare', intakeDate: '14/01/2026', closedDate: '18/01/2026', daysToClose: '4 days', slaTarget: '15 days' },
+      { num: 'CMP-2026-0010', prod: 'Rumicare Gel 250ml', batch: 'RG2610', sbu: 'AHP - Rumicare', intakeDate: '25/01/2026', closedDate: '31/01/2026', daysToClose: '6 days', slaTarget: '15 days' },
+    ],
+  },
+  // 2. Screenshot Report 2
+  {
+    id: 'rep-2',
+    name: 'Avg.Days Open Efficacy',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:20 pm',
+    subscribed: false,
+    type: 'efficacy-open-days',
+    stats: { total: 8, percentage: '40% of Open', avgTime: '5.2 days', status: 'In Investigation' },
+    rows: [
+      { num: 'CMP-2026-0004', prod: 'Rumicare Liquid 500ml', batch: 'RL2604', sbu: 'AHP - Rumicare', stage: 'D2 In Progress', daysOpen: '4 days', assignedFrp: 'Sneha' },
+      { num: 'CMP-2026-0007', prod: 'Rumicare Powder 100g', batch: 'RP2607', sbu: 'AHP - Rumicare', stage: 'D3 Root Cause', daysOpen: '7 days', assignedFrp: 'Jensy Josephine' },
+      { num: 'CMP-2026-0011', prod: 'Rumicare Liquid 500ml', batch: 'RL2611', sbu: 'AHP - Rumicare', stage: 'D3 Root Cause', daysOpen: '6 days', assignedFrp: 'Sneha' },
+      { num: 'CMP-2026-0013', prod: 'Rumicare Bolus 4s', batch: 'RC2613', sbu: 'AHP - Rumicare', stage: 'D2 In Progress', daysOpen: '3 days', assignedFrp: 'Unnati' },
+    ],
+  },
+  // 3. Screenshot Report 3
+  {
+    id: 'rep-3',
+    name: 'Avg.Days Open Non Efficacy',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:08 pm',
+    subscribed: false,
+    type: 'non-efficacy-open-days',
+    stats: { total: 6, percentage: '30% of Open', avgTime: '3.6 days', status: 'Packaging / Transit' },
+    rows: [
+      { num: 'CMP-2026-0009', prod: 'Rumicare Bolus 4s', batch: 'RC2609', sbu: 'AHP - Rumicare', issueType: 'Blister Foil Crushed', daysOpen: '3 days', stage: 'D2 In Progress' },
+      { num: 'CMP-2026-0012', prod: 'Rumicare Liquid 500ml', batch: 'RL2612', sbu: 'AHP - Rumicare', issueType: 'Cap Seal Leakage', daysOpen: '4 days', stage: 'D4 In Progress' },
+      { num: 'CMP-2026-0016', prod: 'Rumicare Powder 100g', batch: 'RP2616', sbu: 'AHP - Rumicare', issueType: 'Outer Carton Wet', daysOpen: '2 days', stage: 'D1 Acknowledged' },
+      { num: 'CMP-2026-0018', prod: 'Rumicare Bolus 4s', batch: 'RC2618', sbu: 'AHP - Rumicare', issueType: 'Missing Batch Print', daysOpen: '5 days', stage: 'D3 Investigation' },
+    ],
+  },
+  // 4. Screenshot Report 4
+  {
+    id: 'rep-4',
+    name: 'Reduction in Total Complaints',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '27/3/2023, 7:46 pm',
+    subscribed: false,
+    type: 'complaint-reduction',
+    stats: { total: 20, percentage: '-41.2% Reduction', avgTime: 'YoY Quality Trend', status: 'Significant Improvement' },
+    rows: [
+      { year: '2024', totalComplaints: 48, confirmed: 40, nonConfirmed: 8, resolutionRate: '98%', reduction: 'Baseline' },
+      { year: '2025', totalComplaints: 34, confirmed: 28, nonConfirmed: 6, resolutionRate: '100%', reduction: '-29.2%' },
+      { year: '2026 (YTD)', totalComplaints: 20, confirmed: 16, nonConfirmed: 4, resolutionRate: '100%', reduction: '-41.2%' },
+    ],
+  },
+  // 5. Screenshot Report 5
+  {
+    id: 'rep-5',
+    name: 'Open and Closed Complaints',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '16/3/2023, 11:49 am',
+    subscribed: false,
+    type: 'open-closed-overview',
+    stats: { total: 20, percentage: '70% Open / 30% Closed', avgTime: 'Active Pipeline', status: 'Audited' },
+    rows: [
+      { statusCategory: 'Active Open Complaints', count: 14, percentage: '70%', stageBreakdown: 'D1: 9, D2: 2, D3: 1, D4: 2', slaHealth: '12 On Schedule, 2 Escalated' },
+      { statusCategory: 'Closed & SOP Verified', count: 6, percentage: '30%', stageBreakdown: 'Form NR/QAD/SOP/001-F01/04 complete', slaHealth: '100% Closed On Time' },
+    ],
+  },
+  // 6. Screenshot Report 6
+  {
+    id: 'rep-6',
+    name: 'Complaints Current Year Vs Previous Year',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '14/3/2023, 12:10 pm',
+    subscribed: false,
+    type: 'current-vs-previous-year',
+    stats: { total: 20, percentage: '-41.2% Volume', avgTime: '2025 vs 2026', status: 'Down Trend' },
+    rows: [
+      { month: 'Q1 (Jan - Mar)', complaints2025: 11, complaints2026: 7, variancePct: '-36.4%' },
+      { month: 'Q2 (Apr - Jun)', complaints2025: 8, complaints2026: 5, variancePct: '-37.5%' },
+      { month: 'Q3 (Jul - Sep)', complaints2025: 9, complaints2026: 6, variancePct: '-33.3%' },
+      { month: 'Q4 (Oct - Dec)', complaints2025: 6, complaints2026: 2, variancePct: '-66.7%' },
+    ],
+  },
+  // 7. Screenshot Report 7 (Rumicare Previous)
+  {
+    id: 'rep-7',
+    name: 'Complaints Current Vs Previous rumicare',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '4/2/2025, 10:13 am',
+    subscribed: false,
+    type: 'rumicare-comparison',
+    stats: { total: 11, percentage: '-50% in Rumicare', avgTime: 'Annual Comparison', status: 'Defects Halved' },
+    rows: [
+      { productItem: 'Rumicare Bolus 4s', incidents2025: 12, incidents2026: 6, change: '-50.0%' },
+      { productItem: 'Rumicare Liquid 500ml', incidents2025: 8, incidents2026: 3, change: '-62.5%' },
+      { productItem: 'Rumicare Powder 100g', incidents2025: 5, incidents2026: 2, change: '-60.0%' },
+      { productItem: 'Rumicare Gel 250ml', incidents2025: 2, incidents2026: 0, change: '-100.0%' },
+    ],
+  },
+  // 8. Screenshot Report 8 (Rumicare Monthly)
+  {
+    id: 'rep-8',
+    name: 'Current Complaints Month wise Rumicare',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '4/2/2025, 10:41 am',
+    subscribed: false,
+    type: 'rumicare-monthly',
+    stats: { total: 11, percentage: '1.2 / Month Avg', avgTime: 'Current Year 2026', status: 'Normal Intake' },
+    rows: [
+      { monthName: 'January 2026', rumicareCount: 2, primaryIssue: 'Foil pinhole' },
+      { monthName: 'February 2026', rumicareCount: 2, primaryIssue: 'Cap seal leak' },
+      { monthName: 'March 2026', rumicareCount: 1, primaryIssue: 'Retained sample normal' },
+      { monthName: 'April 2026', rumicareCount: 1, primaryIssue: 'Carton transit damage' },
+      { monthName: 'May 2026', rumicareCount: 1, primaryIssue: 'Efficacy evaluation' },
+      { monthName: 'June 2026', rumicareCount: 1, primaryIssue: 'Label smudge' },
+      { monthName: 'July 2026', rumicareCount: 1, primaryIssue: 'Blister seal' },
+      { monthName: 'August 2026', rumicareCount: 1, primaryIssue: 'Duplicate claim' },
+      { monthName: 'September 2026', rumicareCount: 1, primaryIssue: 'Efficacy feedback' },
+      { monthName: 'October 2026', rumicareCount: 0, primaryIssue: 'Nil' },
+      { monthName: 'November 2026', rumicareCount: 0, primaryIssue: 'Nil' },
+    ],
+  },
+  // 9. Screenshot Report 9 (Rumicare Raised)
+  {
+    id: 'rep-9',
+    name: 'Complaint Raised By Rumicare',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '4/2/2025, 10:49 am',
+    subscribed: false,
+    type: 'rumicare-raised',
+    stats: { total: 11, percentage: '55% of All SBU', avgTime: 'Dealer & Vet Network', status: 'Active Inflow' },
+    rows: [
+      { requesterType: 'Veterinary Doctors / Clinics', count: 5, percentage: '45.5%', primaryChannel: 'WhatsApp Chatbot' },
+      { requesterType: 'Authorised Distributors / Stockists', count: 4, percentage: '36.4%', primaryChannel: 'WhatsApp & Portal' },
+      { requesterType: 'Retail Veterinary Pharmacies', count: 2, percentage: '18.1%', primaryChannel: 'Direct Call / Portal' },
+    ],
+  },
+  // 10. Screenshot Report 10 (Rumicare Type of Failure)
+  {
+    id: 'rep-10',
+    name: 'Type of Failure - Rumicare Complaints',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '4/2/2025, 10:52 am',
+    subscribed: false,
+    type: 'rumicare-failures',
+    stats: { total: 11, percentage: '4 Major Modes', avgTime: 'Ishikawa Root Causes', status: 'CAPA Tracked' },
+    rows: [
+      { failureType: 'Packaging & Seal Integrity', incidentCount: 5, share: '45.5%', riskLevel: 'Medium', capaStatus: 'Tooling realigned' },
+      { failureType: 'Physical Defect / Damage', incidentCount: 3, share: '27.3%', riskLevel: 'Low', capaStatus: 'Transit packaging reinforced' },
+      { failureType: 'Efficacy / Clinical Performance', incidentCount: 2, share: '18.2%', riskLevel: 'High', capaStatus: 'Retained lot chemical assay passed' },
+      { failureType: 'Labeling & Batch Stamping', incidentCount: 1, share: '9.0%', riskLevel: 'Low', capaStatus: 'Curing oven temp calibrated' },
+    ],
+  },
+  // 11. Screenshot Report 11 (Rumicare Stage Overview)
+  {
+    id: 'rep-11',
+    name: 'Complaint Stage wise Overview Rumicare',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '4/2/2025, 10:54 am',
+    subscribed: false,
+    type: 'rumicare-stages',
+    stats: { total: 11, percentage: '4 Stages Active', avgTime: '8D Progression', status: 'Healthy Flow' },
+    rows: [
+      { stageLabel: 'D1 – Problem Intake & Acknowledgement', activeCount: 4, onTimeSla: '100% (< 24 hrs)' },
+      { stageLabel: 'D2 – Situation & RPN Risk Scoring', activeCount: 2, onTimeSla: '100% (< 48 hrs)' },
+      { stageLabel: 'D3 – Root Cause & CAPA Sign-off', activeCount: 1, onTimeSla: '100% (< 5 days)' },
+      { stageLabel: 'D4 – Effectiveness & COPQ Audit', activeCount: 1, onTimeSla: '100% (< 10 days)' },
+      { stageLabel: 'Closed – SOP Verified and Customer Confirmed', activeCount: 3, onTimeSla: '100% (≤ 15 days)' },
+    ],
+  },
+  // 12. Screenshot Report 12 (Efficacy Related)
+  {
+    id: 'rep-12',
+    name: 'No. Of Efficacy Related Complaints',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '20/9/2023, 4:06 pm',
+    subscribed: false,
+    type: 'efficacy-count',
+    stats: { total: 6, percentage: '30% of Total', avgTime: 'Lab Assay < 5d', status: 'Controlled' },
+    rows: [
+      { num: 'CMP-2026-0004', prod: 'Rumicare Liquid 500ml', batch: 'RL2604', assayResult: 'Active ingredient 99.4% (Within limit)', outcome: 'Retained lot compliant' },
+      { num: 'CMP-2026-0007', prod: 'Rumicare Powder 100g', batch: 'RP2607', assayResult: 'Active ingredient 98.8% (Within limit)', outcome: 'Clinical usage guideline re-issued' },
+      { num: 'CMP-2026-0011', prod: 'Rumicare Liquid 500ml', batch: 'RL2611', assayResult: 'Microbiological test pending', outcome: 'External lab test in progress' },
+    ],
+  },
+  // 13. User Report 1
+  {
+    id: 'rep-13',
     name: 'Non - Confirmed Complaints',
     description: '',
     folder: 'Complaint Management Reports',
@@ -42,8 +263,9 @@ const NARAYAN_RAO_REPORTS = [
       { num: 'CMP-2026-0019', prod: 'Rumicare Bolus 4s', batch: 'RC2619', sbu: 'AHP - Rumicare', reason: 'Unverified distributor stock reconciliation error', resolution: 'Duplicate complaint closed without investigation', closedOn: '22/8/2024' },
     ],
   },
+  // 14. User Report 2
   {
-    id: 'rep-2',
+    id: 'rep-14',
     name: 'Complaints Closed within SLA',
     description: '',
     folder: 'Complaint Management Reports',
@@ -61,8 +283,9 @@ const NARAYAN_RAO_REPORTS = [
       { num: 'CMP-2026-0015', prod: 'Rumicare Bolus 4s', batch: 'RC2615', sbu: 'AHP - Rumicare', intakeDate: '02/02/2026', closedDate: '06/02/2026', turnaround: '4 days', slaTarget: '15 days', slaStatus: 'Within SLA' },
     ],
   },
+  // 15. User Report 3
   {
-    id: 'rep-3',
+    id: 'rep-15',
     name: 'No of Previous Complaints Year',
     description: '',
     folder: 'Complaint Management Reports',
@@ -77,8 +300,9 @@ const NARAYAN_RAO_REPORTS = [
       { period: 'Calendar Year 2026 (YTD)', totalComplaints: 20, confirmed: 16, nonConfirmed: 4, resolutionRate: '100%', avgDays: '4.8 days' },
     ],
   },
+  // 16. User Report 4
   {
-    id: 'rep-4',
+    id: 'rep-16',
     name: 'Complaints Not Closed within SLA',
     description: '',
     folder: 'Complaint Management Reports',
@@ -92,8 +316,9 @@ const NARAYAN_RAO_REPORTS = [
       { num: 'CMP-2026-0017', prod: 'Rumicare Bolus 4s', batch: 'RC2617', sbu: 'AHP - Rumicare', intakeDate: '22/10/2026', daysOpen: '17 days', slaTarget: '15 days', delayReason: 'Supplier raw material packaging foil audit in progress', frp: 'Jensy Josephine', status: 'In D3 Rework' },
     ],
   },
+  // 17. User Report 5
   {
-    id: 'rep-5',
+    id: 'rep-17',
     name: 'Reduction in repeated Complaints',
     description: '',
     folder: 'Complaint Management Reports',
@@ -108,8 +333,9 @@ const NARAYAN_RAO_REPORTS = [
       { defectType: 'Label Printing Smudge', prod: 'Rumicare Powder 100g', baseline2025: '6 incidents', current2026: '0 incidents', reductionPct: '100%', capaRef: 'CAPA-2025-019 (UV ink curing oven temperature calibrated)' },
     ],
   },
+  // 18. User Report 6
   {
-    id: 'rep-6',
+    id: 'rep-18',
     name: 'Non - Confirmed: Complaints SLA Reports',
     description: '',
     folder: 'Complaint Management Reports',
@@ -125,8 +351,9 @@ const NARAYAN_RAO_REPORTS = [
       { num: 'CMP-2026-0019', prod: 'Rumicare Bolus 4s', intakeDate: '19/08/2026', evaluatedDate: '20/08/2026', slaHours: '20 hrs', targetHours: '48 hrs', finding: 'Duplicate claim already processed under CMP-2026-0018' },
     ],
   },
+  // 19. User Report 7
   {
-    id: 'rep-7',
+    id: 'rep-19',
     name: 'No of Previous Year Complaints Month wis',
     description: '',
     folder: 'Complaint Management Reports',
@@ -150,8 +377,9 @@ const NARAYAN_RAO_REPORTS = [
       { month: 'December', complaints2025: 1, complaints2026: '—', variance: '—' },
     ],
   },
+  // 20. User Report 8
   {
-    id: 'rep-8',
+    id: 'rep-20',
     name: 'Confirmed : Complaints SLA Reports',
     description: '',
     folder: 'Complaint Management Reports',
@@ -194,8 +422,7 @@ export function ReportsPage() {
         (r) =>
           r.name.toLowerCase().includes(q) ||
           r.createdBy.toLowerCase().includes(q) ||
-          r.folder.toLowerCase().includes(q) ||
-          (r.description && r.description.toLowerCase().includes(q))
+          r.folder.toLowerCase().includes(q)
       );
     }
 
@@ -447,7 +674,7 @@ export function ReportsPage() {
                   {/* Description Column */}
                   <th
                     onClick={() => toggleSort('description')}
-                    className="py-2.5 px-3 min-w-[240px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
+                    className="py-2.5 px-3 min-w-[120px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
                   >
                     <div className="flex items-center gap-1">
                       <span>Description</span>
@@ -469,7 +696,7 @@ export function ReportsPage() {
                   {/* Created By Column */}
                   <th
                     onClick={() => toggleSort('createdBy')}
-                    className="py-2.5 px-3 min-w-[150px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-2.5 px-3 min-w-[160px] cursor-pointer hover:bg-slate-100 transition"
                   >
                     <div className="flex items-center gap-1">
                       <span>Created By</span>
