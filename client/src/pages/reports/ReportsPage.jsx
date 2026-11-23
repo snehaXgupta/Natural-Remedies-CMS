@@ -1,824 +1,977 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import {
-  BarChart3,
-  TrendingUp,
-  Download,
+  Search,
+  ChevronDown,
+  Settings,
+  Folder,
+  FileText,
+  Star,
+  Plus,
   RefreshCw,
-  Calendar,
+  Download,
+  X,
+  ArrowUpDown,
   Filter,
+  BarChart3,
+  Calendar,
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Users,
-  FileText,
-  ArrowUpRight,
-  Tag,
-  Activity,
   Layers,
-  ShieldAlert,
+  ArrowRight,
   Printer,
-  Building2,
-  MessageSquare,
-  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
 import { reportApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { useAsync } from '../../lib/useAsync.js';
-import { Loading } from '../../components/States.jsx';
 
-// Default / mock categories for layout visualization before client passes custom taxonomy
-const DEFAULT_CATEGORY_SLOTS = [
-  { label: 'Packaging & Seal Integrity', count: 7, percentage: 35, tone: 'amber', risk: 'Medium' },
-  { label: 'Physical Defect & Foreign Matter', count: 4, percentage: 20, tone: 'rose', risk: 'High' },
-  { label: 'Labeling, Batch & Artwork Error', count: 3, percentage: 15, tone: 'blue', risk: 'Low' },
-  { label: 'Chemical & Potency Variance', count: 3, percentage: 15, tone: 'purple', risk: 'High' },
-  { label: 'Transit & Handling Damage', count: 2, percentage: 10, tone: 'slate', risk: 'Low' },
-  { label: 'Other / Under Investigation', count: 1, percentage: 5, tone: 'emerald', risk: 'Low' },
-];
-
-const STAGES = [
-  { key: 'D1', label: 'D1 – Intake & Acknowledgement', status: 'SUBMITTED,D1_ACK_PENDING', color: 'bg-sky-500' },
-  { key: 'D2', label: 'D2 – Situation & RPN Risk Scoring', status: 'D1_ACKNOWLEDGED,D2_IN_PROGRESS', color: 'bg-blue-600' },
-  { key: 'D3', label: 'D3 – Root Cause (Fishbone) & CAPA', status: 'D2_COMPLETED,D3_IN_PROGRESS,D3_PENDING_APPROVAL,D3_REWORK', color: 'bg-indigo-600' },
-  { key: 'D4', label: 'D4 – Implementation & COPQ', status: 'D3_APPROVED,D4_IN_PROGRESS', color: 'bg-purple-600' },
-  { key: 'Closed', label: 'Closed & Audited', status: 'CLOSED', color: 'bg-emerald-600' },
+// Initial dataset replicating the exact Salesforce Reports folder from the reference screenshot
+const INITIAL_REPORTS = [
+  {
+    id: 'rep-1',
+    name: 'Avg. Days required to Close Complaint',
+    description: 'Average calendar days elapsed from complaint registration to D4 closure verification.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '8/1/2024, 3:17 pm',
+    subscribed: false,
+    category: 'Efficacy',
+    type: 'summary',
+  },
+  {
+    id: 'rep-2',
+    name: 'Avg.Days Open Efficacy',
+    description: 'Cycle time tracking for open complaints involving efficacy failure.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:20 pm',
+    subscribed: false,
+    category: 'Efficacy',
+    type: 'summary',
+  },
+  {
+    id: 'rep-3',
+    name: 'Avg.Days Open Non Efficacy',
+    description: 'Cycle time tracking for open complaints with non-efficacy / packaging issues.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:08 pm',
+    subscribed: false,
+    category: 'Non-Efficacy',
+    type: 'summary',
+  },
+  {
+    id: 'rep-4',
+    name: 'Reduction in Total Complaints',
+    description: 'Year-over-year defect reduction metrics and quality improvement trends.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '27/3/2023, 7:46 pm',
+    subscribed: false,
+    category: 'Quality Trend',
+    type: 'trend',
+  },
+  {
+    id: 'rep-5',
+    name: 'Open and Closed Complaints',
+    description: 'Overall active complaint count vs completed SOP closed complaints.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '16/3/2023, 11:49 am',
+    subscribed: false,
+    category: 'Overview',
+    type: 'summary',
+  },
+  {
+    id: 'rep-6',
+    name: 'Complaints Current Year Vs Previous Year',
+    description: 'Comparative volume analysis against preceding calendar year.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '14/3/2023, 12:10 pm',
+    subscribed: false,
+    category: 'Annual',
+    type: 'trend',
+  },
+  {
+    id: 'rep-7',
+    name: 'Complaints Current Vs Previous rumicare',
+    description: 'AHP Rumicare product line complaint intake comparison.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '4/2/2025, 10:13 am',
+    subscribed: false,
+    category: 'SBU Analysis',
+    type: 'trend',
+  },
+  {
+    id: 'rep-8',
+    name: 'Current Complaints Month wise Rumicare',
+    description: 'Monthly chronological breakdown of complaints logged for Rumicare division.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '4/2/2025, 10:41 am',
+    subscribed: false,
+    category: 'SBU Analysis',
+    type: 'monthly',
+  },
+  {
+    id: 'rep-9',
+    name: 'Complaint Raised By Rumicare',
+    description: 'Distribution of complaints initiated by veterinary doctors and stockists.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '4/2/2025, 10:49 am',
+    subscribed: false,
+    category: 'SBU Analysis',
+    type: 'summary',
+  },
+  {
+    id: 'rep-10',
+    name: 'Type of Failure - Rumicare Complaints',
+    description: 'Defect categorization across leaks, broken seals, colour deviation, and potency.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '4/2/2025, 10:52 am',
+    subscribed: false,
+    category: 'Failure Type',
+    type: 'categories',
+  },
+  {
+    id: 'rep-11',
+    name: 'Complaint Stage wise Overview Rumicare',
+    description: 'Pipeline distribution across D1 problem definition to D4 effectiveness.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '4/2/2025, 10:54 am',
+    subscribed: false,
+    category: 'Pipeline',
+    type: 'pipeline',
+  },
+  {
+    id: 'rep-12',
+    name: 'No. Of Efficacy Related Complaints',
+    description: 'Total counts of therapeutic and biological efficacy failure investigations.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '20/9/2023, 4:06 pm',
+    subscribed: false,
+    category: 'Efficacy',
+    type: 'summary',
+  },
+  {
+    id: 'rep-13',
+    name: 'CAPA Overdue Action Items by Responsible FRP',
+    description: 'Corrective and Preventive Actions pending sign-off past scheduled target dates.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Sneha',
+    createdOn: '12/10/2024, 2:15 pm',
+    subscribed: false,
+    category: 'Governance',
+    type: 'capa',
+  },
+  {
+    id: 'rep-14',
+    name: 'Cost of Poor Quality (COPQ) INR Analysis',
+    description: 'Financial impact summation in INR across scrapped batches and replacement units.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '5/5/2024, 11:30 am',
+    subscribed: false,
+    category: 'Financial',
+    type: 'summary',
+  },
+  {
+    id: 'rep-15',
+    name: 'Fishbone Root Causes Distribution (6M)',
+    description: 'Ishikawa cause classification across Manpower, Machine, Method, and Material.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Unnati',
+    createdOn: '18/6/2024, 4:45 pm',
+    subscribed: false,
+    category: 'Root Cause',
+    type: 'categories',
+  },
+  {
+    id: 'rep-16',
+    name: 'WhatsApp Chatbot Intake vs Portal Intake Ratio',
+    description: 'Origin channel comparison between automated WhatsApp bot and manual QA entries.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '9/8/2024, 1:20 pm',
+    subscribed: false,
+    category: 'Channel',
+    type: 'summary',
+  },
+  {
+    id: 'rep-17',
+    name: 'RPN High Risk Complaints (>100)',
+    description: 'Severity × Probability × Detectability risk priority number escalation list.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Jensy Josephine',
+    createdOn: '11/11/2024, 9:15 am',
+    subscribed: false,
+    category: 'Risk',
+    type: 'summary',
+  },
+  {
+    id: 'rep-18',
+    name: 'First Responsible Person (FRP) Assignment SLA',
+    description: 'Investigation turnaround time tracked from coordinator acknowledge to FRP acceptance.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Chandan Hj',
+    createdOn: '15/1/2025, 3:40 pm',
+    subscribed: false,
+    category: 'SLA',
+    type: 'summary',
+  },
+  {
+    id: 'rep-19',
+    name: 'SOP Regulatory Audit Verification Summary',
+    description: 'Form NR/QAD/SOP/001-F01/04 compliance report for QAD audit readiness.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '22/2/2025, 5:12 pm',
+    subscribed: false,
+    category: 'Audit',
+    type: 'summary',
+  },
+  {
+    id: 'rep-20',
+    name: 'Product Defect Frequency by Batch Number',
+    description: 'Aggregated complaint volume grouped by manufacturing lot and packaging line.',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Sneha',
+    createdOn: '1/3/2025, 12:00 pm',
+    subscribed: false,
+    category: 'Production',
+    type: 'categories',
+  },
 ];
 
 export function ReportsPage() {
   const { user } = useAuth();
-  const [timeframe, setTimeframe] = useState('all'); // '30d' | '90d' | 'ytd' | 'all'
-  const [sbuFilter, setSbuFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'categories' | 'workload' | 'capa'
+  const [reports, setReports] = useState(INITIAL_REPORTS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeSidebar, setActiveSidebar] = useState('all-folders');
+  const [activeReport, setActiveReport] = useState(null); // For Report Viewer Modal
+  const [newReportModalOpen, setNewReportModalOpen] = useState(false);
+  const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
+  const [newReportName, setNewReportName] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
+  const [rowMenuOpenId, setRowMenuOpenId] = useState(null);
+  const [sortField, setSortField] = useState('name');
+  const [sortAsc, setSortAsc] = useState(true);
 
-  // Build filter query for report API
-  const queryParams = useMemo(() => {
-    const q = {};
-    if (sbuFilter) q.sbu = sbuFilter;
-    if (dateFrom) q.from = dateFrom;
-    if (dateTo) q.to = dateTo;
-    if (timeframe === '30d') {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      q.from = d.toISOString().slice(0, 10);
-    } else if (timeframe === '90d') {
-      const d = new Date();
-      d.setDate(d.getDate() - 90);
-      q.from = d.toISOString().slice(0, 10);
-    } else if (timeframe === 'ytd') {
-      q.from = `${new Date().getFullYear()}-01-01`;
-    }
-    return q;
-  }, [timeframe, sbuFilter, dateFrom, dateTo]);
-
-  // Fetch live report summary from backend
-  const { data: rawData, loading, reload } = useAsync(
-    () => reportApi.summary(queryParams).catch(() => null),
-    [queryParams]
+  // Live report summary API
+  const { data: summaryData, loading: summaryLoading } = useAsync(
+    () => reportApi.summary({}).catch(() => null),
+    []
   );
 
-  // Compute unified statistics (merging real backend data with structured layout placeholders)
-  const stats = useMemo(() => {
-    const hasRealData = rawData && typeof rawData.total === 'number' && rawData.total > 0;
-
-    const total = hasRealData ? rawData.total : 20;
-    const open = hasRealData ? rawData.openVsClosed?.open ?? 14 : 14;
-    const closed = hasRealData ? rawData.openVsClosed?.closed ?? 6 : 6;
-    const resolutionRate = total > 0 ? Math.round((closed / total) * 100) : 0;
-
-    const avgAckHours = rawData?.acknowledgement?.averageHours ?? 2.4;
-    const avgResDays = rawData?.resolution?.averageDays ?? 4.8;
-    const overdueCapaCount = rawData?.capa?.overdue ?? 1;
-
-    // Categories
-    let categories = DEFAULT_CATEGORY_SLOTS;
-    if (hasRealData && rawData.byCategory && rawData.byCategory.length > 0) {
-      const maxCount = Math.max(1, ...rawData.byCategory.map((c) => c.count));
-      categories = rawData.byCategory.map((c, idx) => ({
-        label: c.label || 'Uncategorised',
-        count: c.count,
-        percentage: Math.round((c.count / total) * 100),
-        tone: ['amber', 'blue', 'purple', 'emerald', 'rose'][idx % 5],
-        risk: c.count > 5 ? 'High' : c.count > 2 ? 'Medium' : 'Low',
-      }));
+  // Filter reports
+  const filteredReports = useMemo(() => {
+    let list = [...reports];
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          r.createdBy.toLowerCase().includes(q) ||
+          r.folder.toLowerCase().includes(q) ||
+          (r.description && r.description.toLowerCase().includes(q))
+      );
     }
 
-    // Intake Channels / Sources
-    const sources = hasRealData && rawData.bySource && rawData.bySource.length > 0
-      ? rawData.bySource
-      : [
-        { label: 'WhatsApp Bot', count: 12, key: 'whatsapp' },
-        { label: 'Internal Quality Portal', count: 5, key: 'manual' },
-        { label: 'Direct QA Email', count: 2, key: 'email' },
-        { label: 'Customer Care Call', count: 1, key: 'phone' },
-      ];
+    if (activeSidebar === 'created-by-me') {
+      const myName = (user?.name || '').toLowerCase();
+      list = list.filter((r) => r.createdBy.toLowerCase().includes(myName) || r.createdBy.includes('Chandan'));
+    } else if (activeSidebar === 'favorites') {
+      list = list.filter((r) => r.subscribed);
+    } else if (activeSidebar === 'recent') {
+      list = list.slice(0, 8);
+    }
 
-    // SBUs
-    const sbus = hasRealData && rawData.bySbu && rawData.bySbu.length > 0
-      ? rawData.bySbu
-      : [
-        { label: 'AHP - Rumicare', count: 11 },
-        { label: 'AHP - Omnicare', count: 6 },
-        { label: 'Phytocare Formulations', count: 3 },
-      ];
+    list.sort((a, b) => {
+      let valA = a[sortField] || '';
+      let valB = b[sortField] || '';
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
 
-    // Workload
-    const workload = hasRealData && rawData.workload && rawData.workload.length > 0
-      ? rawData.workload
-      : [
-        { name: 'Sneha (Quality Coordinator)', open: 6, closed: 3, inRework: 0, status: 'Heavy' },
-        { name: 'Jensy Josephine (FRP)', open: 4, closed: 2, inRework: 0, status: 'Balanced' },
-        { name: 'Unnati (QC Analyst)', open: 3, closed: 1, inRework: 0, status: 'Balanced' },
-        { name: 'Shweta (Phytocare Lead)', open: 1, closed: 0, inRework: 0, status: 'Low' },
-      ];
+    return list;
+  }, [reports, searchQuery, activeSidebar, user, sortField, sortAsc]);
 
-    // Overdue CAPAs
-    const overdueList = hasRealData && rawData.capa?.overdueList && rawData.capa.overdueList.length > 0
-      ? rawData.capa.overdueList
-      : [
-        {
-          capaNumber: 'CAPA-2026-004',
-          complaintNumber: 'CMP-2026-0012',
-          complaintId: '',
-          responsible: 'Sneha',
-          targetDate: '2026-11-20',
-          actionStatus: 'IN_PROGRESS',
-        },
-      ];
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortField(field);
+      setSortAsc(true);
+    }
+  };
 
-    // Monthly volume
-    const monthly = hasRealData && rawData.monthly && rawData.monthly.length > 0
-      ? rawData.monthly
-      : [
-        { month: 'Aug 2026', count: 3 },
-        { month: 'Sep 2026', count: 5 },
-        { month: 'Oct 2026', count: 8 },
-        { month: 'Nov 2026', count: 4 },
-      ];
-
-    return {
-      total,
-      open,
-      closed,
-      resolutionRate,
-      avgAckHours,
-      avgResDays,
-      overdueCapaCount,
-      categories,
-      sources,
-      sbus,
-      workload,
-      overdueList,
-      monthly,
-      isLive: hasRealData,
+  const handleCreateReport = (e) => {
+    e.preventDefault();
+    if (!newReportName.trim()) return;
+    const newEntry = {
+      id: `rep-${Date.now()}`,
+      name: newReportName.trim(),
+      description: 'Custom quality report generated by ' + (user?.name || 'Administrator'),
+      folder: 'Complaint Management Reports',
+      createdBy: user?.name || 'Chandan Hj',
+      createdOn: new Date().toLocaleString(),
+      subscribed: false,
+      category: 'Custom',
+      type: 'summary',
     };
-  }, [rawData]);
+    setReports([newEntry, ...reports]);
+    setNewReportName('');
+    setNewReportModalOpen(false);
+  };
 
-  const csvDownloadUrl = reportApi.csvUrl(queryParams);
+  const toggleSubscribe = (id, e) => {
+    e.stopPropagation();
+    setReports((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, subscribed: !r.subscribed } : r))
+    );
+  };
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto pb-10">
-      {/* 1. Salesforce Lightning Top Action Ribbon */}
-      <header className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5 shadow-2xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-              <BarChart3 className="h-6 w-6" />
-            </div>
+    <div className="space-y-3 pb-8">
+      {/* Outer Salesforce Lightning Card */}
+      <div className="bg-white border border-slate-300 rounded-md shadow-2xs overflow-hidden">
+        {/* Card Header Toolbar (Mirroring Screenshot) */}
+        <div className="p-4 sm:px-6 sm:py-3.5 border-b border-slate-200">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* Breadcrumb Title */}
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900">
-                  Reports & Quality Analytics
-                </h1>
-                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live EQMS Data
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Comprehensive quality resolution metrics, complaint categories, CAPA compliance, and SLA cycle times.
-              </p>
-            </div>
-          </div>
-
-          {/* Action Toolbar */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => reload()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition shadow-2xs"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : 'text-slate-400'}`} />
-              <span>Refresh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition shadow-2xs"
-              title="Print Report"
-            >
-              <Printer className="h-3.5 w-3.5 text-slate-400" />
-              <span>Print</span>
-            </button>
-
-            <a
-              href={csvDownloadUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#0176d3] hover:bg-blue-700 text-white px-3.5 py-1.5 text-xs font-semibold shadow-2xs transition"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Export CSV</span>
-            </a>
-          </div>
-        </div>
-
-        {/* Filters and Timeframe Bar */}
-        <div className="mt-4 pt-3.5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Quick presets */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-lg">
-            {[
-              { id: 'all', label: 'All Time' },
-              { id: '30d', label: 'Last 30 Days' },
-              { id: '90d', label: 'Last 90 Days' },
-              { id: 'ytd', label: 'This Year (YTD)' },
-            ].map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setTimeframe(p.id)}
-                className={`px-3 py-1 rounded-md font-medium transition ${
-                  timeframe === p.id
-                    ? 'bg-white text-blue-700 shadow-2xs font-semibold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* SBU Filter & Custom Date Inputs */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs">
-              <Building2 className="h-3.5 w-3.5 text-slate-400" />
-              <select
-                value={sbuFilter}
-                onChange={(e) => setSbuFilter(e.target.value)}
-                className="bg-transparent text-slate-700 text-xs focus:outline-none"
-              >
-                <option value="">All SBUs</option>
-                <option value="AHP - Rumicare">AHP - Rumicare</option>
-                <option value="AHP - Omnicare">AHP - Omnicare</option>
-                <option value="Phytocare Formulations">Phytocare Formulations</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2.5 py-1 shadow-2xs">
-              <Calendar className="h-3.5 w-3.5 text-slate-400" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => {
-                  setDateFrom(e.target.value);
-                  setTimeframe('custom');
-                }}
-                className="bg-transparent text-slate-700 text-xs focus:outline-none"
-                placeholder="From"
-              />
-              <span className="text-slate-400">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => {
-                  setDateTo(e.target.value);
-                  setTimeframe('custom');
-                }}
-                className="bg-transparent text-slate-700 text-xs focus:outline-none"
-                placeholder="To"
-              />
-            </div>
-
-            {(sbuFilter || dateFrom || dateTo || timeframe !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSbuFilter('');
-                  setDateFrom('');
-                  setDateTo('');
-                  setTimeframe('all');
-                }}
-                className="text-xs text-blue-600 hover:text-blue-800 underline font-medium px-1"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* 2. Top Executive KPI Cards Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        {/* Total Complaints */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-blue-300 transition">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Total Registered</span>
-            <FileText className="h-4 w-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">{stats.total}</div>
-          <div className="mt-1 flex items-center text-[11px] text-slate-500 font-medium">
-            <span className="text-emerald-600 font-semibold inline-flex items-center mr-1">
-              <TrendingUp className="h-3 w-3 mr-0.5" /> 100%
-            </span>
-            <span>Recorded in EQMS</span>
-          </div>
-        </div>
-
-        {/* Active Open Complaints */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-amber-300 transition">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Active Open</span>
-            <Activity className="h-4 w-4 text-amber-500" />
-          </div>
-          <div className="text-2xl font-bold text-amber-600">{stats.open}</div>
-          <div className="mt-1 flex items-center text-[11px] text-slate-500 font-medium">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-500 mr-1.5" />
-            <span>In D1–D4 lifecycle</span>
-          </div>
-        </div>
-
-        {/* Closed & Resolved */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-emerald-300 transition">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Closed & Audited</span>
-            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-bold text-emerald-700">{stats.closed}</div>
-          <div className="mt-1 flex items-center text-[11px] text-emerald-700 font-medium">
-            <span>{stats.resolutionRate}% resolution rate</span>
-          </div>
-        </div>
-
-        {/* Avg Acknowledgment Time */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-sky-300 transition">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Avg D1 Ack Time</span>
-            <Clock className="h-4 w-4 text-sky-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {stats.avgAckHours} <span className="text-xs font-normal text-slate-500">hrs</span>
-          </div>
-          <div className="mt-1 flex items-center text-[11px] text-emerald-600 font-medium">
-            <span>SLA Target: &lt; 24 hrs</span>
-          </div>
-        </div>
-
-        {/* Avg Resolution Cycle */}
-        <div className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xs hover:border-purple-300 transition">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Avg Resolution</span>
-            <TrendingUp className="h-4 w-4 text-purple-600" />
-          </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {stats.avgResDays} <span className="text-xs font-normal text-slate-500">days</span>
-          </div>
-          <div className="mt-1 flex items-center text-[11px] text-slate-500 font-medium">
-            <span>Complaint to SOP closure</span>
-          </div>
-        </div>
-
-        {/* Overdue CAPAs */}
-        <div className={`rounded-xl border p-3.5 shadow-2xs transition ${
-          stats.overdueCapaCount > 0
-            ? 'border-red-200 bg-red-50/40 hover:border-red-400'
-            : 'border-slate-200 bg-white hover:border-slate-300'
-        }`}>
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-xs font-medium">Overdue CAPA</span>
-            <ShieldAlert className={`h-4 w-4 ${stats.overdueCapaCount > 0 ? 'text-red-600' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-2xl font-bold ${stats.overdueCapaCount > 0 ? 'text-red-700' : 'text-slate-800'}`}>
-            {stats.overdueCapaCount}
-          </div>
-          <div className="mt-1 flex items-center text-[11px] text-slate-500 font-medium">
-            {stats.overdueCapaCount > 0 ? (
-              <span className="text-red-600 font-semibold">Requires immediate review</span>
-            ) : (
-              <span className="text-emerald-600">All within target date</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* 3. Section Navigation Tabs */}
-      <div className="border-b border-slate-200 bg-white rounded-t-xl px-4 pt-2 flex items-center gap-4 text-xs font-medium">
-        {[
-          { id: 'overview', label: 'Overview & Stage Funnel', icon: Layers },
-          { id: 'categories', label: 'Complaint Categories & Risk', icon: Tag, highlight: true },
-          { id: 'workload', label: 'Team Workload & Channels', icon: Users },
-          { id: 'capa', label: 'Root Causes & CAPA Governance', icon: ShieldAlert },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-1.5 py-3 border-b-2 font-semibold transition ${
-                activeTab === tab.id
-                  ? 'border-blue-600 text-blue-700'
-                  : 'border-transparent text-slate-600 hover:text-slate-900 hover:border-slate-300'
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              <span>{tab.label}</span>
-              {tab.highlight && (
-                <span className="rounded-full bg-blue-100 text-blue-800 px-1.5 py-0.2 text-[10px] font-bold">
-                  Configurable
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 4. Tab Panels */}
-      {activeTab === 'overview' && (
-        <div className="space-y-4">
-          {/* Main 2-column layout: Stage Funnel (Left) + Monthly Intake Trend (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Left 2 cols: Lifecycle Funnel */}
-            <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Complaint Lifecycle Pipeline & Stage Distribution
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Complaints progression from initial WhatsApp intake to D4 closure verification
-                  </p>
-                </div>
-                <Link
-                  to="/complaints"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+              <span className="block text-xs font-normal text-slate-500">Reports</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setActiveSidebar('all-folders')}
+                  className="text-lg sm:text-xl font-bold text-[#0176d3] hover:underline"
                 >
-                  View All Complaints <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-
-              {/* Progress bars for each stage */}
-              <div className="space-y-3.5">
-                {STAGES.map((stg) => {
-                  // Rough estimation for visual progress
-                  let count = 0;
-                  if (stg.key === 'D1') count = 9;
-                  else if (stg.key === 'D2') count = 2;
-                  else if (stg.key === 'D3') count = 1;
-                  else if (stg.key === 'D4') count = 2;
-                  else if (stg.key === 'Closed') count = stats.closed;
-
-                  const pct = Math.round((count / Math.max(1, stats.total)) * 100);
-
-                  return (
-                    <div key={stg.key} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-slate-800 flex items-center gap-2">
-                          <span className={`h-2.5 w-2.5 rounded-full ${stg.color}`} />
-                          {stg.label}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900">{count}</span>
-                          <span className="text-slate-400 text-[11px]">({pct}%)</span>
-                        </div>
-                      </div>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${stg.color} transition-all duration-500`}
-                          style={{ width: `${Math.max(4, pct)}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-5 rounded-lg bg-slate-50 border border-slate-200/70 p-3 text-xs text-slate-600 flex items-center justify-between">
-                <span>
-                  <strong>Tip:</strong> Click on any stage status in the Complaints tab to inspect filtered active batches.
+                  All Folders
+                </button>
+                <span className="text-slate-400 font-normal text-base">&gt;</span>
+                <span className="text-lg sm:text-xl font-bold text-slate-800">
+                  Complaint Management Reports
                 </span>
-                <span className="text-[11px] text-slate-400">Total 41-Step Lifecycle</span>
               </div>
-            </div>
-
-            {/* Right 1 col: Monthly Trend Volume Chart */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                  <h3 className="text-sm font-bold text-slate-900">Monthly Volume Intake</h3>
-                  <BarChart3 className="h-4 w-4 text-slate-400" />
-                </div>
-                <p className="text-xs text-slate-500 mb-6">
-                  Intake trends over the recent rolling quarters
-                </p>
-
-                {/* Vertical Bar Chart visualization */}
-                <div className="flex items-end justify-between gap-3 h-44 pt-4 px-2 border-b border-slate-200">
-                  {stats.monthly.map((m) => {
-                    const maxMonthly = Math.max(1, ...stats.monthly.map((x) => x.count));
-                    const heightPct = Math.round((m.count / maxMonthly) * 100);
-                    return (
-                      <div key={m.month} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                        <span className="text-xs font-bold text-slate-700 opacity-80 group-hover:opacity-100">
-                          {m.count}
-                        </span>
-                        <div
-                          className="w-full max-w-[36px] bg-blue-500 rounded-t-md hover:bg-blue-600 transition-all duration-300 shadow-2xs"
-                          style={{ height: `${Math.max(15, heightPct)}%` }}
-                        />
-                        <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap mt-1">
-                          {m.month.split(' ')[0]}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                <span>Peak Month: <strong>Oct 2026</strong></span>
-                <span className="text-emerald-600 font-semibold">Balanced Volume</span>
-              </div>
-            </div>
-          </div>
-
-          {/* SBU Share + Intake Origin Channels */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* SBU Share */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Complaints by Strategic Business Unit (SBU)</h3>
-              <p className="text-xs text-slate-500 mb-4">Organizational distribution across product divisions</p>
-
-              <div className="space-y-3">
-                {stats.sbus.map((sbu, idx) => {
-                  const pct = Math.round((sbu.count / Math.max(1, stats.total)) * 100);
-                  const colors = ['bg-sky-500', 'bg-blue-600', 'bg-indigo-600', 'bg-slate-400'];
-                  return (
-                    <div key={sbu.label} className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium text-slate-700">
-                        <span>{sbu.label}</span>
-                        <span className="font-bold text-slate-900">{sbu.count} complaints ({pct}%)</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${colors[idx % colors.length]}`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Intake Origin Channels */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Intake Channels & Origin</h3>
-              <p className="text-xs text-slate-500 mb-4">Source channels where complaints were first reported</p>
-
-              <div className="grid grid-cols-2 gap-3">
-                {stats.sources.map((src) => (
-                  <div key={src.label} className="rounded-lg border border-slate-200 p-3 bg-slate-50/60 flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-md bg-white border border-slate-200 flex items-center justify-center shrink-0">
-                      {src.label.toLowerCase().includes('whatsapp') ? (
-                        <MessageSquare className="h-5 w-5 text-emerald-600" />
-                      ) : (
-                        <FileText className="h-5 w-5 text-blue-600" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-800">{src.count}</div>
-                      <div className="text-[11px] text-slate-500 truncate max-w-[120px]">{src.label}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 5. TAB: Complaint Categories & Risk Breakdown (User will provide categories) */}
-      {activeTab === 'categories' && (
-        <div className="space-y-4">
-          {/* Informational banner reminding user they can plug in their exact category taxonomy */}
-          <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 text-xs text-blue-900 flex items-start gap-3">
-            <Sparkles className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-blue-900 text-sm">Complaint Category Taxonomy Layout Ready</h4>
-              <p className="mt-0.5 text-blue-800">
-                This layout is structured to receive your exact complaint categories. Once you provide the category list,
-                they will instantly map into these visual cards, progress bars, risk metrics, and batch filters.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-100 gap-2 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Complaints Classified by Category</h3>
-                <p className="text-xs text-slate-500">
-                  Distribution of complaints by defect type, quality attribute, and regulatory severity
-                </p>
-              </div>
-              <span className="text-xs font-medium text-slate-500">
-                Showing <strong>{stats.categories.length}</strong> configured categories
+              <span className="block text-xs text-slate-500 mt-0.5">
+                {filteredReports.length} items
               </span>
             </div>
 
-            {/* Category Cards List */}
-            <div className="space-y-3.5">
-              {stats.categories.map((cat) => {
-                const badgeColor =
-                  cat.risk === 'High'
-                    ? 'bg-rose-50 text-rose-700 border-rose-200'
-                    : cat.risk === 'Medium'
-                    ? 'bg-amber-50 text-amber-700 border-amber-200'
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-
-                const barColor =
-                  cat.tone === 'rose'
-                    ? 'bg-rose-500'
-                    : cat.tone === 'amber'
-                    ? 'bg-amber-500'
-                    : cat.tone === 'purple'
-                    ? 'bg-purple-600'
-                    : cat.tone === 'emerald'
-                    ? 'bg-emerald-500'
-                    : 'bg-blue-600';
-
-                return (
-                  <div
-                    key={cat.label}
-                    className="p-3.5 rounded-lg border border-slate-200 hover:border-blue-300 hover:bg-slate-50/50 transition-colors"
+            {/* Right Action Tools: Search, New Report, New Folder, Settings */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative w-48 sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search all folders..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded border border-slate-300 bg-white placeholder-slate-400 text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 text-xs"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs mb-2">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">{cat.label}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${badgeColor}`}>
-                          {cat.risk} Risk
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-slate-900 text-sm">
-                          {cat.count} <span className="text-xs font-normal text-slate-500">complaints</span>
-                        </span>
-                        <span className="font-semibold text-slate-600 w-12 text-right">
-                          {cat.percentage}%
-                        </span>
-                      </div>
-                    </div>
+                    ×
+                  </button>
+                )}
+              </div>
 
-                    <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${barColor} transition-all duration-500`}
-                        style={{ width: `${Math.max(3, cat.percentage)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {/* New Report Button */}
+              <button
+                type="button"
+                onClick={() => setNewReportModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 hover:text-[#0176d3] transition shadow-2xs"
+              >
+                New Report
+              </button>
+
+              {/* New Folder Button */}
+              <button
+                type="button"
+                onClick={() => setNewFolderModalOpen(true)}
+                className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded hover:bg-slate-50 hover:text-[#0176d3] transition shadow-2xs"
+              >
+                New Folder
+              </button>
+
+              {/* Dropdown Chevron Button */}
+              <button
+                type="button"
+                className="p-1.5 border border-slate-300 rounded hover:bg-slate-50 text-slate-600"
+                title="More Actions"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+
+              {/* Settings Gear Button */}
+              <button
+                type="button"
+                className="flex items-center gap-0.5 p-1.5 border border-slate-300 rounded hover:bg-slate-50 text-slate-600"
+                title="Folder Display Settings"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                <ChevronDown className="h-2.5 w-2.5" />
+              </button>
             </div>
           </div>
         </div>
-      )}
 
-      {/* 6. TAB: Team Workload & Quality Coordinators */}
-      {activeTab === 'workload' && (
-        <div className="space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Quality Coordinator & FRP Workload Matrix</h3>
-                <p className="text-xs text-slate-500">
-                  Real-time active investigations, rework queues, and closed complaints per responsible person
-                </p>
-              </div>
+        {/* 2-Column Split View: Left Sidebar + Right Table */}
+        <div className="flex flex-col md:flex-row min-h-[520px]">
+          {/* Left Navigation Sidebar */}
+          <aside className="w-full md:w-56 shrink-0 border-b md:border-b-0 md:border-r border-slate-200 bg-white py-2 text-xs">
+            {/* Group 1: REPORTS */}
+            <div className="mb-3">
+              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                REPORTS
+              </span>
+              <ul className="space-y-0.5">
+                {[
+                  { id: 'recent', label: 'Recent' },
+                  { id: 'created-by-me', label: 'Created by Me' },
+                  { id: 'private-reports', label: 'Private Reports' },
+                  { id: 'public-reports', label: 'Public Reports' },
+                  { id: 'all-reports', label: 'All Reports' },
+                ].map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSidebar(item.id)}
+                      className={`w-full text-left px-4 py-1.5 transition ${
+                        activeSidebar === item.id
+                          ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50/75 text-slate-600 font-semibold">
-                    <th className="py-2.5 px-3">Quality Coordinator / FRP</th>
-                    <th className="py-2.5 px-3">Active Open Complaints</th>
-                    <th className="py-2.5 px-3">In D3 Rework</th>
-                    <th className="py-2.5 px-3">Closed & Resolved</th>
-                    <th className="py-2.5 px-3">Workload Status</th>
+            {/* Group 2: FOLDERS */}
+            <div className="mb-3 border-t border-slate-100 pt-2">
+              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                FOLDERS
+              </span>
+              <ul className="space-y-0.5">
+                {[
+                  { id: 'all-folders', label: 'All Folders' },
+                  { id: 'folders-created-by-me', label: 'Created by Me' },
+                  { id: 'folders-shared-with-me', label: 'Shared with Me' },
+                ].map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSidebar(item.id)}
+                      className={`w-full text-left px-4 py-1.5 transition ${
+                        activeSidebar === item.id
+                          ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            {/* Group 3: FAVORITES */}
+            <div className="border-t border-slate-100 pt-2">
+              <span className="block px-4 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
+                FAVORITES
+              </span>
+              <ul className="space-y-0.5">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSidebar('favorites')}
+                    className={`w-full text-left px-4 py-1.5 transition ${
+                      activeSidebar === 'favorites'
+                        ? 'bg-[#eef4ff] text-[#0176d3] font-semibold border-l-3 border-[#0176d3]'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    All Favorites
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </aside>
+
+          {/* Right Main Table */}
+          <main className="flex-1 overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-semibold select-none">
+                  {/* Name Column */}
+                  <th
+                    onClick={() => toggleSort('name')}
+                    className="py-2.5 px-3 min-w-[260px] cursor-pointer hover:bg-slate-100 transition"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Name</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Description Column */}
+                  <th
+                    onClick={() => toggleSort('description')}
+                    className="py-2.5 px-3 min-w-[200px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Description</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Folder Column */}
+                  <th
+                    onClick={() => toggleSort('folder')}
+                    className="py-2.5 px-3 min-w-[190px] cursor-pointer hover:bg-slate-100 transition"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Folder</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Created By Column */}
+                  <th
+                    onClick={() => toggleSort('createdBy')}
+                    className="py-2.5 px-3 min-w-[150px] cursor-pointer hover:bg-slate-100 transition"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Created By</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Created On Column */}
+                  <th
+                    onClick={() => toggleSort('createdOn')}
+                    className="py-2.5 px-3 min-w-[140px] cursor-pointer hover:bg-slate-100 transition"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Created On</span>
+                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                    </div>
+                  </th>
+
+                  {/* Subscribed Column */}
+                  <th
+                    className="py-2.5 px-2 w-14 text-center cursor-pointer hover:bg-slate-100 transition"
+                    title="Subscribed"
+                  >
+                    <div className="flex items-center justify-center gap-0.5">
+                      <span>Subscribed</span>
+                    </div>
+                  </th>
+
+                  {/* Row Menu Actions Column */}
+                  <th className="py-2.5 px-2 w-10 text-center" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredReports.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
+                      No reports match the current filter or search criteria.
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {stats.workload.map((w) => (
-                    <tr key={w.name} className="hover:bg-slate-50 transition">
-                      <td className="py-3 px-3 font-semibold text-slate-900 flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs">
-                          {w.name.slice(0, 1)}
-                        </div>
-                        {w.name}
+                ) : (
+                  filteredReports.map((report) => (
+                    <tr
+                      key={report.id}
+                      className="hover:bg-blue-50/40 transition group cursor-pointer"
+                      onClick={() => setActiveReport(report)}
+                    >
+                      {/* Name Link */}
+                      <td className="py-2.5 px-3 font-medium text-[#0176d3] group-hover:underline">
+                        {report.name}
                       </td>
-                      <td className="py-3 px-3 font-bold text-amber-600">{w.open}</td>
-                      <td className="py-3 px-3">
-                        {w.inRework > 0 ? (
-                          <span className="font-bold text-red-600">{w.inRework}</span>
-                        ) : (
-                          <span className="text-slate-400">0</span>
+
+                      {/* Description */}
+                      <td className="py-2.5 px-3 text-slate-500 truncate max-w-xs hidden sm:table-cell">
+                        {report.description || '—'}
+                      </td>
+
+                      {/* Folder Link */}
+                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline">
+                        {report.folder}
+                      </td>
+
+                      {/* Created By */}
+                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline">
+                        {report.createdBy}
+                      </td>
+
+                      {/* Created On */}
+                      <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                        {report.createdOn}
+                      </td>
+
+                      {/* Subscribed / Star */}
+                      <td
+                        className="py-2.5 px-2 text-center"
+                        onClick={(e) => toggleSubscribe(report.id, e)}
+                      >
+                        <button
+                          type="button"
+                          className="text-slate-300 hover:text-amber-500 transition"
+                          title={report.subscribed ? 'Subscribed' : 'Subscribe'}
+                        >
+                          <Star
+                            className={`h-3.5 w-3.5 mx-auto ${
+                              report.subscribed ? 'text-amber-500 fill-amber-500' : ''
+                            }`}
+                          />
+                        </button>
+                      </td>
+
+                      {/* Row Action Arrow */}
+                      <td
+                        className="py-2.5 px-2 text-center relative"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRowMenuOpenId(rowMenuOpenId === report.id ? null : report.id);
+                        }}
+                      >
+                        <button
+                          type="button"
+                          className="p-1 rounded border border-transparent hover:border-slate-300 hover:bg-white text-slate-400 hover:text-slate-700"
+                        >
+                          <ChevronDown className="h-3 w-3" />
+                        </button>
+
+                        {/* Row Dropdown Action Menu */}
+                        {rowMenuOpenId === report.id && (
+                          <div
+                            className="absolute right-2 top-8 z-30 w-40 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRowMenuOpenId(null);
+                                setActiveReport(report);
+                              }}
+                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left font-medium"
+                            >
+                              Run Report
+                            </button>
+                            <a
+                              href={reportApi.csvUrl({})}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => setRowMenuOpenId(null)}
+                              className="block w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left"
+                            >
+                              Export Details
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                toggleSubscribe(report.id, { stopPropagation: () => {} });
+                                setRowMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left"
+                            >
+                              {report.subscribed ? 'Unsubscribe' : 'Subscribe'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReports(reports.filter((r) => r.id !== report.id));
+                                setRowMenuOpenId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-red-600 hover:bg-red-50 text-left border-t border-slate-100"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         )}
                       </td>
-                      <td className="py-3 px-3 font-medium text-emerald-700">{w.closed}</td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                            w.status === 'Heavy'
-                              ? 'bg-amber-100 text-amber-800'
-                              : w.status === 'Balanced'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {w.status || 'Active'}
-                        </span>
-                      </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </main>
+        </div>
+      </div>
+
+      {/* ----------------- INTERACTIVE REPORT RUNNER MODAL ----------------- */}
+      {activeReport && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6 animate-in fade-in"
+          onClick={() => setActiveReport(null)}
+        >
+          <div
+            className="relative w-full max-w-4xl rounded-lg border border-slate-300 bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="border-t-4 border-t-[#0176d3] border-b border-slate-200 bg-[#f8fafc] px-5 py-3.5 flex items-start justify-between">
+              <div>
+                <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wider block">
+                  Report Run • {activeReport.folder}
+                </span>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                  {activeReport.name}
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Created by {activeReport.createdBy} on {activeReport.createdOn} • As of Today, {new Date().toLocaleDateString()}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={reportApi.csvUrl({})}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition shadow-2xs"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Export Details</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                  title="Print"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveReport(null)}
+                  className="p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / Report Execution Content */}
+            <div className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700">
+              {/* Report Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 block">Total In Scope</span>
+                  <span className="text-xl font-bold text-slate-900">20</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 block">Open Investigations</span>
+                  <span className="text-xl font-bold text-amber-600">14</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 block">Closed & Audited</span>
+                  <span className="text-xl font-bold text-emerald-600">6</span>
+                </div>
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <span className="text-xs text-slate-500 block">Avg. Turnaround</span>
+                  <span className="text-xl font-bold text-blue-600">4.8 Days</span>
+                </div>
+              </div>
+
+              {/* Data Table */}
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 font-semibold text-xs text-slate-700 flex justify-between items-center">
+                  <span>Detailed Records ({activeReport.name})</span>
+                  <span className="text-slate-400 font-normal">Filtered by Rumicare & Efficacy attributes</span>
+                </div>
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-[#fafafb] text-slate-600 font-medium">
+                      <th className="py-2 px-3">Complaint Number</th>
+                      <th className="py-2 px-3">Stage</th>
+                      <th className="py-2 px-3">Product Name</th>
+                      <th className="py-2 px-3">Batch No</th>
+                      <th className="py-2 px-3">SBU</th>
+                      <th className="py-2 px-3">Days Open</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { num: 'CMP-2026-0001', stage: 'D1 Acknowledged', prod: 'Rumicare Bolus 4s', batch: 'RC2601', sbu: 'AHP - Rumicare', days: '2 days' },
+                      { num: 'CMP-2026-0004', stage: 'D2 In Progress', prod: 'Rumicare Liquid 500ml', batch: 'RL2604', sbu: 'AHP - Rumicare', days: '4 days' },
+                      { num: 'CMP-2026-0007', stage: 'D3 Root Cause', prod: 'Rumicare Powder 100g', batch: 'RP2607', sbu: 'AHP - Rumicare', days: '7 days' },
+                      { num: 'CMP-2026-0012', stage: 'D4 In Progress', prod: 'Rumicare Bolus 4s', batch: 'RC2612', sbu: 'AHP - Rumicare', days: '11 days' },
+                      { num: 'CMP-2026-0015', stage: 'Closed', prod: 'Rumicare Gel 250ml', batch: 'RG2615', sbu: 'AHP - Rumicare', days: '5 days' },
+                    ].map((row) => (
+                      <tr key={row.num} className="hover:bg-slate-50">
+                        <td className="py-2 px-3 font-semibold text-blue-600">{row.num}</td>
+                        <td className="py-2 px-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700">
+                            {row.stage}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-800">{row.prod}</td>
+                        <td className="py-2 px-3 font-mono text-slate-600">{row.batch}</td>
+                        <td className="py-2 px-3 text-slate-600">{row.sbu}</td>
+                        <td className="py-2 px-3 font-medium text-slate-700">{row.days}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 flex justify-between items-center text-xs">
+              <span className="text-slate-500">
+                End of preview for <strong>{activeReport.name}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveReport(null)}
+                className="px-4 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700 transition"
+              >
+                Close Report
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 7. TAB: Root Cause & CAPA Governance */}
-      {activeTab === 'capa' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Fishbone 6M Categories */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-              <h3 className="text-sm font-bold text-slate-900 mb-1">Root Causes (Fishbone 6M Methodology)</h3>
-              <p className="text-xs text-slate-500 mb-4">Ishikawa diagram classification of investigated causes</p>
-
-              <div className="space-y-2.5 text-xs">
-                {[
-                  { label: 'Method (Standard Operating Procedure / Process)', count: 5, pct: 42, color: 'bg-pink-500' },
-                  { label: 'Machine (Equipment & Packaging Machinery)', count: 3, pct: 25, color: 'bg-purple-500' },
-                  { label: 'Material (Raw Material / Packaging Foil)', count: 2, pct: 17, color: 'bg-indigo-500' },
-                  { label: 'Manpower (Training & Human Handling)', count: 1, pct: 8, color: 'bg-amber-500' },
-                  { label: 'Measurement & Calibration', count: 1, pct: 8, color: 'bg-emerald-500' },
-                ].map((fb) => (
-                  <div key={fb.label} className="space-y-1">
-                    <div className="flex justify-between font-medium text-slate-700">
-                      <span>{fb.label}</span>
-                      <span className="font-bold text-slate-900">{fb.count}</span>
-                    </div>
-                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${fb.color}`} style={{ width: `${fb.pct}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+      {/* ----------------- NEW REPORT MODAL ----------------- */}
+      {newReportModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6"
+          onClick={() => setNewReportModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-slate-800 text-sm">Create New Report</h3>
+              <button
+                type="button"
+                onClick={() => setNewReportModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
 
-            {/* Overdue & Pending CAPAs */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs flex flex-col justify-between">
+            <form onSubmit={handleCreateReport} className="space-y-3 text-xs">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="text-sm font-bold text-slate-900">CAPA Compliance & Overdue Actions</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800">
-                    {stats.overdueCapaCount} Overdue
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mb-4">Corrective and Preventive Actions pending sign-off</p>
-
-                <div className="space-y-2.5">
-                  {stats.overdueList.map((c) => (
-                    <div key={c.capaNumber} className="p-3 rounded-lg border border-red-200 bg-red-50/30 flex items-center justify-between text-xs">
-                      <div>
-                        <div className="font-bold text-slate-900">{c.capaNumber}</div>
-                        <div className="text-[11px] text-slate-500">
-                          Complaint: <strong>{c.complaintNumber}</strong> • Owner: {c.responsible}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700">
-                          Due: {c.targetDate}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Report Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Monthly Packaging Defect Rate"
+                  value={newReportName}
+                  onChange={(e) => setNewReportName(e.target.value)}
+                  className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
+                />
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500">
-                SOP regulation requires CAPAs to be verified before final D4 closure.
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Target Folder</label>
+                <select className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600">
+                  <option value="Complaint Management Reports">Complaint Management Reports</option>
+                  <option value="Efficacy & CAPA Audits">Efficacy & CAPA Audits</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setNewReportModalOpen(false)}
+                  className="px-3 py-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700"
+                >
+                  Create &amp; Run
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ----------------- NEW FOLDER MODAL ----------------- */}
+      {newFolderModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-3 sm:p-6"
+          onClick={() => setNewFolderModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-5 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h3 className="font-bold text-slate-800 text-sm">Create New Folder</h3>
+              <button
+                type="button"
+                onClick={() => setNewFolderModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Folder Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Q4 Audit Inspection Reports"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setNewFolderModalOpen(false)}
+                  className="px-3 py-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewFolderName('');
+                    setNewFolderModalOpen(false);
+                  }}
+                  className="px-3.5 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700"
+                >
+                  Save Folder
+                </button>
               </div>
             </div>
           </div>

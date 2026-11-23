@@ -117,8 +117,8 @@ export function AppShell() {
   const navTabs = [
     { label: 'Home', to: '/', hasDropdown: false },
     { label: 'Complaints', to: '/complaints', hasDropdown: true },
-    { label: 'Reports', to: '/reports', hasDropdown: false },
-    { label: 'Dashboards', to: '/dashboards', hasDropdown: false },
+    { label: 'Reports', to: '/reports', hasDropdown: true },
+    { label: 'Dashboards', to: '/dashboards', hasDropdown: true },
     ...(isAdmin ? [{ label: 'Settings', to: '/settings', hasDropdown: true }] : []),
   ];
 
