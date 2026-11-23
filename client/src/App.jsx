@@ -71,7 +71,7 @@ export default function App() {
     <Suspense fallback={<PageFallback />}>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<ComplaintsPage key="home" />} />
+          <Route index element={<DashboardPage />} />
           <Route
             path="admin/users"
             element={
@@ -88,7 +88,7 @@ export default function App() {
           <Route path="my-complaints" element={<Guard any={navFor('/my-complaints').any}><ComplaintsPage key="mine" mine /></Guard>} />
           <Route path="reviews" element={<Guard any={navFor('/reviews').any}><PendingReviewsPage /></Guard>} />
           <Route path="reports" element={<ReportsPage />} />
-          <Route path="dashboards" element={<DashboardsPage />} />
+          <Route path="dashboards" element={<DashboardPage />} />
           <Route path="whatsapp-simulator" element={<Guard any={navFor('/whatsapp-simulator').any}><SimulatorPage /></Guard>} />
           <Route path="settings" element={<Guard any={['settings.manage']}><SettingsPage /></Guard>} />
           <Route path="notifications" element={<Guard any={navFor('/notifications').any}><NotificationLogsPage /></Guard>} />
