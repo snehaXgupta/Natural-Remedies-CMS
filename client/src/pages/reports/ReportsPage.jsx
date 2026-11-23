@@ -1510,6 +1510,12 @@ export function ReportsPage() {
   const [rowMenuOpenId, setRowMenuOpenId] = useState(null);
   const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState(null);
+  const [exportModalReport, setExportModalReport] = useState(null);
+  const [exportView, setExportView] = useState('formatted'); // 'formatted' | 'details'
+  const [exportFormat, setExportFormat] = useState('xls'); // 'xls' | 'xlsx' | 'csv'
+  const [exportEncoding, setExportEncoding] = useState(
+    'ISO-8859-1 (General US & Western European, ISO-LATIN-1)'
+  );
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [groupCollapsed, setGroupCollapsed] = useState(false);
@@ -1647,30 +1653,367 @@ export function ReportsPage() {
     );
   };
 
-  // Export any report directly to CSV format
-  const handleExportReport = (report) => {
-    const rows = activeReportRows.length > 0 ? activeReportRows : INITIAL_REPORT_ROWS;
-    const headers = ['Requested By', 'Complaint: Complaint No', 'Distributor / Retailer Name', 'Product name'];
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((r) => [
-        `"${(r.requestedBy || '').replace(/"/g, '""')}"`,
-        `"${(r.complaintNo || '').replace(/"/g, '""')}"`,
-        `"${(r.distributor || '').replace(/"/g, '""')}"`,
-        `"${(r.productName || '').replace(/"/g, '""')}"`,
-      ].join(',')),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(report.name || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_')}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  // Open Salesforce Lightning Export Modal
+  const handleOpenExportModal = (report) => {
+    setExportModalReport(report || activeReport);
+    setExportView('formatted');
+    setExportFormat('xls');
+    setExportEncoding('ISO-8859-1 (General US & Western European, ISO-LATIN-1)');
+    setEditMenuOpen(false);
+    setRowMenuOpenId(null);
   };
+
+  const handleExportReport = (report) => {
+    handleOpenExportModal(report);
+  };
+
+  // Execute export based on Salesforce Export Modal options
+  const handleExecuteExport = () => {
+    if (!exportModalReport) return;
+    const report = exportModalReport;
+
+    const rows =
+      activeReport && activeReport.id === report.id && activeReportRows.length > 0
+        ? activeReportRows
+        : report.rows?.length > 0
+        ? report.rows.map((r, idx) => ({
+            id: `r-${idx}`,
+            requestedBy: r.creator || r.requestedBy || '-',
+            complaintNo: r.num || r.complaintNo || `CMP-2026-${String(idx + 1).padStart(4, '0')}`,
+            distributor: r.customer || r.distributor || 'Aabha Marketing Company',
+            productName: r.prod || r.productName || 'Phytocare Ruchi',
+          }))
+        : INITIAL_REPORT_ROWS;
+
+    const safeName = (report.name || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const isFormatted = exportView === 'formatted';
+    const ext = exportFormat === 'csv' ? 'csv' : exportFormat === 'xlsx' ? 'xlsx' : 'xls';
+    const filename = `${safeName}_${isFormatted ? 'Formatted' : 'Details'}.${ext}`;
+
+    if (exportFormat === 'csv') {
+      let csvContent = '';
+      if (isFormatted) {
+        csvContent += `"Report: Complaints"\n`;
+        csvContent += `"${(report.name || '').replace(/"/g, '""')}"\n`;
+        csvContent += `"Total Records","${rows.length}"\n`;
+        csvContent += `"Folder","Complaint Management Reports"\n`;
+        csvContent += `"Created By","${(report.createdBy || 'Narayan Rao Vakamudi').replace(/"/g, '""')}"\n`;
+        csvContent += `"Exported On","${new Date().toLocaleString('en-IN')}"\n\n`;
+      }
+      csvContent += `"Requested By","Complaint: Complaint No","Distributor / Retailer Name","Product name"\n`;
+      csvContent += rows
+        .map((r) =>
+          [
+            `"${(r.requestedBy || '').replace(/"/g, '""')}"`,
+            `"${(r.complaintNo || '').replace(/"/g, '""')}"`,
+            `"${(r.distributor || '').replace(/"/g, '""')}"`,
+            `"${(r.productName || '').replace(/"/g, '""')}"`,
+          ].join(',')
+        )
+        .join('\n');
+
+      if (isFormatted) {
+        csvContent += `\n"Grand Total (${rows.length} records)","","","${rows.length}"`;
+      }
+
+      const bom =
+        exportEncoding.toLowerCase().includes('utf') || exportEncoding.toLowerCase().includes('unicode')
+          ? '\uFEFF'
+          : '';
+      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else {
+      // Excel XML/HTML spreadsheet format (.xls or .xlsx)
+      const cleanSheetName = (report.name || 'Report').substring(0, 31).replace(/[:\\\/\?\*\[\]]/g, '');
+      let excelContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>${cleanSheetName}</x:Name>
+                  <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            .header-title { font-family: Arial, Helvetica, sans-serif; font-size: 15pt; font-weight: bold; color: #0176d3; }
+            .header-sub { font-family: Arial, Helvetica, sans-serif; font-size: 13pt; font-weight: bold; color: #0f172a; }
+            .meta-lbl { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; font-weight: bold; color: #475569; }
+            .meta-val { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #0f172a; }
+            .th-styled { background-color: #0176d3; color: #ffffff; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 10pt; border: 1px solid #005fb2; padding: 6px 10px; }
+            .th-plain { background-color: #f1f5f9; color: #0f172a; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 10pt; border: 1px solid #cbd5e1; padding: 6px 10px; }
+            .td-cell { border: 1px solid #e2e8f0; font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; padding: 6px 10px; color: #1e293b; }
+            .total-row { background-color: #f8fafc; font-weight: bold; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #0176d3; }
+          </style>
+        </head>
+        <body>
+          <table>
+      `;
+
+      if (isFormatted) {
+        excelContent += `
+            <tr><td colspan="4" class="header-title">Report: Complaints</td></tr>
+            <tr><td colspan="4" class="header-sub">${report.name}</td></tr>
+            <tr><td class="meta-lbl">Total Records:</td><td colspan="3" class="meta-val">${rows.length}</td></tr>
+            <tr><td class="meta-lbl">Folder:</td><td colspan="3" class="meta-val">Complaint Management Reports</td></tr>
+            <tr><td class="meta-lbl">Created By:</td><td colspan="3" class="meta-val">${report.createdBy || 'Narayan Rao Vakamudi'}</td></tr>
+            <tr><td class="meta-lbl">Exported On:</td><td colspan="3" class="meta-val">${new Date().toLocaleString('en-IN')}</td></tr>
+            <tr><td colspan="4"></td></tr>
+            <tr>
+              <th class="th-styled">Requested By</th>
+              <th class="th-styled">Complaint: Complaint No</th>
+              <th class="th-styled">Distributor / Retailer Name</th>
+              <th class="th-styled">Product name</th>
+            </tr>
+        `;
+      } else {
+        excelContent += `
+            <tr>
+              <th class="th-plain">Requested By</th>
+              <th class="th-plain">Complaint: Complaint No</th>
+              <th class="th-plain">Distributor / Retailer Name</th>
+              <th class="th-plain">Product name</th>
+            </tr>
+        `;
+      }
+
+      rows.forEach((r) => {
+        excelContent += `
+          <tr>
+            <td class="td-cell">${r.requestedBy || '-'}</td>
+            <td class="td-cell">${r.complaintNo || ''}</td>
+            <td class="td-cell">${r.distributor || ''}</td>
+            <td class="td-cell">${r.productName || ''}</td>
+          </tr>
+        `;
+      });
+
+      if (isFormatted) {
+        excelContent += `
+          <tr class="total-row">
+            <td class="td-cell" colspan="3">Grand Total (${rows.length} records)</td>
+            <td class="td-cell">${rows.length}</td>
+          </tr>
+        `;
+      }
+
+      excelContent += `
+          </table>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    setExportModalReport(null);
+  };
+
+  // Salesforce Lightning Export Modal JSX
+  const exportModalJsx = exportModalReport ? (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-2xs p-4 animate-in fade-in"
+      onClick={() => setExportModalReport(null)}
+    >
+      <div
+        className="w-full max-w-xl rounded-lg border border-slate-300 bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="relative px-6 py-4 border-b border-slate-200 text-center">
+          <h2 className="text-base font-bold text-slate-800">Export</h2>
+          <button
+            type="button"
+            onClick={() => setExportModalReport(null)}
+            className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-6 space-y-5">
+          <div>
+            <span className="block text-xs font-semibold text-slate-700 mb-2.5">Export View</span>
+
+            {/* 2 Tiles: Formatted Report & Details Only */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Tile 1: Formatted Report */}
+              <div
+                onClick={() => {
+                  setExportView('formatted');
+                  setExportFormat('xls');
+                }}
+                className={`relative rounded border p-4 cursor-pointer transition select-none flex flex-col justify-between min-h-[125px] text-center ${
+                  exportView === 'formatted'
+                    ? 'border-2 border-[#0176d3] bg-white shadow-2xs'
+                    : 'border border-slate-300 bg-white hover:border-slate-400'
+                }`}
+              >
+                {exportView === 'formatted' && (
+                  <div className="absolute top-0 right-0 w-6 h-6 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-0 h-0 border-t-[26px] border-t-[#0176d3] border-l-[26px] border-l-transparent"></div>
+                    <svg
+                      className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                )}
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">Formatted Report</h3>
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
+                  Export the report, including the report header, groupings, and filter settings.
+                </p>
+              </div>
+
+              {/* Tile 2: Details Only */}
+              <div
+                onClick={() => {
+                  setExportView('details');
+                }}
+                className={`relative rounded border p-4 cursor-pointer transition select-none flex flex-col justify-between min-h-[125px] text-center ${
+                  exportView === 'details'
+                    ? 'border-2 border-[#0176d3] bg-white shadow-2xs'
+                    : 'border border-slate-300 bg-white hover:border-slate-400'
+                }`}
+              >
+                {exportView === 'details' && (
+                  <div className="absolute top-0 right-0 w-6 h-6 overflow-hidden">
+                    <div className="absolute top-0 right-0 w-0 h-0 border-t-[26px] border-t-[#0176d3] border-l-[26px] border-l-transparent"></div>
+                    <svg
+                      className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                )}
+                <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">Details Only</h3>
+                <p className="text-[11px] text-slate-500 leading-relaxed mt-1">
+                  Export only the detail rows. Use this to do further calculations or for uploading to other systems.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls based on Export View */}
+          {exportView === 'formatted' ? (
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-700">Format</label>
+              <div className="relative">
+                <select
+                  value={exportFormat}
+                  onChange={(e) => setExportFormat(e.target.value)}
+                  className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer"
+                >
+                  <option value="xls">Excel Format .xls</option>
+                  <option value="xlsx">Excel Format .xlsx</option>
+                  <option value="csv">Comma Delimited .csv</option>
+                </select>
+                <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Format</label>
+                <div className="relative">
+                  <select
+                    value={exportFormat}
+                    onChange={(e) => setExportFormat(e.target.value)}
+                    className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer"
+                  >
+                    <option value="xls">Excel Format .xls</option>
+                    <option value="xlsx">Excel Format .xlsx</option>
+                    <option value="csv">Comma Delimited .csv</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">Encoding</label>
+                <div className="relative">
+                  <select
+                    value={exportEncoding}
+                    onChange={(e) => setExportEncoding(e.target.value)}
+                    className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer truncate"
+                  >
+                    <option value="ISO-8859-1 (General US & Western European, ISO-LATIN-1)">
+                      ISO-8859-1 (General US &amp; Western European, ISO-LATIN-1)
+                    </option>
+                    <option value="Unicode">Unicode</option>
+                    <option value="Unicode (UTF-8)">Unicode (UTF-8)</option>
+                    <option value="Japanese (Shift-JIS)">Japanese (Shift-JIS)</option>
+                    <option value="Japanese (Windows)">Japanese (Windows)</option>
+                    <option value="Chinese National Standard (GB18030)">Chinese National Standard (GB18030)</option>
+                    <option value="Chinese Simplified (GB2312)">Chinese Simplified (GB2312)</option>
+                    <option value="Chinese Traditional (Big5)">Chinese Traditional (Big5)</option>
+                    <option value="Korean">Korean</option>
+                    <option value="Unicode (UTF-16, Big Endian)">Unicode (UTF-16, Big Endian)</option>
+                    <option value="Big5 Traditional Chinese (HKSCS)">Big5 Traditional Chinese (HKSCS)</option>
+                    <option value="Japanese (Shift-JIS-2004)">Japanese (Shift-JIS-2004)</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="border-t border-slate-200 px-6 py-3.5 bg-slate-50 flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={() => setExportModalReport(null)}
+            className="px-4 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleExecuteExport}
+            className="px-4 py-1.5 rounded bg-[#0176d3] hover:bg-[#015ba5] text-xs font-semibold text-white shadow-2xs transition"
+          >
+            Export
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   // Delete any report permanently
   const handleDeleteReport = (report) => {
@@ -1863,13 +2206,13 @@ export function ReportsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        handleExportReport(activeReport);
+                        handleOpenExportModal(activeReport);
                         setEditMenuOpen(false);
                       }}
                       className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-50 font-medium"
                     >
                       <Download className="h-3.5 w-3.5 text-blue-600" />
-                      <span>Export Details</span>
+                      <span>Export</span>
                     </button>
                     <button
                       type="button"
@@ -2098,6 +2441,8 @@ export function ReportsPage() {
             </div>
           </div>
         )}
+        {/* Export Modal */}
+        {exportModalJsx}
       </div>
     );
   }
@@ -2448,7 +2793,7 @@ export function ReportsPage() {
                             <button
                               type="button"
                               onClick={() => {
-                                handleExportReport(report);
+                                handleOpenExportModal(report);
                                 setRowMenuOpenId(null);
                               }}
                               className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left flex items-center gap-1.5"
@@ -2654,6 +2999,8 @@ export function ReportsPage() {
           </div>
         </div>
       )}
+      {/* Export Modal */}
+      {exportModalJsx}
     </div>
   );
 }
