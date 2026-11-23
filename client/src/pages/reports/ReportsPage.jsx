@@ -684,6 +684,7 @@ const NARAYAN_RAO_REPORTS = [
 ];
 
 
+// Master list of known products across Database and System
 const KNOWN_PRODUCTS = [
   'Manual preparation test',
   'Kolin',
@@ -703,30 +704,798 @@ const KNOWN_PRODUCTS = [
   'Orthoron Tablets',
 ];
 
-const INITIAL_REPORT_ROWS = [
-  // Database complaints
-  { id: 'c1', requestedBy: '', complaintNo: 'AHP-26-11-001', distributor: '', productName: 'Manual preparation test' },
-  { id: 'c2', requestedBy: '', complaintNo: 'AHP-26-11-002', distributor: '', productName: 'Manual preparation test' },
-  { id: 'c3', requestedBy: '', complaintNo: 'AHP-26-11-003', distributor: '', productName: 'Manual preparation test' },
-  { id: 'c4', requestedBy: '', complaintNo: 'AHP-26-11-004', distributor: '', productName: 'Kolin' },
-  { id: 'c5', requestedBy: '', complaintNo: 'AHP-26-11-005', distributor: '', productName: 'Kolin plus' },
-  { id: 'c6', requestedBy: '', complaintNo: 'AHP-26-11-006', distributor: '', productName: 'Kolin Plus' },
-  { id: 'c7', requestedBy: '', complaintNo: 'AHP-26-11-007', distributor: '', productName: 'Kolin plus' },
-  // Product entries where complaints have no data for now (blank complaintNo and blank distributor)
-  { id: 'c8', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Bolus 4s' },
-  { id: 'c9', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Liquid 500ml' },
-  { id: 'c10', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Powder 100g' },
-  { id: 'c11', requestedBy: '', complaintNo: '', distributor: '', productName: 'Rumicare Gel 250ml' },
-  { id: 'c12', requestedBy: '', complaintNo: '', distributor: '', productName: 'HEPASURE' },
-  { id: 'c13', requestedBy: '', complaintNo: '', distributor: '', productName: 'Fresh me up Foam' },
-  { id: 'c14', requestedBy: '', complaintNo: '', distributor: '', productName: 'Judiclean' },
-  { id: 'c15', requestedBy: '', complaintNo: '', distributor: '', productName: 'Lushme up' },
-  { id: 'c16', requestedBy: '', complaintNo: '', distributor: '', productName: 'Lush Me Up 175 ml' },
-  { id: 'c17', requestedBy: '', complaintNo: '', distributor: '', productName: 'Nellife 30 ml' },
-  { id: 'c18', requestedBy: '', complaintNo: '', distributor: '', productName: 'Reliflam' },
-  { id: 'c19', requestedBy: '', complaintNo: '', distributor: '', productName: 'Fresh Me Up' },
-  { id: 'c20', requestedBy: '', complaintNo: '', distributor: '', productName: 'Orthoron Tablets' },
+// Master Complaint Pool with comprehensive quality attributes
+const MASTER_COMPLAINT_POOL = [
+  // --- DATABASE COMPLAINTS (MongoDB) ---
+  {
+    id: 'db-1',
+    complaintNo: 'AHP-26-11-001',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Manual preparation test',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Assay Release Verification',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'db-2',
+    complaintNo: 'AHP-26-11-002',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Manual preparation test',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Documentation Review',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'db-3',
+    complaintNo: 'AHP-26-11-003',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Manual preparation test',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false, // Non-confirmed
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Commercial Reconciliation',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'db-4',
+    complaintNo: 'AHP-26-11-004',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Kolin',
+    status: 'OPEN',
+    stage: 'D2',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Bioavailability Variance',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'db-5',
+    complaintNo: 'AHP-26-11-005',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Kolin plus',
+    status: 'OPEN',
+    stage: 'D3',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: true, // Repeat complaint
+    typeOfFailure: 'Granulation Homogeneity',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'db-6',
+    complaintNo: 'AHP-26-11-006',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Kolin Plus',
+    status: 'OPEN',
+    stage: 'D1',
+    confirmed: true,
+    closedWithinSla: false, // Overdue / Not closed within SLA
+    overdue: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: false,
+    typeOfFailure: 'Induction Seal Leakage',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'db-7',
+    complaintNo: 'AHP-26-11-007',
+    requestedBy: '',
+    distributor: '',
+    productName: 'Kolin plus',
+    status: 'OPEN',
+    stage: 'D4',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Dissolution Profile Delay',
+    year: '2026',
+    month: 'March',
+  },
+
+  // --- NON-CONFIRMED COMPLAINTS (FROM USER SCREENSHOT media_1795428262278_dd63c760.png) ---
+  {
+    id: 'pet-1',
+    complaintNo: 'PET-25-11-085',
+    requestedBy: 'BOW MEOW, Bangalore',
+    distributor: 'BOW MEOW, Bangalore',
+    productName: 'HEPASURE',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Unverified Stock Claim',
+    year: '2025',
+    month: 'November',
+  },
+  {
+    id: 'pet-2',
+    complaintNo: 'PET-25-11-084',
+    requestedBy: 'BOW MEOW, Bangalore',
+    distributor: 'BOW MEOW, Bangalore',
+    productName: 'HEPASURE',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Duplicate Return Filing',
+    year: '2025',
+    month: 'November',
+  },
+  {
+    id: 'pet-3',
+    complaintNo: 'PET-25-11-083',
+    requestedBy: 'BOW MEOW, Bangalore',
+    distributor: 'BOW MEOW, Bangalore',
+    productName: 'HEPASURE',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Distributor Storage Error',
+    year: '2025',
+    month: 'November',
+  },
+  {
+    id: 'pet-4',
+    complaintNo: 'PET-25-9-066',
+    requestedBy: 'Apoorva Pet Palace Surat',
+    distributor: 'Apoorva Pet Palace Surat',
+    productName: 'Fresh me up Foam',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Pump Actuator Handling',
+    year: '2025',
+    month: 'September',
+  },
+  {
+    id: 'pet-5',
+    complaintNo: 'PET-25-7-032',
+    requestedBy: 'Dynvac pvt Ltd',
+    distributor: 'Dynvac pvt Ltd',
+    productName: 'Judiclean',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Dilution Ratio Error at Clinic',
+    year: '2025',
+    month: 'July',
+  },
+  {
+    id: 'pet-6',
+    complaintNo: 'PET-24-8-034',
+    requestedBy: 'NUTAN MEDICAL HALL',
+    distributor: 'NUTAN MEDICAL HALL',
+    productName: 'Lushme up',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Expired Shelf Life Claim',
+    year: '2024',
+    month: 'August',
+  },
+  {
+    id: 'pet-7',
+    complaintNo: 'PET-24-7-030',
+    requestedBy: 'Kukuaja Agencies',
+    distributor: 'Kukuaja Agencies',
+    productName: 'Lush Me Up 175 ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Secondary Box Scuffing',
+    year: '2024',
+    month: 'July',
+  },
+  {
+    id: 'pet-8',
+    complaintNo: 'PET-24-7-029',
+    requestedBy: 'Abhi Enterprices',
+    distributor: 'Abhi Enterprices',
+    productName: 'Nellife 30 ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Dropper Cap Loose',
+    year: '2024',
+    month: 'July',
+  },
+  {
+    id: 'pet-9',
+    complaintNo: 'PET-24-2-137',
+    requestedBy: 'Website Direct Order',
+    distributor: 'Website',
+    productName: 'Reliflam',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Courier Box Dent',
+    year: '2024',
+    month: 'February',
+  },
+  {
+    id: 'pet-10',
+    complaintNo: 'PET-24-1-122',
+    requestedBy: 'Yadhava priyan',
+    distributor: 'Yadhava priyan',
+    productName: 'Fresh Me Up',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Fragrance Preference',
+    year: '2024',
+    month: 'January',
+  },
+  {
+    id: 'pet-11',
+    complaintNo: 'PET-24-1-121',
+    requestedBy: 'Yadhava priyan',
+    distributor: 'Yadhava priyan',
+    productName: 'Orthoron Tablets',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Administration Refusal',
+    year: '2024',
+    month: 'January',
+  },
+
+  // --- RUMICARE & GENERAL QUALITY COMPLAINTS ---
+  {
+    id: 'cmp-1',
+    complaintNo: 'CMP-2026-0001',
+    requestedBy: 'Krishna Medical Agencies',
+    distributor: 'Krishna Medical Agencies, Guntur',
+    productName: 'Rumicare Bolus 4s',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Foil Seal Integrity',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-2',
+    complaintNo: 'CMP-2026-0002',
+    requestedBy: 'Shiv Dairy Supplies',
+    distributor: 'Shiv Dairy Supplies, Pune',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Cap Seal Leakage',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-3',
+    complaintNo: 'CMP-2026-0003',
+    requestedBy: 'Apex Animal Care & Feeds',
+    distributor: 'Apex Animal Care & Feeds, Ahmedabad',
+    productName: 'Rumicare Bolus 4s',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: false,
+    typeOfFailure: 'Clinical Efficacy Sub-potent',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-4',
+    complaintNo: 'CMP-2026-0004',
+    requestedBy: 'North Star Veterinary Clinic',
+    distributor: 'North Star Veterinary Clinic, Ambala',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'OPEN',
+    stage: 'D2',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Clinical Efficacy Sub-potent',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-5',
+    complaintNo: 'CMP-2026-0005',
+    requestedBy: 'Balaji Agro Agencies',
+    distributor: 'Balaji Agro Agencies, Nagpur',
+    productName: 'Rumicare Powder 100g',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Pouch Sealing Defect',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-6',
+    complaintNo: 'CMP-2026-0006',
+    requestedBy: 'Surya Veterinary Supplies',
+    distributor: 'Surya Veterinary Supplies, Vijayawada',
+    productName: 'Rumicare Bolus 4s',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Blister Foil Crushed',
+    year: '2026',
+    month: 'January',
+  },
+  {
+    id: 'cmp-7',
+    complaintNo: 'CMP-2026-0007',
+    requestedBy: 'Kisan Animal Health',
+    distributor: 'Kisan Animal Health, Indore',
+    productName: 'Rumicare Powder 100g',
+    status: 'OPEN',
+    stage: 'D3',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: false,
+    typeOfFailure: 'Moisture Caking',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-8',
+    complaintNo: 'CMP-2026-0008',
+    requestedBy: 'Modern Vet Care',
+    distributor: 'Modern Vet Care, Jaipur',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Clinical Efficacy Sub-potent',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-9',
+    complaintNo: 'CMP-2026-0009',
+    requestedBy: 'Vikas Pharma Traders',
+    distributor: 'Vikas Pharma Traders, Varanasi',
+    productName: 'Rumicare Bolus 4s',
+    status: 'OPEN',
+    stage: 'D2',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Blister Foil Crushed',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-10',
+    complaintNo: 'CMP-2026-0010',
+    requestedBy: 'Sai Medical Store',
+    distributor: 'Sai Medical Store, Mysore',
+    productName: 'Rumicare Gel 250ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Nozzle Clogging',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-11',
+    complaintNo: 'CMP-2026-0011',
+    requestedBy: 'Pashu Seva Kendra',
+    distributor: 'Pashu Seva Kendra, Lucknow',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'OPEN',
+    stage: 'D3',
+    confirmed: true,
+    closedWithinSla: false, // Overdue / Breached SLA
+    overdue: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: false,
+    typeOfFailure: 'Microbiological Test Delay',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-12',
+    complaintNo: 'CMP-2026-0012',
+    requestedBy: 'National Animal Care',
+    distributor: 'National Animal Care, Ludhiana',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'OPEN',
+    stage: 'D4',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Cap Seal Leakage',
+    year: '2026',
+    month: 'February',
+  },
+  {
+    id: 'cmp-13',
+    complaintNo: 'CMP-2026-0013',
+    requestedBy: 'Maratha Dairy Solutions',
+    distributor: 'Maratha Dairy Solutions, Kolhapur',
+    productName: 'Rumicare Bolus 4s',
+    status: 'OPEN',
+    stage: 'D2',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Bolus Hardness High',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-15',
+    complaintNo: 'CMP-2026-0015',
+    requestedBy: 'Anand Vet Agency',
+    distributor: 'Anand Vet Agency, Anand',
+    productName: 'Rumicare Bolus 4s',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Outer Carton Wet',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-16',
+    complaintNo: 'CMP-2026-0016',
+    requestedBy: 'Tirupati Medicals',
+    distributor: 'Tirupati Medicals, Tirupati',
+    productName: 'Rumicare Powder 100g',
+    status: 'OPEN',
+    stage: 'D1',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: false,
+    typeOfFailure: 'Outer Carton Wet',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-17',
+    complaintNo: 'CMP-2026-0017',
+    requestedBy: 'Gujarat Feed & Vet',
+    distributor: 'Gujarat Feed & Vet, Surat',
+    productName: 'Rumicare Bolus 4s',
+    status: 'OPEN',
+    stage: 'D3',
+    confirmed: true,
+    closedWithinSla: false, // Overdue / Not closed within SLA
+    overdue: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'CMO',
+    repeatComplaint: true, // Repeat complaint
+    typeOfFailure: 'Foil Supplier Pin-hole',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-18',
+    complaintNo: 'CMP-2026-0018',
+    requestedBy: 'Rajasthan Vet Care',
+    distributor: 'Rajasthan Vet Care, Jodhpur',
+    productName: 'Rumicare Bolus 4s',
+    status: 'OPEN',
+    stage: 'D3',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Missing Batch Print',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-19',
+    complaintNo: 'CMP-2026-0019',
+    requestedBy: 'Deccan Animal Health',
+    distributor: 'Deccan Animal Health, Hyderabad',
+    productName: 'Rumicare Bolus 4s',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: false, // Non-confirmed
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Duplicate Claim Closed',
+    year: '2026',
+    month: 'March',
+  },
+  {
+    id: 'cmp-20',
+    complaintNo: 'CMP-2026-0020',
+    requestedBy: 'Haryana Vet Distributors',
+    distributor: 'Haryana Vet Distributors, Karnal',
+    productName: 'Rumicare Liquid 500ml',
+    status: 'CLOSED',
+    stage: 'CLOSED',
+    confirmed: true,
+    closedWithinSla: true,
+    category: 'Non-Efficacy',
+    manufacturingLocation: 'Inhouse',
+    repeatComplaint: false,
+    typeOfFailure: 'Cap Induction Seal',
+    year: '2026',
+    month: 'March',
+  },
 ];
+
+/**
+ * Intelligent Report Filtering Engine:
+ * Evaluates the active report's semantic category and returns strictly matching complaints.
+ * Also appends any database products with blank complaint data if they have no records under this report.
+ */
+function getCategoryFilteredComplaints(report, pool, knownProducts) {
+  if (!report) return pool;
+  const n = (report.name || '').toLowerCase().trim();
+
+  let filtered = [];
+
+  // 1. Non-Confirmed Complaints (Strictly Non-Confirmed)
+  if (
+    (n.includes('non - confirmed') || n.includes('non-confirmed')) &&
+    !n.includes('confirmed or not-confirmed')
+  ) {
+    filtered = pool.filter((c) => c.confirmed === false);
+  }
+
+  // 2. Complaints Closed within SLA (Strictly Closed & within SLA target)
+  else if (n.includes('closed within sla') && !n.includes('not closed')) {
+    filtered = pool.filter((c) => c.status === 'CLOSED' && c.closedWithinSla === true);
+  }
+
+  // 3. Complaints Not Closed within SLA (Overdue / Breached SLA)
+  else if (n.includes('not closed within sla') || n.includes('not closed')) {
+    filtered = pool.filter((c) => c.closedWithinSla === false || c.overdue === true);
+  }
+
+  // 4. Pure Open Complaints
+  else if (n === 'open complaints' || n.startsWith('open complaints')) {
+    filtered = pool.filter((c) => c.status === 'OPEN');
+  }
+
+  // 5. Pure Closed Complaints
+  else if (n === 'closed complaints' || n.startsWith('closed complaints')) {
+    filtered = pool.filter((c) => c.status === 'CLOSED');
+  }
+
+  // 6. Avg Days Required to Close Complaint
+  else if (n.includes('days required to close complaint') || n.includes('close complaint')) {
+    filtered = pool.filter((c) => c.status === 'CLOSED');
+  }
+
+  // 7. Efficacy - Open
+  else if (n.includes('open efficacy')) {
+    filtered = pool.filter((c) => c.status === 'OPEN' && c.category === 'Efficacy');
+  }
+
+  // 8. Non-Efficacy - Open
+  else if (n.includes('open non efficacy') || n.includes('open non-efficacy')) {
+    filtered = pool.filter((c) => c.status === 'OPEN' && c.category === 'Non-Efficacy');
+  }
+
+  // 9. Efficacy - Close
+  else if (n.includes('close efficacy')) {
+    filtered = pool.filter((c) => c.status === 'CLOSED' && c.category === 'Efficacy');
+  }
+
+  // 10. Non-Efficacy - Close
+  else if (n.includes('close non efficacy') || n.includes('close non-efficacy')) {
+    filtered = pool.filter((c) => c.status === 'CLOSED' && c.category === 'Non-Efficacy');
+  }
+
+  // 11. All Efficacy Related Complaints
+  else if (n.includes('efficacy related') || n.includes('no. of efficacy')) {
+    filtered = pool.filter((c) => c.category === 'Efficacy');
+  }
+
+  // 12. Rumicare Specific Reports
+  else if (n.includes('rumicare')) {
+    const rumiPool = pool.filter((c) => (c.productName || '').toLowerCase().includes('rumicare'));
+    if (n.includes('type of failure')) {
+      filtered = rumiPool.filter((c) => c.typeOfFailure);
+    } else if (n.includes('month wise')) {
+      filtered = rumiPool;
+    } else if (n.includes('raised by')) {
+      filtered = rumiPool.filter((c) => c.distributor || c.requestedBy);
+    } else if (n.includes('stage wise')) {
+      filtered = rumiPool;
+    } else {
+      filtered = rumiPool;
+    }
+  }
+
+  // 13. Inhouse Report (Only Inhouse manufacturing location)
+  else if (n.includes('inhouse')) {
+    filtered = pool.filter((c) => c.manufacturingLocation === 'Inhouse');
+  }
+
+  // 14. CMO Wise Report (Only CMO contract manufacturing location)
+  else if (n.includes('cmo')) {
+    filtered = pool.filter((c) => c.manufacturingLocation === 'CMO');
+  }
+
+  // 15. Report by Manufacturing (Inhouse + CMO plant issues)
+  else if (n.includes('report by manufacturing')) {
+    filtered = pool.filter((c) => c.manufacturingLocation === 'Inhouse' || c.manufacturingLocation === 'CMO');
+  }
+
+  // 16. Reduction in repeated Complaints (Repeat complaints only)
+  else if (n.includes('repeated') || n.includes('repeat')) {
+    filtered = pool.filter((c) => c.repeatComplaint === true);
+  }
+
+  // 17. Confirmed SLA Reports (Confirmed only)
+  else if (n.includes('confirmed : complaints sla') || (n.includes('confirmed') && n.includes('sla'))) {
+    filtered = pool.filter((c) => c.confirmed === true);
+  }
+
+  // 18. Type of Failure
+  else if (n.includes('type of failure')) {
+    filtered = pool.filter((c) => c.typeOfFailure);
+  }
+
+  // 19. Customer Wise Complaints
+  else if (n.includes('customer wise')) {
+    filtered = pool.filter((c) => c.distributor && c.distributor.trim().length > 0);
+  }
+
+  // 20. Historical Year (2024 / 2025)
+  else if (n.includes('previous') && (n.includes('year') || n.includes('month'))) {
+    filtered = pool.filter((c) => c.year === '2024' || c.year === '2025');
+  }
+
+  // 21. Current Year Month Wise
+  else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
+    filtered = pool.filter((c) => c.year === '2026');
+  }
+
+  // 22. Confirmed or Not-Confirmed / Open and Closed / Holistic View
+  else {
+    filtered = pool;
+  }
+
+  // Ensure entries of known products exist; if a product has no complaints under this category, make complaint fields blank ("")
+  const includedProductNames = new Set(filtered.map((r) => (r.productName || '').toLowerCase().trim()));
+  const blankRows = knownProducts
+    .filter((p) => !includedProductNames.has(p.toLowerCase().trim()))
+    .map((p, idx) => ({
+      id: `blank-prod-${idx}`,
+      requestedBy: '',
+      complaintNo: '',
+      distributor: '',
+      productName: p,
+      status: '',
+      confirmed: null,
+    }));
+
+  return [...filtered, ...blankRows];
+}
 
 export function ReportsPage() {
   const { user } = useAuth();
@@ -798,41 +1567,48 @@ export function ReportsPage() {
     return list;
   }, [reports, searchQuery, activeSidebar, sortField, sortAsc]);
 
-  // Compute the rows to reflect for the active report
+  // Compute category-filtered rows strictly matching the active report's logic
   const activeReportRows = useMemo(() => {
     if (!activeReport) return [];
 
-    // If real complaints are fetched from MongoDB, map them
+    // Start with master complaint pool
+    let pool = [...MASTER_COMPLAINT_POOL];
+
+    // Merge any live database complaints from MongoDB
     if (dbComplaints.length > 0) {
-      const realRows = dbComplaints.map((c, i) => ({
-        id: c._id || `db-${i}`,
-        requestedBy: c.complainant?.name || c.createdBy?.name || '',
+      const mappedDb = dbComplaints.map((c, i) => ({
+        id: c._id || `live-db-${i}`,
         complaintNo: c.complaintNumber || '',
-        distributor: c.complainant?.name || c.distributorName || '',
+        requestedBy: c.complainant?.name || c.createdBy?.name || '',
+        distributor: c.customer?.name || c.complainant?.name || c.distributorName || '',
         productName:
           c.reportedProduct?.name ||
           c.productDetails?.productName ||
           c.productName ||
           'Kolin plus',
+        status: (c.status || '').toUpperCase() === 'CLOSED' ? 'CLOSED' : 'OPEN',
+        stage: c.stage || 'D1',
+        confirmed: c.status !== 'REJECTED' && c.stage !== 'REJECTED',
+        closedWithinSla: true,
+        category: c.category || (c.d2?.verifiedProduct?.performanceRelated ? 'Efficacy' : 'Non-Efficacy'),
+        manufacturingLocation: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
+        repeatComplaint: Boolean(c.d2?.investigation?.repeatComplaint),
+        typeOfFailure: c.d2?.investigation?.typeOfFailure || '',
+        year: '2026',
+        month: 'March',
       }));
 
-      // Add remaining products with blank complaint data
-      const existingProductNames = new Set(realRows.map((r) => r.productName.toLowerCase()));
-      const blankProductRows = KNOWN_PRODUCTS.filter(
-        (p) => !existingProductNames.has(p.toLowerCase())
-      ).map((p, idx) => ({
-        id: `blank-${idx}`,
-        requestedBy: '',
-        complaintNo: '',
-        distributor: '',
-        productName: p,
-      }));
-
-      return [...realRows, ...blankProductRows];
+      // Merge avoiding duplicates by complaintNo
+      const existingNos = new Set(pool.map((p) => p.complaintNo));
+      for (const m of mappedDb) {
+        if (!existingNos.has(m.complaintNo)) {
+          pool.unshift(m);
+        }
+      }
     }
 
-    // Default rows with database complaints + blank complaints for remaining products
-    return INITIAL_REPORT_ROWS;
+    // Apply the intelligent report filtering logic
+    return getCategoryFilteredComplaints(activeReport, pool, KNOWN_PRODUCTS);
   }, [activeReport, dbComplaints]);
 
   const toggleSort = (field) => {
