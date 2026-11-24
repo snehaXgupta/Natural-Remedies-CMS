@@ -2192,7 +2192,7 @@ export function ReportsPage() {
                 <button
                   type="button"
                   onClick={() => setEditMenuOpen(!editMenuOpen)}
-                  className="px-2 py-1.5 border-t border-b border-r border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-600 rounded-r transition hover:bg-slate-100"
+                  className="px-2 py-1.5 border-t border-b border-r border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-600 rounded-r transition"
                 >
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
