@@ -135,9 +135,9 @@ export function AcknowledgeModal({ open, complaint, onClose, onDone }) {
                   <dt className="text-slate-500 font-medium">To (Handler)</dt>
                   <dd className="font-medium text-slate-800">
                     {coordEmail ? (
-                      <span>{selectedCoordinator?.name || preview.coordinatorName || 'Chandan'} &lt;{coordEmail}&gt;</span>
+                      <span>{selectedCoordinator?.name || preview.coordinatorName || 'Quality Coordinator'} &lt;{coordEmail}&gt;</span>
                     ) : (
-                      <span>{preview?.coordinatorName || 'Chandan (Quality Coordinator)'} &lt;{preview?.coordinatorTo || 'chandan@naturalremedies.com'}&gt;</span>
+                      <span>{preview?.coordinatorName || 'Quality Coordinator'} &lt;{preview?.coordinatorTo || 'quality@naturalremedies.com'}&gt;</span>
                     )}
                   </dd>
                   <dt className="text-slate-500 font-medium">Subject</dt>

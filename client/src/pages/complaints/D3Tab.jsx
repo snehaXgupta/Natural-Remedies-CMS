@@ -1763,7 +1763,7 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
         <FishboneDiagram
           categories={d3.categories}
           tree={d3.fishbone}
-          problem={d3.analysis?.problemStatement || complaint.shortDescription || 'Test1'}
+          problem={d3.analysis?.problemStatement || complaint.shortDescription || ''}
           complaintNumber={complaint.complaintNumber}
           complaintId={complaint._id}
           analysis={d3.analysis}

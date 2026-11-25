@@ -73,7 +73,7 @@ export function FishboneDiagram({
   const [isEditing, setIsEditing] = useState(!hasExistingData);
 
   // Form State matching Screenshot 2
-  const [rootCauseName, setRootCauseName] = useState(problem || 'Test1');
+  const [rootCauseName, setRootCauseName] = useState(problem || '');
   const [activeCheckboxes, setActiveCheckboxes] = useState({
     Manpower: true,
     Machine: false,
@@ -106,7 +106,7 @@ export function FishboneDiagram({
 
     setLocalCauses(initialCauses);
     setActiveCheckboxes((prev) => ({ ...prev, ...initialChecks }));
-    setRootCauseName(problem || 'Test1');
+    setRootCauseName(problem || '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, problem]);
 
@@ -157,7 +157,7 @@ export function FishboneDiagram({
       // 1. Save problem statement / root cause name (Fish Head)
       await d3Api.updateAnalysis(complaintId, {
         ...(analysis?.__v !== undefined ? { version: analysis.__v } : {}),
-        problemStatement: rootCauseName || problem || 'Test1',
+        problemStatement: rootCauseName || problem || '',
         methods: ['FISHBONE'],
       });
 

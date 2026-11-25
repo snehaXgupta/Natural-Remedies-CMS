@@ -92,16 +92,16 @@ export function DashboardsPage() {
     return dbComplaints.map((c, idx) => ({
       id: c._id || 'db-live-' + idx,
       num: c.complaintNumber || 'CMP-' + idx,
-      sbu: c.sbu || 'AHP Rumicare',
-      year: 'FY 2026',
-      month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : 'November',
+      sbu: c.sbu || 'Unassigned',
+      year: c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026',
+      month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : '',
       stage: c.stage === 'CLOSED' || (c.status || '').toUpperCase() === 'CLOSED' ? 'Closed' : c.stage || 'D1',
-      locType: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
-      locDetail: c.d2?.investigation?.locationDetail || 'NRPL-Bangalore-1100',
-      creator: c.createdBy?.name || user?.name || 'Chandan Hj',
-      product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Kolin plus',
-      customer: c.customer?.name || c.complainant?.name || c.distributorName || 'NR Distributor',
-      failure: c.d2?.investigation?.typeOfFailure || 'Induction Seal Leakage',
+      locType: c.d2?.investigation?.manufacturingLocation || null,
+      locDetail: c.d2?.investigation?.locationDetail || null,
+      creator: c.createdBy?.name || c.requester?.name || 'Unassigned',
+      product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Unspecified Product',
+      customer: c.customer?.name || c.complainant?.name || c.distributorName || null,
+      failure: c.d2?.investigation?.typeOfFailure || null,
       withinSla: calculateIsWithinSla(c),
     }));
   }, [dbComplaints, user]);
@@ -178,9 +178,8 @@ export function DashboardsPage() {
       'NLPL- Pithampur Indore-70...': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'Inhouse') {
-        const loc = c.locDetail || 'NRPL-Bangalore-1100';
-        counts[loc] = (counts[loc] || 0) + 1;
+      if (c.locType === 'Inhouse' && c.locDetail) {
+        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
       }
     });
     return Object.entries(counts)
@@ -198,9 +197,8 @@ export function DashboardsPage() {
       'Venkat pharma-3007': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'CMO') {
-        const loc = c.locDetail || 'Shamanur pharma-3033';
-        counts[loc] = (counts[loc] || 0) + 1;
+      if (c.locType === 'CMO' && c.locDetail) {
+        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
       }
     });
     return Object.entries(counts)
@@ -231,8 +229,9 @@ export function DashboardsPage() {
   const raisedByData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach((c) => {
-      const cr = c.creator || 'Chandan Hj';
-      counts[cr] = (counts[cr] || 0) + 1;
+      if (c.creator) {
+        counts[c.creator] = (counts[c.creator] || 0) + 1;
+      }
     });
     return Object.entries(counts)
       .map(([creator, count]) => ({ label: creator, count }))
@@ -243,8 +242,9 @@ export function DashboardsPage() {
   const productData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach((c) => {
-      const p = c.product || 'KOLIN PLUS FC';
-      counts[p] = (counts[p] || 0) + 1;
+      if (c.product) {
+        counts[c.product] = (counts[c.product] || 0) + 1;
+      }
     });
     return Object.entries(counts)
       .map(([product, count]) => ({ label: product, count }))
@@ -255,8 +255,9 @@ export function DashboardsPage() {
   const customerData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach((c) => {
-      const cust = c.customer || 'NA';
-      counts[cust] = (counts[cust] || 0) + 1;
+      if (c.customer) {
+        counts[c.customer] = (counts[c.customer] || 0) + 1;
+      }
     });
     return Object.entries(counts)
       .map(([customer, count]) => ({ label: customer, count }))
@@ -298,7 +299,7 @@ export function DashboardsPage() {
               Complaint Management
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              As of 23-Nov-2026, {lastRefreshed} • Viewing as {user?.name || 'Chandan Hj'}
+              As of {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}, {lastRefreshed} • Viewing as {user?.name || user?.email || 'User'}
             </p>
           </div>
         </div>

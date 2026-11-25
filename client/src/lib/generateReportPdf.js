@@ -113,8 +113,8 @@ function drawFooter(doc, margin, y, pageWidth, handlerName, reviewerName) {
   doc.text('Prepared by', margin + halfColW / 2, y + 4.2, { align: 'center' });
   doc.text('Reviewed By', margin + halfColW * 1.5, y + 4.2, { align: 'center' });
 
-  doc.text(handlerName || 'Chandan Hj', margin + halfColW / 2, y + 10.5, { align: 'center' });
-  doc.text(reviewerName || 'Thippeswamy Papareddy', margin + halfColW * 1.5, y + 10.5, { align: 'center' });
+  doc.text(handlerName || '—', margin + halfColW / 2, y + 10.5, { align: 'center' });
+  doc.text(reviewerName || '—', margin + halfColW * 1.5, y + 10.5, { align: 'center' });
 }
 
 /**
@@ -281,8 +281,8 @@ export function generateComplaintReport(complaint, d3Data = null, options = {}) 
   doc.setLineWidth(0.25);
 
   const effDate = formatSopDate(c.complaintDate || c.createdAt);
-  const handlerName = c.coordinator?.name || c.createdBy?.name || 'Chandan Hj';
-  const reviewerName = d3.review?.reviewer?.name || c.frp?.manager?.name || c.frp?.name || 'Thippeswamy Papareddy';
+  const handlerName = c.coordinator?.name || c.createdBy?.name || '—';
+  const reviewerName = d3.review?.reviewer?.name || c.frp?.manager?.name || c.frp?.name || '—';
 
   /* ==========================================================================
      =========================== PAGE 1 =======================================
