@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Search,
   ChevronDown,
@@ -29,10 +29,115 @@ import {
   Layers,
   Copy,
   Check,
+  Undo2,
+  Redo2,
+  GripVertical,
+  Plus,
+  SlidersHorizontal,
+  Play,
+  Save,
+  HelpCircle,
+  Eye,
+  Info,
+  Maximize2,
 } from 'lucide-react';
 import { reportApi, complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 
+// ============================================================================
+// MASTER AVAILABLE FIELDS (Exact Salesforce Lightning Schema)
+// ============================================================================
+export const AVAILABLE_FIELDS = [
+  { id: 'complaintNo', label: 'Complaint: Complaint No', type: 'link', category: 'Identification' },
+  { id: 'productName', label: 'Product name', type: 'text', category: 'Product' },
+  { id: 'distributor', label: 'Distributor / Retailer Name', type: 'text', category: 'Customer' },
+  { id: 'requestedBy', label: 'Requested By', type: 'text', category: 'Origin' },
+  { id: 'createdDate', label: 'Complaint: Created Date', type: 'date', category: 'Intake' },
+  { id: 'createdMonthYear', label: 'Created Month & Year', type: 'text', category: 'Intake' },
+  { id: 'stage', label: 'Stage', type: 'badge', category: 'Status' },
+  { id: 'status', label: 'Status', type: 'status_badge', category: 'Status' },
+  { id: 'category', label: 'Nature / Category', type: 'text', category: 'Quality' },
+  { id: 'batchNumber', label: 'Batch Number', type: 'mono', category: 'Product' },
+  { id: 'typeOfFailure', label: 'Type of Failure', type: 'text', category: 'Investigation' },
+  { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
+  { id: 'assignedFrp', label: 'Assigned FRP', type: 'text', category: 'Workflow' },
+  { id: 'daysOpen', label: 'Days Open', type: 'text', category: 'Turnaround' },
+  { id: 'd1Sla', label: 'D1 SLA (9h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd1Duration', label: 'D1 Duration', type: 'duration', category: 'SLA Tracking' },
+  { id: 'd1Status', label: 'D1 Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd2Sla', label: 'D2 SLA (9h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd2Duration', label: 'D2 Duration', type: 'duration', category: 'SLA Tracking' },
+  { id: 'd2Status', label: 'D2 Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd3Sla', label: 'D3 SLA (36h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd3Duration', label: 'D3 Duration', type: 'duration', category: 'SLA Tracking' },
+  { id: 'd3Status', label: 'D3 Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'overallSla', label: 'Overall SLA Status', type: 'sla_dot', category: 'SLA Tracking' },
+];
+
+export const AVAILABLE_GROUP_FIELDS = [
+  { id: 'createdMonthYear', label: 'Complaint: Created Date (Month/Year)' },
+  { id: 'productName', label: 'Product name' },
+  { id: 'distributor', label: 'Distributor / Retailer Name' },
+  { id: 'requestedBy', label: 'Requested By' },
+  { id: 'stage', label: 'Stage' },
+  { id: 'status', label: 'Status' },
+  { id: 'typeOfFailure', label: 'Type of Failure' },
+  { id: 'category', label: 'Nature / Category' },
+  { id: 'manufacturingLocation', label: 'Manufacturing Location' },
+];
+
+function getDefaultColumnsForReport(repId, repName) {
+  const n = (repName || '').toLowerCase();
+  if (n.includes('sla')) {
+    return [
+      'complaintNo',
+      'productName',
+      'distributor',
+      'd1Sla',
+      'd1Duration',
+      'd2Sla',
+      'd2Duration',
+      'd3Sla',
+      'd3Duration',
+      'overallSla',
+    ];
+  }
+  if (n.includes('manufacturing') || n.includes('inhouse') || n.includes('cmo')) {
+    return ['complaintNo', 'productName', 'batchNumber', 'manufacturingLocation', 'typeOfFailure', 'stage', 'status'];
+  }
+  if (n.includes('raised by')) {
+    return ['requestedBy', 'complaintNo', 'distributor', 'productName', 'createdDate', 'stage', 'status'];
+  }
+  if (n.includes('product wise')) {
+    return ['productName', 'complaintNo', 'distributor', 'batchNumber', 'stage', 'status'];
+  }
+  if (n.includes('customer wise')) {
+    return ['distributor', 'complaintNo', 'productName', 'requestedBy', 'createdDate', 'status'];
+  }
+  if (n.includes('stage')) {
+    return ['stage', 'complaintNo', 'productName', 'distributor', 'daysOpen', 'status'];
+  }
+  if (n.includes('failure')) {
+    return ['complaintNo', 'productName', 'typeOfFailure', 'distributor', 'manufacturingLocation', 'stage'];
+  }
+  if (n.includes('efficacy')) {
+    return ['complaintNo', 'productName', 'category', 'distributor', 'batchNumber', 'stage', 'daysOpen'];
+  }
+  return ['requestedBy', 'complaintNo', 'distributor', 'productName'];
+}
+
+function getDefaultGroupByForReport(repId, repName) {
+  const n = (repName || '').toLowerCase();
+  if (n.includes('raised by')) return 'requestedBy';
+  if (n.includes('product wise')) return 'productName';
+  if (n.includes('customer wise')) return 'distributor';
+  if (n.includes('stage')) return 'stage';
+  return 'createdMonthYear';
+}
+
+// ============================================================================
+// OFFICIAL NARAYAN RAO VAKAMUDI COMPLAINT REPORTS (36 ITEMS)
+// ============================================================================
 const NARAYAN_RAO_REPORTS = [
   // 1. Screenshot Report 1
   {
@@ -683,163 +788,128 @@ const NARAYAN_RAO_REPORTS = [
   },
 ];
 
+const AUGMENTED_REPORTS = NARAYAN_RAO_REPORTS.map((r) => ({
+  ...r,
+  columns: r.columns || getDefaultColumnsForReport(r.id, r.name),
+  groupBy: r.groupBy || [getDefaultGroupByForReport(r.id, r.name)],
+  filters: r.filters || {
+    showMe: 'all',
+    dateRange: 'all',
+    status: 'all',
+    category: 'all',
+    manufacturing: 'all',
+  },
+}));
 
-// Master list of known products across Database and System
-const KNOWN_PRODUCTS = [
-  'Manual preparation test',
-  'Kolin',
-  'Kolin plus',
-  'Rumicare Bolus 4s',
-  'Rumicare Liquid 500ml',
-  'Rumicare Powder 100g',
-  'Rumicare Gel 250ml',
-  'HEPASURE',
-  'Fresh me up Foam',
-  'Judiclean',
-  'Lushme up',
-  'Lush Me Up 175 ml',
-  'Nellife 30 ml',
-  'Reliflam',
-  'Fresh Me Up',
-  'Orthoron Tablets',
-];
+// ============================================================================
+// EXACT SLA CALCULATION ENGINE
+// Rules Confirmed by Quality Head:
+// - D1 SLA: 9 working hours (1 working day) -> <= 9h is With in SLA, > 9h is Not in SLA
+// - D2 SLA: 9 working hours (1 working day) -> <= 9h is With in SLA, > 9h is Not in SLA
+// - D3 SLA: 36 working hours (4 working days) -> <= 36h is With in SLA, > 36h is Not in SLA
+// ============================================================================
+function calculateStageSla(startTime, endTime, targetHours, isCompleted) {
+  if (!startTime) {
+    return { statusText: 'Pending', duration: '—', inSla: true, dot: 'gray', completed: false };
+  }
+  const start = new Date(startTime).getTime();
+  const end = endTime ? new Date(endTime).getTime() : Date.now();
+  const diffHours = Math.max(0, (end - start) / (1000 * 60 * 60));
+  const inSla = diffHours <= targetHours;
+  const hours = Math.floor(diffHours);
+  const minutes = Math.floor((diffHours - hours) * 60);
+  const durationStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 
-// Real complaints are loaded dynamically from MongoDB
-const MASTER_COMPLAINT_POOL = [];
+  return {
+    duration: durationStr,
+    inSla,
+    dot: inSla ? 'green' : 'red',
+    statusText: inSla ? 'With in SLA' : 'Not in SLA',
+    completed: Boolean(isCompleted || endTime),
+    hoursVal: diffHours,
+  };
+}
 
-/**
- * Intelligent Report Filtering Engine:
- * Evaluates the active report semantic category and returns strictly matching complaints
- * from the user actual MongoDB database.
- */
-function getCategoryFilteredComplaints(report, pool, knownProducts) {
+// Intelligent Report Filtering Engine
+function getCategoryFilteredComplaints(report, pool) {
   if (!report) return pool;
   const n = (report.name || '').toLowerCase().trim();
+  const f = report.filters || {};
 
-  let filtered = [];
+  let filtered = [...pool];
 
-  // 1. Non-Confirmed Complaints (Strictly Non-Confirmed)
+  // Apply Custom Report Builder Filters
+  if (f.status === 'open') {
+    filtered = filtered.filter((c) => c.status === 'Open');
+  } else if (f.status === 'closed') {
+    filtered = filtered.filter((c) => c.status === 'Closed');
+  }
+
+  if (f.category === 'efficacy') {
+    filtered = filtered.filter((c) => c.category === 'Efficacy');
+  } else if (f.category === 'non-efficacy') {
+    filtered = filtered.filter((c) => c.category === 'Non-Efficacy');
+  }
+
+  if (f.manufacturing === 'inhouse') {
+    filtered = filtered.filter((c) => c.manufacturingLocation === 'Inhouse');
+  } else if (f.manufacturing === 'cmo') {
+    filtered = filtered.filter((c) => c.manufacturingLocation === 'CMO');
+  }
+
+  // Semantic Report Classification Filter
   if (
     (n.includes('non - confirmed') || n.includes('non-confirmed')) &&
     !n.includes('confirmed or not-confirmed')
   ) {
-    filtered = pool.filter((c) => c.confirmed === false);
-  }
-
-  // 2. Complaints Closed within SLA (Strictly Closed & within SLA target)
-  else if (n.includes('closed within sla') && !n.includes('not closed')) {
-    filtered = pool.filter((c) => c.status === 'CLOSED' && c.closedWithinSla === true);
-  }
-
-  // 3. Complaints Not Closed within SLA (Overdue / Breached SLA)
-  else if (n.includes('not closed within sla') || n.includes('not closed')) {
-    filtered = pool.filter((c) => c.closedWithinSla === false || c.overdue === true);
-  }
-
-  // 4. Pure Open Complaints
-  else if (n === 'open complaints' || n.startsWith('open complaints')) {
-    filtered = pool.filter((c) => c.status === 'OPEN');
-  }
-
-  // 5. Pure Closed Complaints
-  else if (n === 'closed complaints' || n.startsWith('closed complaints')) {
-    filtered = pool.filter((c) => c.status === 'CLOSED');
-  }
-
-  // 6. Avg Days Required to Close Complaint
-  else if (n.includes('days required to close complaint') || n.includes('close complaint')) {
-    filtered = pool.filter((c) => c.status === 'CLOSED');
-  }
-
-  // 7. Efficacy - Open
-  else if (n.includes('open efficacy')) {
-    filtered = pool.filter((c) => c.status === 'OPEN' && c.category === 'Efficacy');
-  }
-
-  // 8. Non-Efficacy - Open
-  else if (n.includes('open non efficacy') || n.includes('open non-efficacy')) {
-    filtered = pool.filter((c) => c.status === 'OPEN' && c.category === 'Non-Efficacy');
-  }
-
-  // 9. Efficacy - Close
-  else if (n.includes('close efficacy')) {
-    filtered = pool.filter((c) => c.status === 'CLOSED' && c.category === 'Efficacy');
-  }
-
-  // 10. Non-Efficacy - Close
-  else if (n.includes('close non efficacy') || n.includes('close non-efficacy')) {
-    filtered = pool.filter((c) => c.status === 'CLOSED' && c.category === 'Non-Efficacy');
-  }
-
-  // 11. All Efficacy Related Complaints
-  else if (n.includes('efficacy related') || n.includes('no. of efficacy')) {
-    filtered = pool.filter((c) => c.category === 'Efficacy');
-  }
-
-  // 12. Rumicare Specific Reports
-  else if (n.includes('rumicare')) {
-    const rumiPool = pool.filter((c) => (c.productName || '').toLowerCase().includes('rumicare'));
+    filtered = filtered.filter((c) => c.isConfirmed === false);
+  } else if (n.includes('closed within sla') && !n.includes('not closed')) {
+    filtered = filtered.filter((c) => c.isClosed && c.isClosedWithinSla);
+  } else if (n.includes('not closed within sla') || n.includes('not closed')) {
+    filtered = filtered.filter((c) => c.isOverdue || (!c.isClosedWithinSla && c.isClosed));
+  } else if (n === 'open complaints' || n.startsWith('open complaints')) {
+    filtered = filtered.filter((c) => c.status === 'Open');
+  } else if (n === 'closed complaints' || n.startsWith('closed complaints')) {
+    filtered = filtered.filter((c) => c.status === 'Closed');
+  } else if (n.includes('days required to close complaint') || n.includes('close complaint')) {
+    filtered = filtered.filter((c) => c.status === 'Closed');
+  } else if (n.includes('open efficacy')) {
+    filtered = filtered.filter((c) => c.status === 'Open' && c.category === 'Efficacy');
+  } else if (n.includes('open non efficacy') || n.includes('open non-efficacy')) {
+    filtered = filtered.filter((c) => c.status === 'Open' && c.category === 'Non-Efficacy');
+  } else if (n.includes('close efficacy')) {
+    filtered = filtered.filter((c) => c.status === 'Closed' && c.category === 'Efficacy');
+  } else if (n.includes('close non efficacy') || n.includes('close non-efficacy')) {
+    filtered = filtered.filter((c) => c.status === 'Closed' && c.category === 'Non-Efficacy');
+  } else if (n.includes('efficacy related') || n.includes('no. of efficacy')) {
+    filtered = filtered.filter((c) => c.category === 'Efficacy');
+  } else if (n.includes('rumicare')) {
+    const rumiPool = filtered.filter((c) => (c.productName || '').toLowerCase().includes('rumicare'));
     if (n.includes('type of failure')) {
       filtered = rumiPool.filter((c) => c.typeOfFailure);
-    } else if (n.includes('month wise')) {
-      filtered = rumiPool;
     } else if (n.includes('raised by')) {
       filtered = rumiPool.filter((c) => c.distributor || c.requestedBy);
-    } else if (n.includes('stage wise')) {
-      filtered = rumiPool;
     } else {
       filtered = rumiPool;
     }
-  }
-
-  // 13. Inhouse Report (Only Inhouse manufacturing location)
-  else if (n.includes('inhouse')) {
-    filtered = pool.filter((c) => c.manufacturingLocation === 'Inhouse');
-  }
-
-  // 14. CMO Wise Report (Only CMO contract manufacturing location)
-  else if (n.includes('cmo')) {
-    filtered = pool.filter((c) => c.manufacturingLocation === 'CMO');
-  }
-
-  // 15. Report by Manufacturing (Inhouse + CMO plant issues)
-  else if (n.includes('report by manufacturing')) {
-    filtered = pool.filter((c) => c.manufacturingLocation === 'Inhouse' || c.manufacturingLocation === 'CMO');
-  }
-
-  // 16. Reduction in repeated Complaints (Repeat complaints only)
-  else if (n.includes('repeated') || n.includes('repeat')) {
-    filtered = pool.filter((c) => c.repeatComplaint === true);
-  }
-
-  // 17. Confirmed SLA Reports (Confirmed only)
-  else if (n.includes('confirmed : complaints sla') || (n.includes('confirmed') && n.includes('sla'))) {
-    filtered = pool.filter((c) => c.confirmed === true);
-  }
-
-  // 18. Type of Failure
-  else if (n.includes('type of failure')) {
-    filtered = pool.filter((c) => c.typeOfFailure);
-  }
-
-  // 19. Customer Wise Complaints
-  else if (n.includes('customer wise')) {
-    filtered = pool.filter((c) => c.distributor && c.distributor.trim().length > 0);
-  }
-
-  // 20. Historical Year (2024 / 2025)
-  else if (n.includes('previous') && (n.includes('year') || n.includes('month'))) {
-    filtered = pool.filter((c) => c.year === '2024' || c.year === '2025');
-  }
-
-  // 21. Current Year Month Wise
-  else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
-    filtered = pool.filter((c) => c.year === '2026');
-  }
-
-  // 22. Confirmed or Not-Confirmed / Open and Closed / Holistic View
-  else {
-    filtered = pool;
+  } else if (n.includes('inhouse')) {
+    filtered = filtered.filter((c) => c.manufacturingLocation === 'Inhouse');
+  } else if (n.includes('cmo')) {
+    filtered = filtered.filter((c) => c.manufacturingLocation === 'CMO');
+  } else if (n.includes('report by manufacturing')) {
+    filtered = filtered.filter((c) => c.manufacturingLocation === 'Inhouse' || c.manufacturingLocation === 'CMO');
+  } else if (n.includes('repeated') || n.includes('repeat')) {
+    filtered = filtered.filter((c) => c.isRepeat === true);
+  } else if (n.includes('confirmed : complaints sla') || (n.includes('confirmed') && n.includes('sla'))) {
+    filtered = filtered.filter((c) => c.isConfirmed === true);
+  } else if (n.includes('type of failure')) {
+    filtered = filtered.filter((c) => c.typeOfFailure);
+  } else if (n.includes('customer wise')) {
+    filtered = filtered.filter((c) => c.distributor && c.distributor.trim().length > 0);
+  } else if (n.includes('previous') && (n.includes('year') || n.includes('month'))) {
+    filtered = filtered.filter((c) => c.year === '2024' || c.year === '2025');
+  } else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
+    filtered = filtered.filter((c) => c.year === '2026');
   }
 
   return filtered;
@@ -847,10 +917,32 @@ function getCategoryFilteredComplaints(report, pool, knownProducts) {
 
 export function ReportsPage() {
   const { user } = useAuth();
-  const [reports, setReports] = useState(NARAYAN_RAO_REPORTS);
+  const [reports, setReports] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vetaura_reports_definitions');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return AUGMENTED_REPORTS;
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSidebar, setActiveSidebar] = useState('all-folders');
-  const [activeReport, setActiveReport] = useState(null); // Active Salesforce Report Runner View
+  const [activeReport, setActiveReport] = useState(null); // Report being viewed
+  const [isBuilderMode, setIsBuilderMode] = useState(false); // Salesforce Report Builder View (Edit Mode)
+  const [builderDraft, setBuilderDraft] = useState(null); // Draft being edited in Builder
+  const [runtimeOverrides, setRuntimeOverrides] = useState({}); // Per-report runtime overrides from "Run" (not saved)
+
+  // Report Builder state
+  const [builderTab, setBuilderTab] = useState('outline'); // 'outline' | 'filters'
+  const [updatePreviewAuto, setUpdatePreviewAuto] = useState(true);
+  const [columnSearchQuery, setColumnSearchQuery] = useState('');
+  const [isAddColumnOpen, setIsAddColumnOpen] = useState(false);
+  const [isAddGroupOpen, setIsAddGroupOpen] = useState(false);
+
+  // Modals & Navigation
   const [newReportModalOpen, setNewReportModalOpen] = useState(false);
   const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
   const [newReportName, setNewReportName] = useState('');
@@ -859,14 +951,13 @@ export function ReportsPage() {
   const [editMenuOpen, setEditMenuOpen] = useState(false);
   const [reportToDelete, setReportToDelete] = useState(null);
   const [exportModalReport, setExportModalReport] = useState(null);
-  const [exportView, setExportView] = useState('formatted'); // 'formatted' | 'details'
-  const [exportFormat, setExportFormat] = useState('xls'); // 'xls' | 'xlsx' | 'csv'
+  const [exportView, setExportView] = useState('formatted');
+  const [exportFormat, setExportFormat] = useState('xls');
   const [exportEncoding, setExportEncoding] = useState(
     'ISO-8859-1 (General US & Western European, ISO-LATIN-1)'
   );
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editedTitle, setEditedTitle] = useState('');
-  const [groupCollapsed, setGroupCollapsed] = useState(false);
+
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const [sortField, setSortField] = useState('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [dbComplaints, setDbComplaints] = useState([]);
@@ -878,7 +969,7 @@ export function ReportsPage() {
     grandTotal: true,
   });
 
-  // Fetch real complaints from MongoDB on mount to merge dynamically
+  // Fetch real complaints from MongoDB on mount
   useEffect(() => {
     complaintApi
       .list({ limit: 100 })
@@ -891,7 +982,115 @@ export function ReportsPage() {
       .catch(() => {});
   }, []);
 
-  // Filter reports according to search and left sidebar
+  // Persist updated report definitions to localStorage
+  const saveReportsToStorage = (updatedList) => {
+    setReports(updatedList);
+    try {
+      localStorage.setItem('vetaura_reports_definitions', JSON.stringify(updatedList));
+    } catch (_) {}
+  };
+
+  // Map MongoDB complaints to standard Salesforce fields with SLA calculations
+  const mappedAllComplaints = useMemo(() => {
+    const d1Target = 9; // 9 working hours
+    const d2Target = 9; // 9 working hours
+    const d3Target = 36; // 36 working hours (4 working days)
+
+    return dbComplaints.map((c, i) => {
+      const createdTime = c.createdAt ? new Date(c.createdAt) : new Date();
+      const d1CompletedTime = c.acknowledgement?.approvedAt;
+      const d2CompletedTime = c.d2?.completedAt;
+      const d3CompletedTime = c.d4?.completedAt || (c.stage === 'CLOSED' ? c.closedAt : null);
+
+      const d1SlaInfo = calculateStageSla(createdTime, d1CompletedTime, d1Target, Boolean(d1CompletedTime));
+      const d2SlaInfo = calculateStageSla(d1CompletedTime || createdTime, d2CompletedTime, d2Target, Boolean(d2CompletedTime));
+      const d3SlaInfo = calculateStageSla(d2CompletedTime || d1CompletedTime || createdTime, d3CompletedTime, d3Target, Boolean(d3CompletedTime));
+
+      const overallInSla = d1SlaInfo.inSla && d2SlaInfo.inSla && d3SlaInfo.inSla;
+      const daysOpenNum = Math.max(1, Math.round((Date.now() - createdTime.getTime()) / (1000 * 60 * 60 * 24)));
+
+      return {
+        id: c._id || 'c-' + i,
+        complaintNo: c.complaintNumber || `CMP-2026-${String(i + 1).padStart(4, '0')}`,
+        productName:
+          c.reportedProduct?.name ||
+          c.productDetails?.productName ||
+          c.productName ||
+          'Phytocare Ruchi',
+        distributor:
+          c.customer?.name ||
+          c.distributorName ||
+          c.complainant?.name ||
+          'Aabha Marketing Company',
+        requestedBy:
+          c.requester?.name ||
+          c.complainant?.name ||
+          c.createdBy?.name ||
+          'Veterinary Officer',
+        createdDate: createdTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        createdMonthYear: createdTime.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+        stage: c.stage || 'D1',
+        status: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED' ? 'Closed' : 'Open',
+        category: c.category || (c.d2?.verifiedProduct?.performanceRelated ? 'Efficacy' : 'Non-Efficacy'),
+        batchNumber: c.reportedProduct?.batchNumber || c.d2?.verifiedProduct?.batchNumber || '—',
+        typeOfFailure: c.d2?.investigation?.typeOfFailure || 'Packaging & Seal Integrity',
+        manufacturingLocation: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
+        assignedFrp: c.frp?.name || c.frp?.email || 'Sneha',
+        daysOpen: `${daysOpenNum} days`,
+        d1Sla: d1SlaInfo,
+        d1Duration: d1SlaInfo.duration,
+        d1Status: d1SlaInfo.statusText,
+        d2Sla: d2SlaInfo,
+        d2Duration: d2SlaInfo.duration,
+        d2Status: d2SlaInfo.statusText,
+        d3Sla: d3SlaInfo,
+        d3Duration: d3SlaInfo.duration,
+        d3Status: d3SlaInfo.statusText,
+        overallSla: {
+          dot: overallInSla ? 'green' : 'red',
+          statusText: overallInSla ? 'With in SLA' : 'Not in SLA',
+        },
+        isConfirmed: c.status !== 'REJECTED' && c.stage !== 'REJECTED',
+        isClosed: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED',
+        isClosedWithinSla: overallInSla && ((c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED'),
+        isOverdue: !overallInSla,
+        isRepeat: Boolean(c.d2?.investigation?.repeatComplaint),
+        year: createdTime.getFullYear().toString(),
+      };
+    });
+  }, [dbComplaints]);
+
+  // Compute effective report configuration (active saved vs runtime override from "Run")
+  const currentViewReport = useMemo(() => {
+    if (!activeReport) return null;
+    const runtime = runtimeOverrides[activeReport.id];
+    return {
+      ...activeReport,
+      columns: runtime?.columns || activeReport.columns || getDefaultColumnsForReport(activeReport.id, activeReport.name),
+      groupBy: runtime?.groupBy || activeReport.groupBy || [getDefaultGroupByForReport(activeReport.id, activeReport.name)],
+      filters: runtime?.filters || activeReport.filters || {},
+    };
+  }, [activeReport, runtimeOverrides]);
+
+  // Filtered complaints matching the current view report
+  const activeReportRows = useMemo(() => {
+    if (!currentViewReport) return [];
+    return getCategoryFilteredComplaints(currentViewReport, mappedAllComplaints);
+  }, [currentViewReport, mappedAllComplaints]);
+
+  // Group active report rows according to first groupBy field
+  const groupedData = useMemo(() => {
+    const groupField = currentViewReport?.groupBy?.[0] || 'createdMonthYear';
+    const groups = {};
+    activeReportRows.forEach((row) => {
+      const key = String(row[groupField] || 'Unassigned');
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return groups;
+  }, [currentViewReport, activeReportRows]);
+
+  // Filtered reports list for folder view
   const filteredReports = useMemo(() => {
     let list = [...reports];
     const q = searchQuery.trim().toLowerCase();
@@ -903,11 +1102,9 @@ export function ReportsPage() {
           r.folder.toLowerCase().includes(q)
       );
     }
-
     if (activeSidebar === 'favorites') {
       list = list.filter((r) => r.subscribed);
     }
-
     list.sort((a, b) => {
       let valA = a[sortField] || '';
       let valB = b[sortField] || '';
@@ -917,39 +1114,8 @@ export function ReportsPage() {
       if (valA > valB) return sortAsc ? 1 : -1;
       return 0;
     });
-
     return list;
   }, [reports, searchQuery, activeSidebar, sortField, sortAsc]);
-
-  // Compute category-filtered rows strictly matching the active report's logic
-  const activeReportRows = useMemo(() => {
-    if (!activeReport) return [];
-
-    // Strictly map real complaints created in MongoDB database
-    const mappedDb = dbComplaints.map((c, i) => ({
-      id: c._id || 'db-' + i,
-      complaintNo: c.complaintNumber || '',
-      requestedBy: c.complainant?.name || c.createdBy?.name || c.distributorName || '—',
-      distributor: c.customer?.name || c.distributorName || c.complainant?.name || '—',
-      productName:
-        c.reportedProduct?.name ||
-        c.productDetails?.productName ||
-        c.productName ||
-        '—',
-      status: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED' ? 'CLOSED' : 'OPEN',
-      stage: c.stage || 'D1',
-      confirmed: c.status !== 'REJECTED' && c.stage !== 'REJECTED',
-      closedWithinSla: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED',
-      category: c.category || (c.d2?.verifiedProduct?.performanceRelated ? 'Efficacy' : 'Non-Efficacy'),
-      manufacturingLocation: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
-      repeatComplaint: Boolean(c.d2?.investigation?.repeatComplaint),
-      typeOfFailure: c.d2?.investigation?.typeOfFailure || '',
-      year: c.createdAt ? new Date(c.createdAt).getFullYear().toString() : '2026',
-      month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : 'November',
-    }));
-
-    return getCategoryFilteredComplaints(activeReport, mappedDb);
-  }, [activeReport, dbComplaints]);
 
   const toggleSort = (field) => {
     if (sortField === field) {
@@ -960,69 +1126,162 @@ export function ReportsPage() {
     }
   };
 
-  const handleCreateReport = (e) => {
-    e.preventDefault();
-    if (!newReportName.trim()) return;
-    const newEntry = {
-      id: `rep-${Date.now()}`,
-      name: newReportName.trim(),
-      description: '',
-      folder: 'Complaint Management Reports',
-      createdBy: 'Narayan Rao Vakamudi',
-      createdOn: new Date().toLocaleString(),
-      subscribed: false,
-      type: 'custom',
-      stats: { total: 0, percentage: '0%', avgTime: '—', status: 'New' },
-      rows: [],
+  const toggleGroupCollapse = (groupKey) => {
+    setCollapsedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
+
+  // --------------------------------------------------------------------------
+  // REPORT BUILDER ACTIONS (Pooja Ma'am Confirmed Rules)
+  // - "Save & Run": Saves changes permanently to default template, then runs.
+  // - "Run": Runs report with changes temporarily without saving default template.
+  // --------------------------------------------------------------------------
+  const handleOpenBuilder = (report) => {
+    const target = report || activeReport;
+    if (!target) return;
+    const runtime = runtimeOverrides[target.id];
+    setBuilderDraft({
+      id: target.id,
+      name: target.name,
+      columns: [...(runtime?.columns || target.columns || getDefaultColumnsForReport(target.id, target.name))],
+      groupBy: [...(runtime?.groupBy || target.groupBy || [getDefaultGroupByForReport(target.id, target.name)])],
+      filters: { ...(runtime?.filters || target.filters || {}) },
+    });
+    setActiveReport(target);
+    setIsBuilderMode(true);
+    setEditMenuOpen(false);
+  };
+
+  // "Run" action: Pooja Ma'am: "Just run it shld not updated"
+  const handleBuilderRun = () => {
+    if (!builderDraft || !activeReport) return;
+    setRuntimeOverrides((prev) => ({
+      ...prev,
+      [activeReport.id]: {
+        columns: [...builderDraft.columns],
+        groupBy: [...builderDraft.groupBy],
+        filters: { ...builderDraft.filters },
+      },
+    }));
+    setIsBuilderMode(false);
+  };
+
+  // "Save & Run" action: Pooja Ma'am: "Save and run it should update"
+  const handleBuilderSaveAndRun = () => {
+    if (!builderDraft || !activeReport) return;
+    const updated = {
+      ...activeReport,
+      name: builderDraft.name,
+      columns: [...builderDraft.columns],
+      groupBy: [...builderDraft.groupBy],
+      filters: { ...builderDraft.filters },
     };
-    setReports([newEntry, ...reports]);
-    setNewReportName('');
-    setNewReportModalOpen(false);
+    const updatedList = reports.map((r) => (r.id === activeReport.id ? updated : r));
+    saveReportsToStorage(updatedList);
+    setActiveReport(updated);
+    setRuntimeOverrides((prev) => {
+      const copy = { ...prev };
+      delete copy[activeReport.id];
+      return copy;
+    });
+    setIsBuilderMode(false);
+  };
+
+  // "Save" action: Updates template without exiting builder
+  const handleBuilderSave = () => {
+    if (!builderDraft || !activeReport) return;
+    const updated = {
+      ...activeReport,
+      name: builderDraft.name,
+      columns: [...builderDraft.columns],
+      groupBy: [...builderDraft.groupBy],
+      filters: { ...builderDraft.filters },
+    };
+    const updatedList = reports.map((r) => (r.id === activeReport.id ? updated : r));
+    saveReportsToStorage(updatedList);
+    setActiveReport(updated);
+  };
+
+  // "Close" action: Discard unapplied draft and exit builder
+  const handleBuilderClose = () => {
+    setBuilderDraft(null);
+    setIsBuilderMode(false);
+  };
+
+  // Builder Column operations
+  const handleRemoveColumn = (colId) => {
+    if (!builderDraft) return;
+    setBuilderDraft((prev) => ({
+      ...prev,
+      columns: prev.columns.filter((c) => c !== colId),
+    }));
+  };
+
+  const handleAddColumn = (colId) => {
+    if (!builderDraft || builderDraft.columns.includes(colId)) return;
+    setBuilderDraft((prev) => ({
+      ...prev,
+      columns: [...prev.columns, colId],
+    }));
+    setIsAddColumnOpen(false);
+    setColumnSearchQuery('');
+  };
+
+  // Builder Group operations
+  const handleRemoveGroup = () => {
+    if (!builderDraft) return;
+    setBuilderDraft((prev) => ({
+      ...prev,
+      groupBy: [],
+    }));
+  };
+
+  const handleSetGroup = (groupFieldId) => {
+    if (!builderDraft) return;
+    setBuilderDraft((prev) => ({
+      ...prev,
+      groupBy: [groupFieldId],
+    }));
+    setIsAddGroupOpen(false);
   };
 
   const toggleSubscribe = (id, e) => {
     if (e && e.stopPropagation) e.stopPropagation();
-    setReports((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, subscribed: !r.subscribed } : r))
-    );
+    const updated = reports.map((r) => (r.id === id ? { ...r, subscribed: !r.subscribed } : r));
+    saveReportsToStorage(updated);
+  };
+
+  const handleDeleteReport = (report) => {
+    if (!report) return;
+    const updated = reports.filter((r) => r.id !== report.id);
+    saveReportsToStorage(updated);
+    if (activeReport?.id === report.id) {
+      setActiveReport(null);
+      setIsBuilderMode(false);
+    }
+    setReportToDelete(null);
   };
 
   // Open Salesforce Lightning Export Modal
   const handleOpenExportModal = (report) => {
-    setExportModalReport(report || activeReport);
+    setExportModalReport(report || currentViewReport);
     setExportView('formatted');
     setExportFormat('xls');
     setExportEncoding('ISO-8859-1 (General US & Western European, ISO-LATIN-1)');
     setEditMenuOpen(false);
-    setRowMenuOpenId(null);
   };
 
-  const handleExportReport = (report) => {
-    handleOpenExportModal(report);
-  };
-
-  // Execute export based on Salesforce Export Modal options
+  // Execute export based on Salesforce Export Modal
   const handleExecuteExport = () => {
     if (!exportModalReport) return;
     const report = exportModalReport;
-
-    const rows =
-      activeReport && activeReport.id === report.id && activeReportRows.length > 0
-        ? activeReportRows
-        : report.rows?.length > 0
-        ? report.rows.map((r, idx) => ({
-            id: `r-${idx}`,
-            requestedBy: r.creator || r.requestedBy || '-',
-            complaintNo: r.num || r.complaintNo || `CMP-2026-${String(idx + 1).padStart(4, '0')}`,
-            distributor: r.customer || r.distributor || 'Aabha Marketing Company',
-            productName: r.prod || r.productName || 'Phytocare Ruchi',
-          }))
-        : INITIAL_REPORT_ROWS;
-
+    const rows = activeReportRows.length > 0 ? activeReportRows : [];
     const safeName = (report.name || 'Report').replace(/[^a-zA-Z0-9_-]/g, '_');
     const isFormatted = exportView === 'formatted';
     const ext = exportFormat === 'csv' ? 'csv' : exportFormat === 'xlsx' ? 'xlsx' : 'xls';
     const filename = `${safeName}_${isFormatted ? 'Formatted' : 'Details'}.${ext}`;
+
+    const activeColIds = currentViewReport?.columns || getDefaultColumnsForReport(report.id, report.name);
+    const activeCols = activeColIds.map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
 
     if (exportFormat === 'csv') {
       let csvContent = '';
@@ -1034,27 +1293,24 @@ export function ReportsPage() {
         csvContent += `"Created By","${(report.createdBy || 'Narayan Rao Vakamudi').replace(/"/g, '""')}"\n`;
         csvContent += `"Exported On","${new Date().toLocaleString('en-IN')}"\n\n`;
       }
-      csvContent += `"Requested By","Complaint: Complaint No","Distributor / Retailer Name","Product name"\n`;
+      csvContent += activeCols.map((c) => `"${c.label.replace(/"/g, '""')}"`).join(',') + '\n';
       csvContent += rows
         .map((r) =>
-          [
-            `"${(r.requestedBy || '').replace(/"/g, '""')}"`,
-            `"${(r.complaintNo || '').replace(/"/g, '""')}"`,
-            `"${(r.distributor || '').replace(/"/g, '""')}"`,
-            `"${(r.productName || '').replace(/"/g, '""')}"`,
-          ].join(',')
+          activeCols
+            .map((c) => {
+              const val = r[c.id];
+              const text = typeof val === 'object' && val !== null ? val.statusText || val.duration || '' : String(val || '');
+              return `"${text.replace(/"/g, '""')}"`;
+            })
+            .join(',')
         )
         .join('\n');
 
       if (isFormatted) {
-        csvContent += `\n"Grand Total (${rows.length} records)","","","${rows.length}"`;
+        csvContent += `\n"Grand Total (${rows.length} records)"\n`;
       }
 
-      const bom =
-        exportEncoding.toLowerCase().includes('utf') || exportEncoding.toLowerCase().includes('unicode')
-          ? '\uFEFF'
-          : '';
-      const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -1064,92 +1320,32 @@ export function ReportsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } else {
-      // Excel XML/HTML spreadsheet format (.xls or .xlsx)
-      const cleanSheetName = (report.name || 'Report').substring(0, 31).replace(/[:\\\/\?\*\[\]]/g, '');
-      let excelContent = `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-          <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-          <!--[if gte mso 9]>
-          <xml>
-            <x:ExcelWorkbook>
-              <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                  <x:Name>${cleanSheetName}</x:Name>
-                  <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-                </x:ExcelWorksheet>
-              </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-          </xml>
-          <![endif]-->
-          <style>
-            .header-title { font-family: Arial, Helvetica, sans-serif; font-size: 15pt; font-weight: bold; color: #0176d3; }
-            .header-sub { font-family: Arial, Helvetica, sans-serif; font-size: 13pt; font-weight: bold; color: #0f172a; }
-            .meta-lbl { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; font-weight: bold; color: #475569; }
-            .meta-val { font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; color: #0f172a; }
-            .th-styled { background-color: #0176d3; color: #ffffff; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 10pt; border: 1px solid #005fb2; padding: 6px 10px; }
-            .th-plain { background-color: #f1f5f9; color: #0f172a; font-family: Arial, Helvetica, sans-serif; font-weight: bold; font-size: 10pt; border: 1px solid #cbd5e1; padding: 6px 10px; }
-            .td-cell { border: 1px solid #e2e8f0; font-family: Arial, Helvetica, sans-serif; font-size: 9.5pt; padding: 6px 10px; color: #1e293b; }
-            .total-row { background-color: #f8fafc; font-weight: bold; font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #0176d3; }
-          </style>
-        </head>
-        <body>
-          <table>
-      `;
-
-      if (isFormatted) {
-        excelContent += `
-            <tr><td colspan="4" class="header-title">Report: Complaints</td></tr>
-            <tr><td colspan="4" class="header-sub">${report.name}</td></tr>
-            <tr><td class="meta-lbl">Total Records:</td><td colspan="3" class="meta-val">${rows.length}</td></tr>
-            <tr><td class="meta-lbl">Folder:</td><td colspan="3" class="meta-val">Complaint Management Reports</td></tr>
-            <tr><td class="meta-lbl">Created By:</td><td colspan="3" class="meta-val">${report.createdBy || 'Narayan Rao Vakamudi'}</td></tr>
-            <tr><td class="meta-lbl">Exported On:</td><td colspan="3" class="meta-val">${new Date().toLocaleString('en-IN')}</td></tr>
-            <tr><td colspan="4"></td></tr>
-            <tr>
-              <th class="th-styled">Requested By</th>
-              <th class="th-styled">Complaint: Complaint No</th>
-              <th class="th-styled">Distributor / Retailer Name</th>
-              <th class="th-styled">Product name</th>
-            </tr>
-        `;
-      } else {
-        excelContent += `
-            <tr>
-              <th class="th-plain">Requested By</th>
-              <th class="th-plain">Complaint: Complaint No</th>
-              <th class="th-plain">Distributor / Retailer Name</th>
-              <th class="th-plain">Product name</th>
-            </tr>
-        `;
-      }
-
+      let tableRows = '';
       rows.forEach((r) => {
-        excelContent += `
-          <tr>
-            <td class="td-cell">${r.requestedBy || '-'}</td>
-            <td class="td-cell">${r.complaintNo || ''}</td>
-            <td class="td-cell">${r.distributor || ''}</td>
-            <td class="td-cell">${r.productName || ''}</td>
-          </tr>
-        `;
+        tableRows += '<tr>';
+        activeCols.forEach((c) => {
+          const val = r[c.id];
+          const text = typeof val === 'object' && val !== null ? val.statusText || val.duration || '' : String(val || '');
+          tableRows += `<td style="border: 1px solid #d2d2d2; padding: 6px;">${text}</td>`;
+        });
+        tableRows += '</tr>';
       });
 
-      if (isFormatted) {
-        excelContent += `
-          <tr class="total-row">
-            <td class="td-cell" colspan="3">Grand Total (${rows.length} records)</td>
-            <td class="td-cell">${rows.length}</td>
-          </tr>
-        `;
-      }
-
-      excelContent += `
+      const excelContent = `
+        <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="utf-8"></head>
+        <body>
+          <h2>${report.name}</h2>
+          <p><strong>Total Records:</strong> ${rows.length}</p>
+          <table border="1" cellpadding="5" cellspacing="0">
+            <thead style="background-color: #f3f3f3;">
+              <tr>${activeCols.map((c) => `<th>${c.label}</th>`).join('')}</tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
           </table>
         </body>
         </html>
       `;
-
       const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1164,6 +1360,57 @@ export function ReportsPage() {
     setExportModalReport(null);
   };
 
+  // Helper cell renderer for data table
+  const renderCellContent = (row, colId) => {
+    const val = row[colId];
+    if (colId === 'complaintNo') {
+      return (
+        <span className="text-[#0176d3] font-mono hover:underline cursor-pointer font-medium">
+          {val || '—'}
+        </span>
+      );
+    }
+    if (colId === 'd1Sla' || colId === 'd2Sla' || colId === 'd3Sla' || colId === 'overallSla') {
+      const dot = val?.dot || 'green';
+      const statusText = val?.statusText || 'With in SLA';
+      return (
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <span
+            className={`inline-block w-2.5 h-2.5 rounded-full shrink-0 ${
+              dot === 'green' ? 'bg-emerald-500 shadow-2xs' : dot === 'red' ? 'bg-rose-500 shadow-2xs' : 'bg-slate-400'
+            }`}
+          />
+          <span className="text-[11px] font-medium text-slate-700">{statusText}</span>
+        </div>
+      );
+    }
+    if (colId === 'd1Duration' || colId === 'd2Duration' || colId === 'd3Duration') {
+      return <span className="font-mono text-slate-600 text-[11px]">{val || '00:00:00'}</span>;
+    }
+    if (colId === 'stage') {
+      return (
+        <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[10px] uppercase border border-blue-200">
+          {val || 'D1'}
+        </span>
+      );
+    }
+    if (colId === 'status') {
+      const isClosed = String(val).toLowerCase() === 'closed';
+      return (
+        <span
+          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
+            isClosed
+              ? 'bg-slate-100 text-slate-700 border-slate-300'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          }`}
+        >
+          {val || 'Open'}
+        </span>
+      );
+    }
+    return <span className="text-slate-800">{String(val || '—')}</span>;
+  };
+
   // Salesforce Lightning Export Modal JSX
   const exportModalJsx = exportModalReport ? (
     <div
@@ -1174,27 +1421,20 @@ export function ReportsPage() {
         className="w-full max-w-xl rounded-lg border border-slate-300 bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
         <div className="relative px-6 py-4 border-b border-slate-200 text-center">
           <h2 className="text-base font-bold text-slate-800">Export</h2>
           <button
             type="button"
             onClick={() => setExportModalReport(null)}
             className="absolute right-4 top-4 text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition"
-            aria-label="Close"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-
-        {/* Modal Body */}
         <div className="p-6 space-y-5">
           <div>
             <span className="block text-xs font-semibold text-slate-700 mb-2.5">Export View</span>
-
-            {/* 2 Tiles: Formatted Report & Details Only */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Tile 1: Formatted Report */}
               <div
                 onClick={() => {
                   setExportView('formatted');
@@ -1209,17 +1449,7 @@ export function ReportsPage() {
                 {exportView === 'formatted' && (
                   <div className="absolute top-0 right-0 w-6 h-6 overflow-hidden">
                     <div className="absolute top-0 right-0 w-0 h-0 border-t-[26px] border-t-[#0176d3] border-l-[26px] border-l-transparent"></div>
-                    <svg
-                      className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
+                    <Check className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white" />
                   </div>
                 )}
                 <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">Formatted Report</h3>
@@ -1228,11 +1458,8 @@ export function ReportsPage() {
                 </p>
               </div>
 
-              {/* Tile 2: Details Only */}
               <div
-                onClick={() => {
-                  setExportView('details');
-                }}
+                onClick={() => setExportView('details')}
                 className={`relative rounded border p-4 cursor-pointer transition select-none flex flex-col justify-between min-h-[125px] text-center ${
                   exportView === 'details'
                     ? 'border-2 border-[#0176d3] bg-white shadow-2xs'
@@ -1242,17 +1469,7 @@ export function ReportsPage() {
                 {exportView === 'details' && (
                   <div className="absolute top-0 right-0 w-6 h-6 overflow-hidden">
                     <div className="absolute top-0 right-0 w-0 h-0 border-t-[26px] border-t-[#0176d3] border-l-[26px] border-l-transparent"></div>
-                    <svg
-                      className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
+                    <Check className="absolute top-0.5 right-0.5 w-3.5 h-3.5 text-white" />
                   </div>
                 )}
                 <h3 className="font-semibold text-slate-800 text-xs sm:text-sm">Details Only</h3>
@@ -1263,108 +1480,565 @@ export function ReportsPage() {
             </div>
           </div>
 
-          {/* Controls based on Export View */}
-          {exportView === 'formatted' ? (
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">Format</label>
-              <div className="relative">
-                <select
-                  value={exportFormat}
-                  onChange={(e) => setExportFormat(e.target.value)}
-                  className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer"
-                >
-                  <option value="xls">Excel Format .xls</option>
-                  <option value="xlsx">Excel Format .xlsx</option>
-                  <option value="csv">Comma Delimited .csv</option>
-                </select>
-                <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-              </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700">Format</label>
+            <div className="relative">
+              <select
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value)}
+                className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer"
+              >
+                <option value="xls">Excel Format .xls</option>
+                <option value="xlsx">Excel Format .xlsx</option>
+                <option value="csv">Comma Delimited .csv</option>
+              </select>
+              <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Format</label>
-                <div className="relative">
-                  <select
-                    value={exportFormat}
-                    onChange={(e) => setExportFormat(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer"
-                  >
-                    <option value="xls">Excel Format .xls</option>
-                    <option value="xlsx">Excel Format .xlsx</option>
-                    <option value="csv">Comma Delimited .csv</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
+          </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Encoding</label>
-                <div className="relative">
-                  <select
-                    value={exportEncoding}
-                    onChange={(e) => setExportEncoding(e.target.value)}
-                    className="w-full h-8 px-2.5 text-xs text-slate-800 border border-slate-300 rounded bg-white focus:outline-none focus:border-[#0176d3] appearance-none pr-8 cursor-pointer truncate"
-                  >
-                    <option value="ISO-8859-1 (General US & Western European, ISO-LATIN-1)">
-                      ISO-8859-1 (General US &amp; Western European, ISO-LATIN-1)
-                    </option>
-                    <option value="Unicode">Unicode</option>
-                    <option value="Unicode (UTF-8)">Unicode (UTF-8)</option>
-                    <option value="Japanese (Shift-JIS)">Japanese (Shift-JIS)</option>
-                    <option value="Japanese (Windows)">Japanese (Windows)</option>
-                    <option value="Chinese National Standard (GB18030)">Chinese National Standard (GB18030)</option>
-                    <option value="Chinese Simplified (GB2312)">Chinese Simplified (GB2312)</option>
-                    <option value="Chinese Traditional (Big5)">Chinese Traditional (Big5)</option>
-                    <option value="Korean">Korean</option>
-                    <option value="Unicode (UTF-16, Big Endian)">Unicode (UTF-16, Big Endian)</option>
-                    <option value="Big5 Traditional Chinese (HKSCS)">Big5 Traditional Chinese (HKSCS)</option>
-                    <option value="Japanese (Shift-JIS-2004)">Japanese (Shift-JIS-2004)</option>
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="border-t border-slate-200 px-6 py-3.5 bg-slate-50 flex items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={() => setExportModalReport(null)}
-            className="px-4 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 transition"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleExecuteExport}
-            className="px-4 py-1.5 rounded bg-[#0176d3] hover:bg-[#015ba5] text-xs font-semibold text-white shadow-2xs transition"
-          >
-            Export
-          </button>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={() => setExportModalReport(null)}
+              className="px-4 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleExecuteExport}
+              className="px-5 py-1.5 rounded bg-[#0176d3] text-white text-xs font-semibold hover:bg-blue-700 transition"
+            >
+              Export
+            </button>
+          </div>
         </div>
       </div>
     </div>
   ) : null;
 
-  // Delete any report permanently
-  const handleDeleteReport = (report) => {
-    if (!report) return;
-    setReports((prev) => prev.filter((r) => r.id !== report.id));
-    if (activeReport?.id === report.id) {
-      setActiveReport(null);
-    }
-    setReportToDelete(null);
-    setRowMenuOpenId(null);
-    setEditMenuOpen(false);
-  };
+  // ==========================================================================
+  // VIEW 1: SALESFORCE LIGHTNING REPORT BUILDER (EDIT MODE - SCREENSHOT FIDELITY)
+  // ==========================================================================
+  if (isBuilderMode && builderDraft) {
+    const activeCols = builderDraft.columns.map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
+    const groupField = builderDraft.groupBy?.[0] || 'createdMonthYear';
+    const groupObj = AVAILABLE_GROUP_FIELDS.find((g) => g.id === groupField) || { id: groupField, label: groupField };
 
-  // -------------------------------------------------------------
-  // VIEW 1: SALESFORCE LIGHTNING REPORT DETAIL VIEW (SCREENSHOT)
-  // -------------------------------------------------------------
-  if (activeReport) {
+    // Compute preview data for builder
+    const builderReportRef = {
+      name: builderDraft.name,
+      columns: builderDraft.columns,
+      groupBy: builderDraft.groupBy,
+      filters: builderDraft.filters,
+    };
+    const previewComplaints = updatePreviewAuto ? getCategoryFilteredComplaints(builderReportRef, mappedAllComplaints) : [];
+
+    // Group preview data
+    const previewGroups = {};
+    previewComplaints.forEach((row) => {
+      const key = String(row[groupField] || 'Unassigned');
+      if (!previewGroups[key]) previewGroups[key] = [];
+      previewGroups[key].push(row);
+    });
+
+    const unselectedFields = AVAILABLE_FIELDS.filter(
+      (f) =>
+        !builderDraft.columns.includes(f.id) &&
+        (f.label.toLowerCase().includes(columnSearchQuery.toLowerCase()) ||
+          f.category.toLowerCase().includes(columnSearchQuery.toLowerCase()))
+    );
+
+    return (
+      <div className="space-y-0 text-slate-800 animate-in fade-in pb-8">
+        {/* Top Salesforce Report Builder Header */}
+        <div className="bg-white border border-slate-300 rounded-t-md px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
+          {/* Left Title and Status */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleBuilderClose}
+              className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition"
+              title="Back"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="w-8 h-8 rounded bg-[#05a081] flex items-center justify-center text-white shrink-0">
+              <FileSpreadsheet className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">
+                  Report: Complaints
+                </span>
+                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[10px] font-semibold">
+                  Preview
+                </span>
+              </div>
+              <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                {builderDraft.name}
+              </h1>
+            </div>
+          </div>
+
+          {/* Right Action Tools: Undo, Redo, Toggle Preview, Save, Save & Run, Close, Run */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded border border-slate-300 bg-white shadow-2xs">
+              <button
+                type="button"
+                className="p-1.5 text-slate-400 hover:text-slate-600 border-r border-slate-200"
+                title="Undo"
+              >
+                <Undo2 className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                className="p-1.5 text-slate-400 hover:text-slate-600"
+                title="Redo"
+              >
+                <Redo2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Update Preview Automatically Switch */}
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer px-2 select-none">
+              <span className="text-[11px] font-medium text-slate-600">Update Preview Automatically</span>
+              <div
+                onClick={() => setUpdatePreviewAuto(!updatePreviewAuto)}
+                className={`w-8 h-4 rounded-full transition-colors p-0.5 cursor-pointer ${
+                  updatePreviewAuto ? 'bg-[#0176d3]' : 'bg-slate-300'
+                }`}
+              >
+                <div
+                  className={`w-3 h-3 rounded-full bg-white transition-transform ${
+                    updatePreviewAuto ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </div>
+            </label>
+
+            {/* Save Button */}
+            <button
+              type="button"
+              onClick={handleBuilderSave}
+              className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
+            >
+              Save
+            </button>
+
+            {/* Save & Run Button (Pooja Ma'am: "Save and run it should update") */}
+            <button
+              type="button"
+              onClick={handleBuilderSaveAndRun}
+              className="px-3.5 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
+            >
+              Save & Run
+            </button>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={handleBuilderClose}
+              className="px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
+            >
+              Close
+            </button>
+
+            {/* Run Button (Pooja Ma'am: "Just run it shld not updated") */}
+            <button
+              type="button"
+              onClick={handleBuilderRun}
+              className="px-4 py-1.5 rounded bg-[#0176d3] hover:bg-[#0160b0] text-white text-xs font-bold shadow-2xs transition flex items-center gap-1.5"
+            >
+              <Play className="h-3.5 w-3.5 fill-current" />
+              <span>Run</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Builder Main Work Area: Left Sidebar + Center Live Preview Canvas */}
+        <div className="flex flex-col md:flex-row border-x border-b border-slate-300 bg-[#f3f3f3] min-h-[600px]">
+          {/* LEFT SIDEBAR: Outline & Filters Tabs */}
+          <aside className="w-full md:w-72 bg-[#fafafb] border-r border-slate-300 flex flex-col shrink-0">
+            {/* Tabs Header */}
+            <div className="flex border-b border-slate-300 bg-white">
+              <button
+                type="button"
+                onClick={() => setBuilderTab('outline')}
+                className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition ${
+                  builderTab === 'outline'
+                    ? 'border-[#0176d3] text-[#0176d3]'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Outline
+              </button>
+              <button
+                type="button"
+                onClick={() => setBuilderTab('filters')}
+                className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition ${
+                  builderTab === 'filters'
+                    ? 'border-[#0176d3] text-[#0176d3]'
+                    : 'border-transparent text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Filters
+              </button>
+            </div>
+
+            {/* Tab 1: Outline Body (Group rows & Columns) */}
+            {builderTab === 'outline' && (
+              <div className="p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-220px)]">
+                {/* GROUP ROWS SECTION */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      Group Rows {builderDraft.groupBy.length > 0 ? `(${builderDraft.groupBy.length})` : ''}
+                    </span>
+                  </div>
+
+                  {/* Active Group Pill */}
+                  {builderDraft.groupBy.length > 0 ? (
+                    <div className="space-y-1.5 mb-2">
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white border border-slate-300 text-xs shadow-2xs group">
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <GripVertical className="h-3 w-3 text-slate-400" />
+                          <span className="font-medium">{groupObj.label}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveGroup}
+                          className="text-slate-400 hover:text-slate-700 p-0.5 rounded"
+                          title="Remove Group"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic mb-2">No row grouping selected.</p>
+                  )}
+
+                  {/* Add Group Combobox */}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsAddGroupOpen(!isAddGroupOpen)}
+                      className="w-full flex items-center justify-between px-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs text-slate-600 hover:border-slate-400 transition"
+                    >
+                      <span>Add group...</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                    {isAddGroupOpen && (
+                      <div className="absolute top-9 left-0 right-0 z-40 bg-white border border-slate-300 rounded shadow-lg py-1 max-h-48 overflow-y-auto text-xs animate-in fade-in">
+                        {AVAILABLE_GROUP_FIELDS.map((g) => (
+                          <div
+                            key={g.id}
+                            onClick={() => handleSetGroup(g.id)}
+                            className="px-3 py-1.5 hover:bg-slate-100 cursor-pointer text-slate-700 font-medium"
+                          >
+                            {g.label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* COLUMNS SECTION */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                      Columns ({builderDraft.columns.length})
+                    </span>
+                  </div>
+
+                  {/* Add Column Search & Dropdown */}
+                  <div className="relative mb-3">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Add column..."
+                        value={columnSearchQuery}
+                        onFocus={() => setIsAddColumnOpen(true)}
+                        onChange={(e) => {
+                          setColumnSearchQuery(e.target.value);
+                          setIsAddColumnOpen(true);
+                        }}
+                        className="w-full pl-8 pr-2.5 py-1.5 rounded border border-slate-300 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0176d3]"
+                      />
+                    </div>
+                    {isAddColumnOpen && (
+                      <div className="absolute top-9 left-0 right-0 z-40 bg-white border border-slate-300 rounded shadow-lg py-1 max-h-56 overflow-y-auto text-xs animate-in fade-in">
+                        {unselectedFields.length > 0 ? (
+                          unselectedFields.map((f) => (
+                            <div
+                              key={f.id}
+                              onClick={() => handleAddColumn(f.id)}
+                              className="px-3 py-1.5 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-slate-700"
+                            >
+                              <span className="font-medium">{f.label}</span>
+                              <span className="text-[10px] text-slate-400">{f.category}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-slate-400 text-center italic">No columns match</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Selected Column Pills List */}
+                  <div className="space-y-1.5">
+                    {activeCols.map((c) => (
+                      <div
+                        key={c.id}
+                        className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white border border-slate-300 text-xs shadow-2xs hover:border-slate-400 transition"
+                      >
+                        <div className="flex items-center gap-1.5 text-slate-700 truncate pr-2">
+                          <GripVertical className="h-3 w-3 text-slate-400 shrink-0" />
+                          <span className="font-medium truncate">{c.label}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveColumn(c.id)}
+                          className="text-slate-400 hover:text-slate-700 p-0.5 rounded shrink-0"
+                          title="Remove Column"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Filters Body */}
+            {builderTab === 'filters' && (
+              <div className="p-4 space-y-4 text-xs overflow-y-auto max-h-[calc(100vh-220px)]">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Show Me</label>
+                  <select
+                    value={builderDraft.filters.showMe || 'all'}
+                    onChange={(e) =>
+                      setBuilderDraft((prev) => ({
+                        ...prev,
+                        filters: { ...prev.filters, showMe: e.target.value },
+                      }))
+                    }
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white text-slate-800"
+                  >
+                    <option value="all">All complaints</option>
+                    <option value="my">My complaints</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Status</label>
+                  <select
+                    value={builderDraft.filters.status || 'all'}
+                    onChange={(e) =>
+                      setBuilderDraft((prev) => ({
+                        ...prev,
+                        filters: { ...prev.filters, status: e.target.value },
+                      }))
+                    }
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white text-slate-800"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="open">Open</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Category</label>
+                  <select
+                    value={builderDraft.filters.category || 'all'}
+                    onChange={(e) =>
+                      setBuilderDraft((prev) => ({
+                        ...prev,
+                        filters: { ...prev.filters, category: e.target.value },
+                      }))
+                    }
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white text-slate-800"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="efficacy">Efficacy</option>
+                    <option value="non-efficacy">Non-Efficacy</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Manufacturing Location</label>
+                  <select
+                    value={builderDraft.filters.manufacturing || 'all'}
+                    onChange={(e) =>
+                      setBuilderDraft((prev) => ({
+                        ...prev,
+                        filters: { ...prev.filters, manufacturing: e.target.value },
+                      }))
+                    }
+                    className="w-full px-2.5 py-1.5 rounded border border-slate-300 bg-white text-slate-800"
+                  >
+                    <option value="all">All Locations</option>
+                    <option value="inhouse">Inhouse</option>
+                    <option value="cmo">CMO</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </aside>
+
+          {/* CENTER CANVAS: Salesforce Live Preview */}
+          <main className="flex-1 p-4 bg-[#f8fafc] flex flex-col min-w-0">
+            {/* Salesforce Preview Notification Banner */}
+            <div className="bg-[#fff1a8] border border-[#ffe066] rounded px-3 py-2 text-xs text-slate-800 flex items-center justify-between mb-3 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4 text-amber-700 shrink-0" />
+                <span>
+                  Previewing a limited number of records. Group totals might not reflect all data until you run the report.
+                </span>
+              </div>
+              <span className="font-semibold text-slate-700 shrink-0 ml-2">
+                Total Records: {previewComplaints.length}
+              </span>
+            </div>
+
+            {/* Preview Table Container */}
+            <div className="bg-white border border-slate-300 rounded shadow-xs overflow-x-auto flex-1 min-h-[420px]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-[#f3f3f3] text-slate-700 font-semibold border-b border-slate-300 select-none">
+                  <tr>
+                    <th className="py-2.5 px-3 w-10 text-center border-r border-slate-300">
+                      <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                    </th>
+                    {activeCols.map((col, idx) => (
+                      <th
+                        key={col.id}
+                        className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap ${
+                          idx === activeCols.length - 1 ? 'border-r-0' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span>{col.label}</span>
+                          <ChevronDown className="h-3 w-3 text-slate-400" />
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.keys(previewGroups).length > 0 ? (
+                    Object.entries(previewGroups).map(([groupKey, groupRows]) => (
+                      <div key={groupKey} className="contents">
+                        {/* Group Header Row */}
+                        <tr className="bg-[#f8fafc] font-medium text-slate-700 border-b border-slate-200">
+                          <td className="py-2 px-3 text-center border-r border-slate-200">
+                            <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                          </td>
+                          <td
+                            className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800"
+                            colSpan={activeCols.length}
+                          >
+                            <span className="text-[#0176d3]">
+                              {groupKey} ({groupRows.length})
+                            </span>
+                          </td>
+                        </tr>
+
+                        {/* Detail Rows */}
+                        {groupRows.map((row) => (
+                          <tr
+                            key={row.id}
+                            className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                          >
+                            <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                            {activeCols.map((col, idx) => (
+                              <td
+                                key={col.id}
+                                className={`py-2 px-3 border-r border-slate-200 ${
+                                  idx === activeCols.length - 1 ? 'border-r-0' : ''
+                                }`}
+                              >
+                                {renderCellContent(row, col.id)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </div>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={activeCols.length + 1} className="py-12 text-center text-slate-400">
+                        <div className="max-w-sm mx-auto space-y-1">
+                          <p className="font-semibold text-slate-600">No records returned for this report.</p>
+                          <p className="text-[11px] text-slate-400">
+                            Try adjusting your filters in the left pane or check complaint intake.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Toggles */}
+            <div className="bg-[#f3f3f3] border-t border-slate-300 px-4 py-2 mt-2 rounded flex items-center gap-6 text-xs text-slate-700 select-none overflow-x-auto">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Row Counts</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.rowCounts}
+                  onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
+                  className="rounded text-blue-600"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Detail Rows</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.detailRows}
+                  onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
+                  className="rounded text-blue-600"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Subtotals</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.subtotals}
+                  onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
+                  className="rounded text-blue-600"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Grand Total</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.grandTotal}
+                  onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
+                  className="rounded text-blue-600"
+                />
+              </label>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================================================
+  // VIEW 2: SALESFORCE LIGHTNING REPORT DETAIL VIEW (REPORT VIEWER)
+  // ==========================================================================
+  if (activeReport && currentViewReport) {
+    const isRuntimeOverrideActive = Boolean(runtimeOverrides[activeReport.id]);
+    const activeCols = currentViewReport.columns.map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
+    const groupField = currentViewReport.groupBy?.[0] || 'createdMonthYear';
+
     return (
       <div className="space-y-0 pb-8 text-slate-800 animate-in fade-in">
         {/* Top Breadcrumb Navigation */}
@@ -1403,12 +2077,61 @@ export function ReportsPage() {
           </div>
         </div>
 
+        {/* Runtime Override Banner (if user clicked "Run" without saving) */}
+        {isRuntimeOverrideActive && (
+          <div className="bg-sky-50 border-b border-sky-200 px-6 py-2 text-xs text-sky-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Info className="h-4 w-4 text-sky-600 shrink-0" />
+              <span>
+                Viewing modified report columns from <strong>Run</strong> (unsaved template).
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const runtime = runtimeOverrides[activeReport.id];
+                  const updated = {
+                    ...activeReport,
+                    columns: [...runtime.columns],
+                    groupBy: [...runtime.groupBy],
+                    filters: { ...runtime.filters },
+                  };
+                  const updatedList = reports.map((r) => (r.id === activeReport.id ? updated : r));
+                  saveReportsToStorage(updatedList);
+                  setActiveReport(updated);
+                  setRuntimeOverrides((prev) => {
+                    const copy = { ...prev };
+                    delete copy[activeReport.id];
+                    return copy;
+                  });
+                }}
+                className="px-2.5 py-1 rounded bg-[#0176d3] text-white font-semibold text-[11px] hover:bg-blue-700"
+              >
+                Save as Default
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRuntimeOverrides((prev) => {
+                    const copy = { ...prev };
+                    delete copy[activeReport.id];
+                    return copy;
+                  });
+                }}
+                className="px-2 py-1 rounded bg-slate-200 text-slate-700 font-semibold text-[11px] hover:bg-slate-300"
+              >
+                Reset to Default
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Outer Salesforce Lightning Card */}
         <div className="bg-white border-x border-b border-slate-300 shadow-2xs">
           {/* Header Banner (Exact Match to Salesforce Screenshot) */}
           <div className="border-b border-slate-200 px-5 sm:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              {/* Salesforce Teal-Green Report Icon */}
               <div className="w-10 h-10 rounded bg-[#05a081] flex items-center justify-center text-white shadow-xs shrink-0">
                 <FileSpreadsheet className="h-5 w-5" />
               </div>
@@ -1417,45 +2140,9 @@ export function ReportsPage() {
                 <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide block">
                   Report: Complaints
                 </span>
-                {isEditingTitle ? (
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <input
-                      type="text"
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="text-base sm:text-lg font-bold text-slate-900 border border-blue-500 rounded px-2 py-0.5 focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (editedTitle.trim()) {
-                          setReports((prev) =>
-                            prev.map((r) =>
-                              r.id === activeReport.id ? { ...r, name: editedTitle.trim() } : r
-                            )
-                          );
-                          setActiveReport((prev) => ({ ...prev, name: editedTitle.trim() }));
-                        }
-                        setIsEditingTitle(false);
-                      }}
-                      className="px-2.5 py-1 bg-[#0176d3] text-white text-xs font-semibold rounded hover:bg-blue-700"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsEditingTitle(false)}
-                      className="px-2 py-1 bg-slate-200 text-slate-700 text-xs rounded hover:bg-slate-300"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
-                    {activeReport.name}
-                  </h1>
-                )}
+                <h1 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight">
+                  {activeReport.name}
+                </h1>
               </div>
             </div>
 
@@ -1463,6 +2150,7 @@ export function ReportsPage() {
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
                 type="button"
+                onClick={() => handleOpenBuilder(activeReport)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
               >
                 <Pencil className="h-3.5 w-3.5 text-blue-600" />
@@ -1487,6 +2175,7 @@ export function ReportsPage() {
 
               <button
                 type="button"
+                onClick={() => handleOpenBuilder(activeReport)}
                 className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs"
                 title="Filter"
               >
@@ -1496,7 +2185,6 @@ export function ReportsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  // Re-fetch complaints from backend
                   complaintApi
                     .list({ limit: 100 })
                     .then((res) => {
@@ -1511,17 +2199,15 @@ export function ReportsPage() {
                 <RotateCw className="h-4 w-4" />
               </button>
 
-              {/* Edit Split Button with Dropdown (Delete / Export / Save As) */}
+              {/* Edit Split Button with Dropdown (Edit / Delete / Export / Save As) */}
               <div className="relative inline-flex rounded shadow-2xs">
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditedTitle(activeReport.name);
-                    setIsEditingTitle(true);
-                  }}
-                  className="px-3 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 rounded-l transition"
+                  onClick={() => handleOpenBuilder(activeReport)}
+                  className="px-3.5 py-1.5 border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 rounded-l transition flex items-center gap-1"
                 >
-                  Edit
+                  <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Edit</span>
                 </button>
                 <button
                   type="button"
@@ -1531,12 +2217,19 @@ export function ReportsPage() {
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
 
-                {/* Dropdown Options: Export, Delete, Save As, Subscribe */}
                 {editMenuOpen && (
                   <div
-                    className="absolute right-0 top-9 z-50 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs animate-in fade-in"
+                    className="absolute right-0 top-9 z-50 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs animate-in fade-in"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <button
+                      type="button"
+                      onClick={() => handleOpenBuilder(activeReport)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-slate-700 hover:bg-slate-50 font-medium"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Edit in Report Builder</span>
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -1568,7 +2261,8 @@ export function ReportsPage() {
                           id: `rep-${Date.now()}`,
                           name: `${activeReport.name} (Copy)`,
                         };
-                        setReports([clone, ...reports]);
+                        const updated = [clone, ...reports];
+                        saveReportsToStorage(updated);
                         setActiveReport(clone);
                         setEditMenuOpen(false);
                       }}
@@ -1599,12 +2293,17 @@ export function ReportsPage() {
             </div>
           </div>
 
-          {/* Total Records Row (Mirroring Screenshot) */}
-          <div className="bg-[#f8fafc] border-b border-slate-200 px-6 py-2.5">
-            <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
-            <span className="text-[16px] font-bold text-slate-900 leading-tight">
-              {activeReportRows.length}
-            </span>
+          {/* Total Records Row */}
+          <div className="bg-[#f8fafc] border-b border-slate-200 px-6 py-2.5 flex items-center justify-between">
+            <div>
+              <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
+              <span className="text-[16px] font-bold text-slate-900 leading-tight">
+                {activeReportRows.length}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-medium">
+              Columns: {activeCols.length} | Grouped by: {AVAILABLE_GROUP_FIELDS.find((g) => g.id === groupField)?.label || groupField}
+            </div>
           </div>
 
           {/* Main Salesforce Lightning Data Table */}
@@ -1615,85 +2314,97 @@ export function ReportsPage() {
                   <th className="py-2.5 px-3 w-10 text-center border-r border-slate-300">
                     <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
                   </th>
-                  <th className="py-2.5 px-3 min-w-[150px] border-r border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <span>Requested By ↑</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3 min-w-[180px] border-r border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <span>Complaint: Complaint No</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3 min-w-[220px] border-r border-slate-300">
-                    <div className="flex items-center justify-between">
-                      <span>Distributor / Retailer Name</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </div>
-                  </th>
-                  <th className="py-2.5 px-3 min-w-[220px]">
-                    <div className="flex items-center justify-between">
-                      <span>Product name</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </div>
-                  </th>
+                  {activeCols.map((col, idx) => (
+                    <th
+                      key={col.id}
+                      className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap ${
+                        idx === activeCols.length - 1 ? 'border-r-0' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span>{col.label}</span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </div>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {/* Group Header Row: [ ] - (20) */}
-                <tr className="bg-[#fafafb] font-medium text-slate-700 border-b border-slate-200">
-                  <td className="py-2 px-3 text-center border-r border-slate-200">
-                    <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
-                  </td>
-                  <td className="py-2 px-3 border-r border-slate-200 font-medium" colSpan={4}>
-                    <button
-                      type="button"
-                      onClick={() => setGroupCollapsed(!groupCollapsed)}
-                      className="flex items-center gap-1.5 text-slate-700 hover:text-blue-600 font-semibold text-xs cursor-pointer"
-                    >
-                      <span className="w-3 text-center">{groupCollapsed ? '+' : '−'}</span>
-                      <span>({activeReportRows.length})</span>
-                    </button>
-                  </td>
-                </tr>
+                {Object.keys(groupedData).length > 0 && activeReportRows.length > 0 ? (
+                  Object.entries(groupedData).map(([groupKey, groupRows]) => {
+                    const isCollapsed = Boolean(collapsedGroups[groupKey]);
+                    return (
+                      <div key={groupKey} className="contents">
+                        {/* Group Header Row */}
+                        <tr className="bg-[#f8fafc] font-medium text-slate-700 border-b border-slate-200">
+                          <td className="py-2 px-3 text-center border-r border-slate-200">
+                            <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
+                          </td>
+                          <td
+                            className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800"
+                            colSpan={activeCols.length}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => toggleGroupCollapse(groupKey)}
+                              className="flex items-center gap-1.5 text-slate-800 hover:text-blue-600 font-semibold text-xs cursor-pointer"
+                            >
+                              <span className="w-3 text-center">{isCollapsed ? '+' : '−'}</span>
+                              <span>
+                                {groupKey} ({groupRows.length})
+                              </span>
+                            </button>
+                          </td>
+                        </tr>
 
-                {/* Detail Rows: Database Products and Blank Complaint Records */}
-                {!groupCollapsed &&
-                  activeReportRows.map((row, idx) => (
-                    <tr
-                      key={row.id || idx}
-                      className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
-                    >
-                      <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400">
-                        {/* checkbox spacing */}
-                      </td>
-                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700">
-                        {row.requestedBy || ''}
-                      </td>
-                      <td className="py-2 px-3 border-r border-slate-200 font-mono text-xs">
-                        {row.complaintNo ? (
-                          <span className="text-[#0176d3] hover:underline cursor-pointer">
-                            {row.complaintNo}
-                          </span>
-                        ) : (
-                          ''
-                        )}
-                      </td>
-                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700">
-                        {row.distributor || ''}
-                      </td>
-                      <td className="py-2 px-3 text-slate-900 font-medium uppercase tracking-tight">
-                        {row.productName || ''}
-                      </td>
-                    </tr>
-                  ))}
+                        {/* Detail Rows */}
+                        {!isCollapsed &&
+                          groupRows.map((row) => (
+                            <tr
+                              key={row.id}
+                              className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                            >
+                              <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                              {activeCols.map((col, idx) => (
+                                <td
+                                  key={col.id}
+                                  className={`py-2 px-3 border-r border-slate-200 ${
+                                    idx === activeCols.length - 1 ? 'border-r-0' : ''
+                                  }`}
+                                >
+                                  {renderCellContent(row, col.id)}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={activeCols.length + 1} className="py-14 text-center text-slate-400">
+                      <div className="max-w-md mx-auto space-y-1.5">
+                        <p className="text-sm font-semibold text-slate-700">No records returned for this report.</p>
+                        <p className="text-xs text-slate-500">
+                          This report is configured with {activeCols.length} columns. Currently no complaints in the system match its criteria.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBuilder(activeReport)}
+                          className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded border border-slate-300 text-xs font-semibold text-[#0176d3] hover:bg-slate-50"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          <span>Customize Filters in Edit Mode</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
 
-          {/* Bottom Toolbar Toggles (Row Counts, Detail Rows, Subtotals, Grand Total) */}
+          {/* Bottom Toolbar Toggles */}
           <div className="bg-[#f3f3f3] border-t border-slate-300 px-6 py-2.5 flex items-center gap-6 text-xs text-slate-700 select-none overflow-x-auto">
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="font-semibold text-slate-700">Row Counts</span>
@@ -1704,7 +2415,6 @@ export function ReportsPage() {
                 className="rounded text-blue-600 focus:ring-0"
               />
             </label>
-
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="font-semibold text-slate-700">Detail Rows</span>
               <input
@@ -1714,7 +2424,6 @@ export function ReportsPage() {
                 className="rounded text-blue-600 focus:ring-0"
               />
             </label>
-
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="font-semibold text-slate-700">Subtotals</span>
               <input
@@ -1724,7 +2433,6 @@ export function ReportsPage() {
                 className="rounded text-blue-600 focus:ring-0"
               />
             </label>
-
             <label className="flex items-center gap-2 cursor-pointer">
               <span className="font-semibold text-slate-700">Grand Total</span>
               <input
@@ -1754,7 +2462,7 @@ export function ReportsPage() {
                 <h3 className="text-base font-bold text-slate-900">Delete Report</h3>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>? This action will remove the report from your reports panel.
+                Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>?
               </p>
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
@@ -1775,15 +2483,14 @@ export function ReportsPage() {
             </div>
           </div>
         )}
-        {/* Export Modal */}
         {exportModalJsx}
       </div>
     );
   }
 
-  // -------------------------------------------------------------
-  // VIEW 2: SALESFORCE LIGHTNING REPORTS LIST (36 ITEMS)
-  // -------------------------------------------------------------
+  // ==========================================================================
+  // VIEW 3: SALESFORCE LIGHTNING REPORTS DIRECTORY LIST (36 ITEMS)
+  // ==========================================================================
   return (
     <div className="space-y-3 pb-8">
       {/* Outer Salesforce Lightning Card */}
@@ -1791,7 +2498,6 @@ export function ReportsPage() {
         {/* Card Header Toolbar (Mirroring Screenshot) */}
         <div className="p-4 sm:px-6 sm:py-3.5 border-b border-slate-200">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* Breadcrumb Title */}
             <div>
               <span className="block text-xs font-normal text-slate-500">Reports</span>
               <div className="flex items-center gap-1.5 flex-wrap">
@@ -1812,9 +2518,7 @@ export function ReportsPage() {
               </span>
             </div>
 
-            {/* Right Action Tools: Search, New Report, New Folder, Settings */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Search Bar */}
               <div className="relative w-48 sm:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <input
@@ -1835,7 +2539,6 @@ export function ReportsPage() {
                 )}
               </div>
 
-              {/* New Report Button */}
               <button
                 type="button"
                 onClick={() => setNewReportModalOpen(true)}
@@ -1844,7 +2547,6 @@ export function ReportsPage() {
                 New Report
               </button>
 
-              {/* New Folder Split Button */}
               <div className="inline-flex rounded shadow-2xs">
                 <button
                   type="button"
@@ -1862,7 +2564,6 @@ export function ReportsPage() {
                 </button>
               </div>
 
-              {/* Settings Icon Button */}
               <button
                 type="button"
                 className="p-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 shadow-2xs transition"
@@ -1878,7 +2579,6 @@ export function ReportsPage() {
         <div className="flex flex-col md:flex-row min-h-[500px]">
           {/* Left Navigation Sidebar */}
           <aside className="w-full md:w-48 border-r border-slate-200 bg-[#fafafb] p-3 text-xs shrink-0 select-none">
-            {/* REPORTS SECTION */}
             <div className="mb-4">
               <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Reports
@@ -1898,7 +2598,7 @@ export function ReportsPage() {
                       className={`w-full text-left px-2.5 py-1.5 rounded transition ${
                         activeSidebar === item.id
                           ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
-                          : 'text-slate-600 hover:bg-slate-200/60'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
                       {item.label}
@@ -1908,7 +2608,6 @@ export function ReportsPage() {
               </ul>
             </div>
 
-            {/* FOLDERS SECTION */}
             <div className="mb-4">
               <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Folders
@@ -1916,8 +2615,8 @@ export function ReportsPage() {
               <ul className="space-y-0.5 mt-1">
                 {[
                   { id: 'all-folders', label: 'All Folders' },
-                  { id: 'folders-created-by-me', label: 'Created by Me' },
-                  { id: 'folders-shared-with-me', label: 'Shared with Me' },
+                  { id: 'created-by-me-folders', label: 'Created by Me' },
+                  { id: 'shared-with-me', label: 'Shared with Me' },
                 ].map((item) => (
                   <li key={item.id}>
                     <button
@@ -1926,7 +2625,7 @@ export function ReportsPage() {
                       className={`w-full text-left px-2.5 py-1.5 rounded transition ${
                         activeSidebar === item.id
                           ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
-                          : 'text-slate-600 hover:bg-slate-200/60'
+                          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
                       {item.label}
@@ -1936,7 +2635,6 @@ export function ReportsPage() {
               </ul>
             </div>
 
-            {/* FAVORITES SECTION */}
             <div>
               <span className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                 Favorites
@@ -1946,183 +2644,143 @@ export function ReportsPage() {
                   <button
                     type="button"
                     onClick={() => setActiveSidebar('favorites')}
-                    className={`w-full text-left px-2.5 py-1.5 rounded transition flex items-center justify-between ${
+                    className={`w-full text-left px-2.5 py-1.5 rounded transition flex items-center gap-1.5 ${
                       activeSidebar === 'favorites'
                         ? 'bg-[#e0effe] text-[#0176d3] font-semibold'
-                        : 'text-slate-600 hover:bg-slate-200/60'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    <span>All Favorites</span>
                     <Star className="h-3 w-3 text-amber-500 fill-amber-400" />
+                    <span>Favorited Reports</span>
                   </button>
                 </li>
               </ul>
             </div>
           </aside>
 
-          {/* Right Main Table Area */}
-          <main className="flex-1 overflow-x-auto bg-white">
+          {/* Right Table Container */}
+          <main className="flex-1 overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              {/* Table Header with Salesforce Sorting */}
-              <thead className="bg-[#f3f3f3] text-slate-700 font-semibold border-b border-slate-300 select-none">
+              <thead className="bg-[#f8fafc] text-slate-600 border-b border-slate-200 select-none">
                 <tr>
-                  {/* Name Column */}
                   <th
                     onClick={() => toggleSort('name')}
-                    className="py-2.5 px-3 min-w-[260px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-3 px-4 font-semibold hover:bg-slate-100 cursor-pointer transition min-w-[280px]"
                   >
                     <div className="flex items-center gap-1">
-                      <span>Name</span>
-                      <ChevronDown
-                        className={`h-3 w-3 text-slate-400 transition-transform ${
-                          sortField === 'name' && !sortAsc ? 'rotate-180' : ''
-                        }`}
-                      />
+                      <span>Report Name</span>
+                      {sortField === 'name' && (
+                        <span>{sortAsc ? '↑' : '↓'}</span>
+                      )}
                     </div>
                   </th>
-
-                  {/* Description Column (Header present, cells empty) */}
-                  <th
-                    onClick={() => toggleSort('description')}
-                    className="py-2.5 px-3 min-w-[120px] cursor-pointer hover:bg-slate-100 transition hidden sm:table-cell"
-                  >
-                    <div className="flex items-center gap-1">
-                      <span>Description</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
-                    </div>
-                  </th>
-
-                  {/* Folder Column */}
+                  <th className="py-3 px-4 font-semibold min-w-[200px]">Description</th>
                   <th
                     onClick={() => toggleSort('folder')}
-                    className="py-2.5 px-3 min-w-[200px] cursor-pointer hover:bg-slate-100 transition hidden md:table-cell"
+                    className="py-3 px-4 font-semibold hover:bg-slate-100 cursor-pointer transition min-w-[160px]"
                   >
                     <div className="flex items-center gap-1">
                       <span>Folder</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'folder' && (
+                        <span>{sortAsc ? '↑' : '↓'}</span>
+                      )}
                     </div>
                   </th>
-
-                  {/* Created By Column */}
                   <th
                     onClick={() => toggleSort('createdBy')}
-                    className="py-2.5 px-3 min-w-[160px] cursor-pointer hover:bg-slate-100 transition"
+                    className="py-3 px-4 font-semibold hover:bg-slate-100 cursor-pointer transition min-w-[150px]"
                   >
                     <div className="flex items-center gap-1">
                       <span>Created By</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'createdBy' && (
+                        <span>{sortAsc ? '↑' : '↓'}</span>
+                      )}
                     </div>
                   </th>
-
-                  {/* Created On Column */}
                   <th
                     onClick={() => toggleSort('createdOn')}
-                    className="py-2.5 px-3 min-w-[140px] cursor-pointer hover:bg-slate-100 transition hidden lg:table-cell"
+                    className="py-3 px-4 font-semibold hover:bg-slate-100 cursor-pointer transition min-w-[140px]"
                   >
                     <div className="flex items-center gap-1">
                       <span>Created On</span>
-                      <ChevronDown className="h-3 w-3 text-slate-400" />
+                      {sortField === 'createdOn' && (
+                        <span>{sortAsc ? '↑' : '↓'}</span>
+                      )}
                     </div>
                   </th>
-
-                  {/* Subscribed Column */}
-                  <th className="py-2.5 px-3 text-center w-24">
-                    <span>Subscribed</span>
-                  </th>
-
-                  {/* Row Actions Column */}
-                  <th className="py-2.5 px-2 w-10 text-center"></th>
+                  <th className="py-3 px-2 text-center w-12">Subscribed</th>
+                  <th className="py-3 px-2 text-center w-12">Action</th>
                 </tr>
               </thead>
-
-              {/* Table Body */}
               <tbody className="divide-y divide-slate-100">
-                {filteredReports.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      No reports found in this folder.
+                {filteredReports.map((report) => (
+                  <tr
+                    key={report.id}
+                    onClick={() => setActiveReport(report)}
+                    className="hover:bg-blue-50/40 cursor-pointer transition group"
+                  >
+                    <td className="py-2.5 px-4 font-medium text-slate-800">
+                      <div className="flex items-center gap-2">
+                        <FileSpreadsheet className="h-4 w-4 text-[#05a081] shrink-0" />
+                        <span className="text-[#0176d3] hover:underline font-semibold">
+                          {report.name}
+                        </span>
+                      </div>
                     </td>
-                  </tr>
-                ) : (
-                  filteredReports.map((report) => (
-                    <tr
-                      key={report.id}
-                      onClick={() => setActiveReport(report)}
-                      className="hover:bg-[#f8fafc] transition-colors group cursor-pointer"
+                    <td className="py-2.5 px-4 text-slate-500 truncate max-w-xs">
+                      {report.description || '—'}
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600">
+                      <div className="flex items-center gap-1 text-slate-600">
+                        <Folder className="h-3.5 w-3.5 text-amber-500 fill-amber-400 shrink-0" />
+                        <span className="truncate">{report.folder}</span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-4 text-slate-600">{report.createdBy}</td>
+                    <td className="py-2.5 px-4 text-slate-500 text-[11px]">{report.createdOn}</td>
+                    <td
+                      className="py-2.5 px-2 text-center"
+                      onClick={(e) => toggleSubscribe(report.id, e)}
                     >
-                      {/* Name with Blue Hyperlink */}
-                      <td className="py-2.5 px-3 font-normal text-[#0176d3] group-hover:underline">
-                        {report.name}
-                      </td>
-
-                      {/* Description: empty cells matching screenshot */}
-                      <td className="py-2.5 px-3 text-slate-500 hidden sm:table-cell">
-                        {report.description || ''}
-                      </td>
-
-                      {/* Folder Link */}
-                      <td className="py-2.5 px-3 text-[#0176d3] hover:underline hidden md:table-cell">
-                        {report.folder}
-                      </td>
-
-                      {/* Created By (Narayan Rao Vakamudi) */}
-                      <td className="py-2.5 px-3 text-slate-700">
-                        {report.createdBy}
-                      </td>
-
-                      {/* Created On */}
-                      <td className="py-2.5 px-3 text-slate-500 whitespace-nowrap hidden lg:table-cell">
-                        {report.createdOn}
-                      </td>
-
-                      {/* Subscribed Star / Checkbox */}
-                      <td className="py-2.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={(e) => toggleSubscribe(report.id, e)}
-                          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-amber-500"
-                          title={report.subscribed ? 'Subscribed' : 'Subscribe'}
-                        >
-                          <Star
-                            className={`h-4 w-4 ${
-                              report.subscribed
-                                ? 'text-amber-500 fill-amber-400'
-                                : 'text-slate-300 hover:text-amber-400'
-                            }`}
-                          />
-                        </button>
-                      </td>
-
-                      {/* Row Action Arrow */}
-                      <td
-                        className="py-2.5 px-2 text-center relative"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setRowMenuOpenId(rowMenuOpenId === report.id ? null : report.id);
-                        }}
+                      <button
+                        type="button"
+                        className="p-1 text-slate-400 hover:text-amber-500 transition"
+                        title={report.subscribed ? 'Subscribed' : 'Subscribe'}
                       >
+                        <Star
+                          className={`h-4 w-4 ${
+                            report.subscribed ? 'text-amber-500 fill-amber-400' : 'text-slate-300'
+                          }`}
+                        />
+                      </button>
+                    </td>
+                    <td
+                      className="py-2.5 px-2 text-center relative"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="inline-block text-left">
                         <button
                           type="button"
-                          className="p-1 rounded border border-transparent hover:border-slate-300 hover:bg-white text-slate-400 hover:text-slate-700"
+                          onClick={() => setRowMenuOpenId(rowMenuOpenId === report.id ? null : report.id)}
+                          className="p-1 rounded hover:bg-slate-100 text-slate-500 hover:text-slate-800"
                         >
-                          <ChevronDown className="h-3 w-3" />
+                          <ChevronDown className="h-3.5 w-3.5" />
                         </button>
-
-                        {/* Row Dropdown Action Menu */}
                         {rowMenuOpenId === report.id && (
                           <div
-                            className="absolute right-2 top-8 z-30 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs"
+                            className="absolute right-2 top-8 z-50 w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg text-left text-xs animate-in fade-in"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
                               onClick={() => {
+                                handleOpenBuilder(report);
                                 setRowMenuOpenId(null);
-                                setActiveReport(report);
                               }}
-                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left font-medium"
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50"
                             >
-                              Run Report
+                              <Pencil className="h-3.5 w-3.5 text-blue-600" />
+                              <span>Edit in Builder</span>
                             </button>
                             <button
                               type="button"
@@ -2130,7 +2788,7 @@ export function ReportsPage() {
                                 handleOpenExportModal(report);
                                 setRowMenuOpenId(null);
                               }}
-                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left flex items-center gap-1.5"
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50"
                             >
                               <Download className="h-3.5 w-3.5 text-blue-600" />
                               <span>Export</span>
@@ -2141,72 +2799,22 @@ export function ReportsPage() {
                                 setReportToDelete(report);
                                 setRowMenuOpenId(null);
                               }}
-                              className="w-full px-3 py-1.5 text-red-600 hover:bg-red-50 text-left flex items-center gap-1.5 font-medium"
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-red-600 hover:bg-red-50"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                               <span>Delete</span>
                             </button>
-                            <div className="my-1 border-t border-slate-100" />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                toggleSubscribe(report.id);
-                                setRowMenuOpenId(null);
-                              }}
-                              className="w-full px-3 py-1.5 text-slate-700 hover:bg-slate-50 text-left"
-                            >
-                              {report.subscribed ? 'Unsubscribe' : 'Subscribe'}
-                            </button>
                           </div>
                         )}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </main>
         </div>
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {reportToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
-          onClick={() => setReportToDelete(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 text-red-600">
-              <div className="p-2 rounded-full bg-red-100">
-                <Trash2 className="h-6 w-6" />
-              </div>
-              <h3 className="text-base font-bold text-slate-900">Delete Report</h3>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>? This action will remove the report from your reports panel.
-            </p>
-            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setReportToDelete(null)}
-                className="px-3.5 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteReport(reportToDelete)}
-                className="px-4 py-1.5 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* New Report Modal */}
       {newReportModalOpen && (
@@ -2218,8 +2826,8 @@ export function ReportsPage() {
             className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">Create New Report</h3>
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Create New Report</h3>
               <button
                 type="button"
                 onClick={() => setNewReportModalOpen(false)}
@@ -2228,8 +2836,7 @@ export function ReportsPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-
-            <form onSubmit={handleCreateReport} className="space-y-4 text-xs">
+            <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Report Name <span className="text-red-500">*</span>
@@ -2237,23 +2844,12 @@ export function ReportsPage() {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Monthly Efficacy Breakdown"
+                  placeholder="e.g. Monthly Batch Quality Review"
                   value={newReportName}
                   onChange={(e) => setNewReportName(e.target.value)}
                   className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
                 />
               </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Folder</label>
-                <input
-                  type="text"
-                  readOnly
-                  value="Complaint Management Reports"
-                  className="w-full px-3 py-2 rounded border border-slate-200 bg-slate-100 text-slate-500 text-xs"
-                />
-              </div>
-
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -2263,13 +2859,33 @@ export function ReportsPage() {
                   Cancel
                 </button>
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={() => {
+                    if (!newReportName.trim()) return;
+                    const newRep = {
+                      id: `rep-${Date.now()}`,
+                      name: newReportName.trim(),
+                      description: 'Custom created report',
+                      folder: 'Complaint Management Reports',
+                      createdBy: user?.name || 'Narayan Rao Vakamudi',
+                      createdOn: new Date().toLocaleDateString('en-GB'),
+                      subscribed: false,
+                      columns: getDefaultColumnsForReport('', newReportName.trim()),
+                      groupBy: ['createdMonthYear'],
+                      filters: { status: 'all', category: 'all' },
+                    };
+                    const updated = [newRep, ...reports];
+                    saveReportsToStorage(updated);
+                    setNewReportName('');
+                    setNewReportModalOpen(false);
+                    handleOpenBuilder(newRep);
+                  }}
                   className="px-3.5 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700"
                 >
-                  Save Report
+                  Create & Edit
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
@@ -2284,8 +2900,8 @@ export function ReportsPage() {
             className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-900">Create New Folder</h3>
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Create New Folder</h3>
               <button
                 type="button"
                 onClick={() => setNewFolderModalOpen(false)}
@@ -2294,8 +2910,7 @@ export function ReportsPage() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-
-            <div className="space-y-4 text-xs">
+            <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Folder Name <span className="text-red-500">*</span>
@@ -2309,7 +2924,6 @@ export function ReportsPage() {
                   className="w-full px-3 py-2 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
                 />
               </div>
-
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -2333,7 +2947,45 @@ export function ReportsPage() {
           </div>
         </div>
       )}
-      {/* Export Modal */}
+
+      {/* Delete Confirmation Modal */}
+      {reportToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
+          onClick={() => setReportToDelete(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 text-red-600">
+              <div className="p-2 rounded-full bg-red-100">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">Delete Report</h3>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Are you sure you want to delete <strong className="text-slate-900 font-semibold">{reportToDelete.name}</strong>?
+            </p>
+            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setReportToDelete(null)}
+                className="px-3.5 py-1.5 rounded border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteReport(reportToDelete)}
+                className="px-4 py-1.5 rounded bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {exportModalJsx}
     </div>
   );
