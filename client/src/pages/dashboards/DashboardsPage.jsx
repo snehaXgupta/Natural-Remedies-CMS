@@ -43,13 +43,15 @@ export function DashboardsPage() {
     complaintApi
       .list({ limit: 100 })
       .then((res) => {
-        const items = res?.items || (Array.isArray(res) ? res : []);
+        const items = Array.isArray(res) ? res : res?.data || res?.items || [];
         if (items.length > 0) {
           setDbComplaints(items);
         }
         setLastRefreshed(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
       })
-      .catch(() => { });
+      .catch((err) => {
+        console.error('Failed to load dashboard complaints:', err);
+      });
   };
 
   useEffect(() => {
@@ -240,12 +242,12 @@ export function DashboardsPage() {
     return { within, overdue, total: filteredComplaints.length, rate };
   }, [filteredComplaints]);
 
-  const maxStageCount = Math.max(...stageData.map((d) => d.count), 28);
-  const maxInhouse = Math.max(...inhouseData.map((d) => d.count), 15);
-  const maxCmo = Math.max(...cmoData.map((d) => d.count), 4);
-  const maxRaisedBy = Math.max(...raisedByData.map((d) => d.count), 30);
-  const maxProduct = Math.max(...productData.map((d) => d.count), 6);
-  const maxCustomer = Math.max(...customerData.map((d) => d.count), 3);
+  const maxStageCount = Math.max(...stageData.map((d) => d.count), 1);
+  const maxInhouse = Math.max(...inhouseData.map((d) => d.count), 1);
+  const maxCmo = Math.max(...cmoData.map((d) => d.count), 1);
+  const maxRaisedBy = Math.max(...raisedByData.map((d) => d.count), 1);
+  const maxProduct = Math.max(...productData.map((d) => d.count), 1);
+  const maxCustomer = Math.max(...customerData.map((d) => d.count), 1);
 
   return (
     <div className="space-y-4 pb-12 text-slate-800 animate-in fade-in">

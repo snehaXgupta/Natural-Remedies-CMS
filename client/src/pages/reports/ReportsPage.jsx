@@ -974,7 +974,7 @@ export function ReportsPage() {
     complaintApi
       .list({ limit: 100 })
       .then((res) => {
-        const items = res?.items || (Array.isArray(res) ? res : []);
+        const items = Array.isArray(res) ? res : res?.data || res?.items || [];
         if (items.length > 0) {
           setDbComplaints(items);
         }
@@ -2188,7 +2188,7 @@ export function ReportsPage() {
                   complaintApi
                     .list({ limit: 100 })
                     .then((res) => {
-                      const items = res?.items || (Array.isArray(res) ? res : []);
+                      const items = Array.isArray(res) ? res : res?.data || res?.items || [];
                       if (items.length > 0) setDbComplaints(items);
                     })
                     .catch(() => {});
