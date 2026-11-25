@@ -93,6 +93,7 @@ export const lookupApi = {
   all: (includeInactive = false) => data(api.get('/lookups', { params: { includeInactive } })),
   create: (body) => data(api.post('/lookups', body)),
   update: (id, body) => data(api.patch(`/lookups/${id}`, body)),
+  remove: (id) => data(api.delete(`/lookups/${id}`)),
 };
 
 export const settingsApi = {

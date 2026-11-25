@@ -10,6 +10,9 @@ import {
   Check,
   Eye,
   X,
+  AlertTriangle,
+  Search,
+  Trash2,
 } from 'lucide-react';
 import { lookupApi, settingsApi } from '../../api/endpoints.js';
 import { readError } from '../../api/client.js';
@@ -38,7 +41,14 @@ function PicklistsTab({ data, reload }) {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!newValue.trim()) return;
+    if (!newValue.trim()) {
+      notify('Please enter a value before adding.', 'bad');
+      return;
+    }
+    if (needsParent && !parentVal) {
+      notify(`Please choose a ${definitions[def.parentList]?.label || 'Parent'} first.`, 'bad');
+      return;
+    }
     setSaving(true);
     try {
       await lookupApi.create({
@@ -125,8 +135,8 @@ function PicklistsTab({ data, reload }) {
           />
           <button
             type="submit"
-            disabled={saving || !newValue.trim() || (needsParent && !parentVal)}
-            className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1 transition-colors"
+            disabled={saving}
+            className="h-8 px-3 rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" /> Add
           </button>
@@ -224,6 +234,287 @@ function PicklistsTab({ data, reload }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+
+/* ---------------- TAB: Dedicated Types of Failure Manager ---------------- */
+
+function TypesOfFailureTab({ data, reload }) {
+  const notify = useToast();
+  const lists = data?.lists || {};
+  const failureList = lists['typeOfFailure'] || [];
+
+  const [search, setSearch] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newFailureName, setNewFailureName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  const filtered = failureList.filter((f) =>
+    (f.value || '').toLowerCase().includes(search.toLowerCase().trim())
+  );
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!newFailureName.trim()) {
+      notify('Please enter a type of failure name.', 'bad');
+      return;
+    }
+    setSaving(true);
+    try {
+      await lookupApi.create({
+        list: 'typeOfFailure',
+        value: newFailureName.trim(),
+      });
+      notify(`Added "${newFailureName.trim()}" to Types of Failure.`);
+      setNewFailureName('');
+      setModalOpen(false);
+      reload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = async (r) => {
+    try {
+      await lookupApi.update(r._id, { active: !r.active });
+      notify(r.active ? `Deactivated "${r.value}"` : `Reactivated "${r.value}"`);
+      reload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    }
+  };
+
+  const handleRename = async (id) => {
+    if (!editValue.trim()) return;
+    try {
+      await lookupApi.update(id, { value: editValue.trim() });
+      notify('Type of failure updated.');
+      setEditingId(null);
+      reload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    }
+  };
+
+  const handleDelete = async (id, value) => {
+    if (!window.confirm(`Delete "${value}" from Types of Failure?`)) return;
+    try {
+      await lookupApi.remove(id);
+      notify(`Deleted "${value}".`);
+      reload();
+    } catch (err) {
+      notify(readError(err).message, 'bad');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header with Title and Add Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div>
+          <h2 className="text-sm font-bold text-slate-800">Types of Failure Master List</h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Manage failure modes for D2 Investigation, Root Cause Analysis, and Dashboard Analytics ({failureList.length} total).
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="h-8 px-3.5 rounded bg-[#0176d3] hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 cursor-pointer"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Add Type of Failure</span>
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative w-full max-w-xs">
+          <input
+            type="text"
+            placeholder="Search types of failure..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-8 pl-8 pr-3 text-xs rounded border border-slate-300 bg-white placeholder-slate-400 text-slate-800 focus:outline-none focus:border-blue-500"
+          />
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        <span className="text-xs text-slate-500">
+          Showing {filtered.length} of {failureList.length}
+        </span>
+      </div>
+
+      {/* Table of Types of Failure */}
+      <div className="overflow-x-auto border border-slate-200 rounded-md">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="bg-[#f8fafc] border-b border-slate-200 text-slate-600 font-semibold select-none">
+            <tr>
+              <th className="px-3.5 py-2.5">Failure Mode / Type</th>
+              <th className="px-3.5 py-2.5 w-28">Status</th>
+              <th className="px-3.5 py-2.5 w-40 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-3.5 py-8 text-center text-slate-400 italic">
+                  {search ? 'No matching failure types found.' : 'No types of failure configured yet.'}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((r) => (
+                <tr key={r._id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="px-3.5 py-2.5 font-medium text-slate-800">
+                    {editingId === r._id ? (
+                      <div className="flex items-center gap-1.5 max-w-md">
+                        <input
+                          type="text"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="h-7 w-full rounded border border-slate-300 px-2 text-xs focus:border-blue-500 focus:outline-none"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRename(r._id)}
+                          className="px-2 py-1 rounded bg-[#0176d3] text-white text-xs font-semibold hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          className="px-2 py-1 rounded border border-slate-300 text-slate-600 text-xs hover:bg-slate-100"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <span className={r.active ? 'text-slate-900 font-semibold' : 'text-slate-400 line-through'}>
+                        {r.value}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3.5 py-2.5">
+                    <span
+                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                        r.active
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      {r.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-3.5 py-2.5 text-right space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(r._id);
+                        setEditValue(r.value);
+                      }}
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggle(r)}
+                      className="text-slate-500 hover:text-slate-800"
+                    >
+                      {r.active ? 'Deactivate' : 'Activate'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(r._id, r.value)}
+                      className="text-red-500 hover:text-red-700"
+                      title="Delete"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Add Type of Failure Modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-2xs p-4 animate-in fade-in"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-slate-300 bg-white p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Add New Type of Failure</h3>
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreate} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Failure Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Blister Foil Pinhole, Induction Seal Leakage..."
+                  value={newFailureName}
+                  onChange={(e) => setNewFailureName(e.target.value)}
+                  className="w-full h-8 px-3 rounded border border-slate-300 text-xs focus:outline-none focus:border-blue-600"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded border border-slate-300 text-slate-600 hover:bg-slate-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-1.5 rounded bg-[#0176d3] text-white font-semibold hover:bg-blue-700 transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{saving ? 'Adding...' : 'Add Type of Failure'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -649,6 +940,7 @@ function EmailTemplatesTab({ initialTemplates }) {
 /* ---------------- Main Settings Page (Salesforce Setup Console) ---------------- */
 
 const SETUP_ITEMS = [
+  { key: 'failureTypes', label: 'Types of Failure', icon: AlertTriangle },
   { key: 'picklists', label: 'Picklists & Master Data', icon: List },
   { key: 'sla', label: 'SLA Milestones', icon: Clock },
   { key: 'risk', label: 'Risk Engine (FMEA)', icon: ShieldAlert },
@@ -719,6 +1011,9 @@ export function SettingsPage() {
             <ErrorState message={error} onRetry={() => { lookupQuery.reload(); settingsQuery.reload(); }} />
           ) : (
             <div>
+              {activeTab === 'failureTypes' && (
+                <TypesOfFailureTab data={lookupQuery.data} reload={lookupQuery.reload} />
+              )}
               {activeTab === 'picklists' && (
                 <PicklistsTab data={lookupQuery.data} reload={lookupQuery.reload} />
               )}

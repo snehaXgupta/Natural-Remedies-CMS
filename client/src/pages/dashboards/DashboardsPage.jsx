@@ -23,6 +23,34 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 // Strictly read real complaints from MongoDB database
 const BASELINE_COMPLAINTS = [];
 
+function calculateIsWithinSla(c) {
+  const createdTime = c.createdAt ? new Date(c.createdAt).getTime() : Date.now();
+  const d1TargetMs = 9 * 60 * 60 * 1000;
+  const d2TargetMs = 9 * 60 * 60 * 1000;
+  const d3TargetMs = 36 * 60 * 60 * 1000;
+
+  const d1CompletedTime = c.acknowledgement?.approvedAt ? new Date(c.acknowledgement.approvedAt).getTime() : null;
+  const d2CompletedTime = c.d2?.completedAt ? new Date(c.d2.completedAt).getTime() : null;
+
+  // Check D1 SLA
+  const d1End = d1CompletedTime || Date.now();
+  if (d1End - createdTime > d1TargetMs) return false;
+
+  // Check D2 SLA (if D1 passed)
+  if (d1CompletedTime) {
+    const d2End = d2CompletedTime || Date.now();
+    if (d2End - d1CompletedTime > d2TargetMs) return false;
+  }
+
+  // Check D3 SLA (if D2 passed)
+  if (d2CompletedTime) {
+    const d3End = c.closedAt ? new Date(c.closedAt).getTime() : Date.now();
+    if (d3End - d2CompletedTime > d3TargetMs) return false;
+  }
+
+  return true;
+}
+
 export function DashboardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -58,7 +86,7 @@ export function DashboardsPage() {
     fetchLiveComplaints();
   }, []);
 
-  // Merged complaints pool: Baseline + MongoDB Live records
+  // Merged complaints pool: MongoDB Live records
   const allComplaints = useMemo(() => {
     if (!dbComplaints || dbComplaints.length === 0) return [];
     return dbComplaints.map((c, idx) => ({
@@ -74,14 +102,18 @@ export function DashboardsPage() {
       product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Kolin plus',
       customer: c.customer?.name || c.complainant?.name || c.distributorName || 'NR Distributor',
       failure: c.d2?.investigation?.typeOfFailure || 'Induction Seal Leakage',
-      withinSla: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED',
+      withinSla: calculateIsWithinSla(c),
     }));
   }, [dbComplaints, user]);
 
   // Apply Filter Dropdowns (SBU, FinancialYear, Date)
   const filteredComplaints = useMemo(() => {
     return allComplaints.filter((c) => {
-      if (sbuFilter !== 'All' && c.sbu !== sbuFilter) return false;
+      if (sbuFilter !== 'All') {
+        const s = sbuFilter.toLowerCase();
+        const cs = (c.sbu || '').toLowerCase();
+        if (!cs.includes(s) && !s.includes(cs)) return false;
+      }
       if (fyFilter !== 'All') {
         const targetYear = fyFilter.replace('equals ', '').trim();
         if (c.year !== targetYear) return false;
@@ -146,8 +178,9 @@ export function DashboardsPage() {
       'NLPL- Pithampur Indore-70...': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'Inhouse' && c.locDetail) {
-        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
+      if (c.locType === 'Inhouse') {
+        const loc = c.locDetail || 'NRPL-Bangalore-1100';
+        counts[loc] = (counts[loc] || 0) + 1;
       }
     });
     return Object.entries(counts)
@@ -165,8 +198,9 @@ export function DashboardsPage() {
       'Venkat pharma-3007': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'CMO' && c.locDetail) {
-        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
+      if (c.locType === 'CMO') {
+        const loc = c.locDetail || 'Shamanur pharma-3033';
+        counts[loc] = (counts[loc] || 0) + 1;
       }
     });
     return Object.entries(counts)

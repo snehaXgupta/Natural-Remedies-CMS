@@ -18,3 +18,5 @@ export const frpEmailPreview = async (req, res) => ok(res, await d2.frpEmailPrev
 export const listLookups = async (req, res) => ok(res, await lookups.all({ includeInactive: req.query.includeInactive === 'true' }));
 export const createLookup = async (req, res) => created(res, await lookups.create(req.body, req.user, requestContext(req)));
 export const updateLookup = async (req, res) => ok(res, await lookups.update(req.params.id, req.body, req.user, requestContext(req)));
+export const deleteLookup = async (req, res) => ok(res, await lookups.remove(req.params.id, req.user, requestContext(req)));
+

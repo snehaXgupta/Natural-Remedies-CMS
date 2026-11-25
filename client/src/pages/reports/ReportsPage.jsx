@@ -60,6 +60,7 @@ export const AVAILABLE_FIELDS = [
   { id: 'batchNumber', label: 'Batch Number', type: 'mono', category: 'Product' },
   { id: 'typeOfFailure', label: 'Type of Failure', type: 'text', category: 'Investigation' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
+  { id: 'acknowledgement', label: 'Acknowledgement', type: 'text', category: 'Workflow' },
   { id: 'assignedFrp', label: 'Assigned FRP', type: 'text', category: 'Workflow' },
   { id: 'daysOpen', label: 'Days Open', type: 'text', category: 'Turnaround' },
   { id: 'd1Sla', label: 'D1 SLA (9h)', type: 'sla_dot', category: 'SLA Tracking' },
@@ -106,7 +107,7 @@ function getDefaultColumnsForReport(repId, repName) {
     return ['complaintNo', 'productName', 'batchNumber', 'manufacturingLocation', 'typeOfFailure', 'stage', 'status'];
   }
   if (n.includes('raised by')) {
-    return ['requestedBy', 'complaintNo', 'distributor', 'productName', 'createdDate', 'stage', 'status'];
+    return ['requestedBy', 'complaintNo', 'acknowledgement', 'productName', 'distributor', 'createdDate', 'stage', 'status'];
   }
   if (n.includes('product wise')) {
     return ['productName', 'complaintNo', 'distributor', 'batchNumber', 'stage', 'status'];
@@ -1035,6 +1036,13 @@ export function ReportsPage() {
         batchNumber: c.reportedProduct?.batchNumber || c.d2?.verifiedProduct?.batchNumber || '—',
         typeOfFailure: c.d2?.investigation?.typeOfFailure || 'Packaging & Seal Integrity',
         manufacturingLocation: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
+        acknowledgement:
+          c.acknowledgement?.remarks ||
+          (c.acknowledgement?.approvedAt
+            ? 'Complaint is acknowledged'
+            : c.stage === 'D1'
+            ? 'Pending Acknowledgement'
+            : 'We acknowledge receipt of your complaint.'),
         assignedFrp: c.frp?.name || c.frp?.email || 'Sneha',
         daysOpen: `${daysOpenNum} days`,
         d1Sla: d1SlaInfo,

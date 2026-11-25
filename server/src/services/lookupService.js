@@ -124,7 +124,18 @@ export async function create({ list, value, parent, order }, actor, context) {
  * renames the parent of its child details, so they stay attached.
  */
 export async function update(id, input, actor, context) {
-  const row = await LookupValue.findById(id);
+  let row;
+  if (typeof id === 'string' && id.startsWith('default-')) {
+    const parts = id.split('-');
+    const list = parts[1];
+    const value = parts.slice(2).join('-');
+    row = await LookupValue.findOne({ list, value });
+    if (!row) {
+      row = await LookupValue.create({ list, value, active: true });
+    }
+  } else {
+    row = await LookupValue.findById(id);
+  }
   if (!row) throw AppError.notFound('List value');
   const before = { value: row.value, active: row.active, order: row.order, parent: row.parent };
   if (input.parent !== undefined) row.parent = await checkParent(row.list, input.parent);
@@ -140,8 +151,27 @@ export async function update(id, input, actor, context) {
     }
   }
   const changes = audit.diff(before, { value: row.value, active: row.active, order: row.order, parent: row.parent });
-  await audit.record({ actor, action: 'lookup.update', entityType: 'LookupValue', entityId: row._id, summary: `Edited "${row.value}" in ${LOOKUP_LISTS[row.list].label}`, ...changes, context });
+  await audit.record({ actor, action: 'lookup.update', entityType: 'LookupValue', entityId: row._id, summary: `Edited "${row.value}" in ${LOOKUP_LISTS[row.list]?.label || row.list}`, ...changes, context });
   return row.toJSON();
+}
+
+export async function remove(id, actor, context) {
+  let row;
+  if (typeof id === 'string' && id.startsWith('default-')) {
+    const parts = id.split('-');
+    const list = parts[1];
+    const value = parts.slice(2).join('-');
+    row = await LookupValue.findOne({ list, value });
+    if (row) {
+      await LookupValue.findByIdAndDelete(row._id);
+    }
+    return { ok: true };
+  }
+  row = await LookupValue.findByIdAndDelete(id);
+  if (row) {
+    await audit.record({ actor, action: 'lookup.delete', entityType: 'LookupValue', entityId: id, summary: `Deleted "${row.value}" from ${LOOKUP_LISTS[row.list]?.label || row.list}`, context });
+  }
+  return { ok: true };
 }
 
 /**

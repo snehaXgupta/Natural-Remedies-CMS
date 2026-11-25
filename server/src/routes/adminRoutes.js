@@ -40,6 +40,7 @@ const lookupPatch = z
 r.get('/lookups', d2.listLookups);
 r.post('/lookups', requirePermission(P.SETTINGS_MANAGE), validate({ body: lookupBody }), d2.createLookup);
 r.patch('/lookups/:id', requirePermission(P.SETTINGS_MANAGE), validate({ params: idParams, body: lookupPatch }), d2.updateLookup);
+r.delete('/lookups/:id', requirePermission(P.SETTINGS_MANAGE), validate({ params: idParams }), d2.deleteLookup);
 
 // eQMS System Settings: SLA, Risk Matrix, Notification templates
 r.get('/settings', c.getSystemSettings);
