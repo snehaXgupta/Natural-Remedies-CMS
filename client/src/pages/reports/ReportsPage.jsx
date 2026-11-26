@@ -618,8 +618,7 @@ function getCategoryFilteredComplaints(report, pool) {
   } else if (n.includes('stage wise overview') || n.includes('stage-wise-overview')) {
     filtered = filtered.filter((c) => {
       const s = (c.stage || '').toUpperCase();
-      const st = (c.status || '').toUpperCase();
-      return s !== 'CLOSED' && s !== 'DONE' && st !== 'CLOSED';
+      return s !== 'D1' && s !== 'NEW' && s !== 'REGISTERED';
     });
   } else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
     filtered = filtered.filter((c) => c.year === '2026');
@@ -630,8 +629,11 @@ function getCategoryFilteredComplaints(report, pool) {
 
 const EXCLUDED_REPORT_IDS = new Set(['rep-7', 'rep-8', 'rep-9', 'rep-10', 'rep-11']);
 const isExcludedReport = (r) => {
-  if (!r) return false;
+  if (!r) return true;
   if (EXCLUDED_REPORT_IDS.has(r.id)) return true;
+  const creator = (r.createdBy || '').toLowerCase().trim();
+  // Strictly enforce: Only reports where Created By is Narayan Rao Vakamudi
+  if (creator && !creator.includes('narayan')) return true;
   const n = (r.name || '').trim().toLowerCase();
   return (
     n === 'complaint raised by rumicare' ||
@@ -639,7 +641,9 @@ const isExcludedReport = (r) => {
     n === 'complaints current vs previous rumicare' ||
     n === 'current complaints month wise rumicare' ||
     n === 'type of failure - rumicare complaints' ||
-    n === 'type of failure rumicare complaints'
+    n === 'type of failure rumicare complaints' ||
+    n.includes('omnicare') ||
+    n.includes('rca members attendance')
   );
 };
 

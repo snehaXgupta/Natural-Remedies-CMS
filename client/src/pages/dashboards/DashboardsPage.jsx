@@ -56,11 +56,304 @@ function SalesforceHorizontalBarCard({
   title,
   yAxisLabel = 'Location detail',
   xAxisLabel = 'Record Count',
-  ticks = [0, 5, 10, 15],
-  maxVal = 15,
+  defaultTicks = [0, 5, 10, 15],
+  defaultMax = 15,
   data = [],
   reportLink,
   reportLinkLabel,
+  asOfDate,
+  lastRefreshed,
+  onRefresh,
+}) {
+  const maxInArray = Math.max(...data.map((d) => d.count || 0), 0);
+
+  // Dynamic scale ticks based on real backend counts
+  const { ticks, maxVal } = useMemo(() => {
+    if (maxInArray === 0 || maxInArray <= defaultMax) {
+      return { ticks: defaultTicks, maxVal: defaultMax };
+    }
+    const step = Math.ceil(maxInArray / 4);
+    const max = step * 4;
+    return {
+      ticks: [0, step, step * 2, step * 3, max],
+      maxVal: max,
+    };
+  }, [maxInArray, defaultMax, defaultTicks]);
+
+  return (
+    <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+      <div>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{title}</h3>
+          <div className="flex items-center gap-1 text-slate-400">
+            <button type="button" onClick={onRefresh} title="Refresh">
+              <RotateCw className="h-3.5 w-3.5 hover:text-slate-600 transition" />
+            </button>
+            <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+          </div>
+        </div>
+
+        {data.length === 0 ? (
+          <div className="py-12 flex items-center justify-center min-h-[190px]">
+            <span className="text-xs text-slate-400 font-normal">No chart data.</span>
+          </div>
+        ) : (
+          <div className="pt-2 pb-1">
+            {/* Top Axis Header: Centered "Record Count" and tick numbers */}
+            <div className="flex items-end mb-1">
+              {/* Left Spacer to align exactly with the left labels + rotated title */}
+              <div className="w-[140px] sm:w-[150px] shrink-0" />
+              {/* Ticks container above plot */}
+              <div className="flex-1 relative">
+                <div className="text-center text-[10px] text-slate-500 font-medium mb-1 select-none">
+                  {xAxisLabel}
+                </div>
+                <div className="relative h-3.5 text-[9px] sm:text-[10px] text-slate-500 font-normal select-none">
+                  {ticks.map((t) => {
+                    const pct = (t / maxVal) * 100;
+                    return (
+                      <span
+                        key={t}
+                        className="absolute -translate-x-1/2"
+                        style={{ left: `${pct}%` }}
+                      >
+                        {t}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Chart Plot Area */}
+            <div className="flex max-h-[190px] overflow-y-auto pr-1">
+              {/* Far Left: Rotated Axis Label */}
+              <div className="w-5 shrink-0 flex items-center justify-center">
+                <span
+                  className="text-[9px] sm:text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
+                  style={{
+                    writingMode: 'vertical-rl',
+                    transform: 'rotate(180deg)',
+                  }}
+                >
+                  {yAxisLabel}
+                </span>
+              </div>
+
+              {/* Middle: Y-Axis Category Names (right aligned against vertical line) */}
+              <div className="w-[120px] sm:w-[130px] shrink-0 flex flex-col justify-around pr-2 text-right">
+                {data.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="h-6 sm:h-7 flex items-center justify-end text-[10px] sm:text-[11px] text-slate-700 truncate"
+                    title={item.label}
+                  >
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+
+              {/* Right: Plot Area with Vertical Dividing Line, Gridlines & Bars */}
+              <div className="flex-1 relative border-l border-slate-400 flex flex-col justify-around py-0.5 min-h-[90px]">
+                {/* Background vertical grid lines matching tick positions */}
+                <div className="absolute inset-0 pointer-events-none">
+                  {ticks.map((t) => {
+                    if (t === 0) return null; // Tick 0 is border-l
+                    const pct = (t / maxVal) * 100;
+                    return (
+                      <div
+                        key={t}
+                        className="absolute top-0 bottom-0 border-r border-slate-200"
+                        style={{ left: `${pct}%` }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* Solid Blue Horizontal Bars */}
+                {data.map((item, idx) => {
+                  const widthPct = Math.min((item.count / maxVal) * 100, 100);
+                  return (
+                    <div key={idx} className="relative h-6 sm:h-7 flex items-center z-10">
+                      <div
+                        className="bg-[#1b8be8] hover:bg-[#0176d3] h-4.5 sm:h-5 flex items-center justify-end transition-all duration-300"
+                        style={{ width: `${Math.max(widthPct, item.count > 0 ? 5 : 0)}%` }}
+                        title={`${item.label}: ${item.count}`}
+                      >
+                        {item.count > 0 && (
+                          <span className="text-white text-[9px] sm:text-[10px] font-bold pr-1.5 leading-none select-none">
+                            {item.count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Card Footer */}
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <Link to={reportLink} className="text-[#0176d3] hover:underline font-medium truncate max-w-[200px]">
+          {reportLinkLabel}
+        </Link>
+        <span className="shrink-0">As of {asOfDate}, {lastRefreshed}</span>
+      </div>
+    </div>
+  );
+}
+
+// Reusable Salesforce Vertical Bar Chart matching exact Salesforce reference design
+function SalesforceVerticalBarCard({
+  title = 'Complaint Stage wise Overview',
+  yAxisLabel = 'Record Count',
+  xAxisLabel = 'Stage',
+  defaultTicks = [28, 21, 14, 7, 0],
+  defaultMax = 28,
+  data = [],
+  reportLink = '/reports?reportId=rep-33',
+  reportLinkLabel = 'View Report (Complaint Stage wise Over...)',
+  asOfDate,
+  lastRefreshed,
+  onRefresh,
+}) {
+  const maxInArray = Math.max(...data.map((d) => d.count || 0), 0);
+
+  const { ticks, maxVal } = useMemo(() => {
+    if (maxInArray === 0 || maxInArray <= defaultMax) {
+      return { ticks: defaultTicks, maxVal: defaultMax };
+    }
+    const step = Math.ceil(maxInArray / 4);
+    const max = step * 4;
+    return {
+      ticks: [max, step * 3, step * 2, step, 0],
+      maxVal: max,
+    };
+  }, [maxInArray, defaultMax, defaultTicks]);
+
+  return (
+    <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+      <div>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{title}</h3>
+          <div className="flex items-center gap-1 text-slate-400">
+            <button type="button" onClick={onRefresh} title="Refresh">
+              <RotateCw className="h-3.5 w-3.5 hover:text-slate-600 transition" />
+            </button>
+            <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+          </div>
+        </div>
+
+        {/* Chart Area */}
+        <div className="pt-3 pb-1">
+          <div className="flex">
+            {/* Far Left: Rotated Y-Axis Label "Record Count" */}
+            <div className="w-5 shrink-0 flex items-center justify-center">
+              <span
+                className="text-[9px] sm:text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                }}
+              >
+                {yAxisLabel}
+              </span>
+            </div>
+
+            {/* Y-Axis Tick Numbers */}
+            <div className="w-6 shrink-0 flex flex-col justify-between items-end pr-1.5 h-36 text-[9px] sm:text-[10px] text-slate-500 font-normal select-none py-0.5">
+              {ticks.map((t) => (
+                <span key={t} className="leading-none">{t}</span>
+              ))}
+            </div>
+
+            {/* Plot Area with Horizontal Gridlines & Vertical Bars */}
+            <div className="flex-1 relative h-36 border-b border-slate-300">
+              {/* Background Horizontal Grid Lines at ticks */}
+              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-0.5">
+                {ticks.map((t, idx) => (
+                  <div
+                    key={t}
+                    className={`w-full ${idx === ticks.length - 1 ? 'border-b border-slate-300' : 'border-b border-slate-200'}`}
+                  />
+                ))}
+              </div>
+
+              {/* Bars Container */}
+              <div className="absolute inset-0 flex items-end justify-around px-2 z-10">
+                {data.map((item) => {
+                  const heightPct = Math.min((item.count / maxVal) * 100, 100);
+                  const isSmall = heightPct < 15;
+                  return (
+                    <div
+                      key={item.label}
+                      className="flex-1 max-w-[54px] mx-1 h-full flex items-end justify-center group"
+                    >
+                      <div
+                        className="w-full bg-[#1b8be8] hover:bg-[#0176d3] transition-all duration-300 flex items-center justify-center relative cursor-pointer"
+                        style={{ height: `${Math.max(heightPct, item.count > 0 ? 4 : 0)}%` }}
+                        title={`${item.label}: ${item.count}`}
+                      >
+                        {item.count > 0 && (
+                          <span
+                            className={`text-slate-900 text-[10px] sm:text-[11px] font-bold select-none ${
+                              isSmall ? 'absolute -top-4.5' : ''
+                            }`}
+                          >
+                            {item.count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom X-Axis: Labels & Axis Title */}
+          <div className="flex">
+            <div className="w-11 shrink-0" />
+            <div className="flex-1">
+              <div className="flex justify-around px-2 pt-1.5">
+                {data.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex-1 max-w-[54px] mx-1 text-center text-[10px] sm:text-[11px] text-slate-700 font-medium select-none truncate"
+                    title={item.label}
+                  >
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+              <div className="text-center text-[10px] text-slate-500 font-medium pt-1 select-none">
+                {xAxisLabel}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Footer */}
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <Link to={reportLink} className="text-[#0176d3] hover:underline font-medium truncate max-w-[200px]">
+          {reportLinkLabel}
+        </Link>
+        <span className="shrink-0">As of {asOfDate}, {lastRefreshed}</span>
+      </div>
+    </div>
+  );
+}
+
+// Card 7: Funnel Chart matching Salesforce Lightning "Report by Manufacturing"
+function SalesforceFunnelCard({
+  title = 'Report by Manufacturing',
+  manufacturingData,
+  reportLink = '/reports?reportId=rep-29',
+  reportLinkLabel = 'View Report (Report by Manufacturing)',
   asOfDate,
   lastRefreshed,
   onRefresh,
@@ -78,99 +371,132 @@ function SalesforceHorizontalBarCard({
           </div>
         </div>
 
-        {/* Chart Container */}
-        <div className="pt-2 pb-1">
-          {/* Top Axis Header: Centered "Record Count" and tick numbers */}
-          <div className="flex items-end mb-1">
-            {/* Left Spacer to align exactly with the left labels + rotated title */}
-            <div className="w-[140px] sm:w-[150px] shrink-0" />
-            {/* Ticks container above plot */}
-            <div className="flex-1 relative">
-              <div className="text-center text-[10px] text-slate-500 font-medium mb-1 select-none">
-                {xAxisLabel}
-              </div>
-              <div className="relative h-3.5 text-[9px] sm:text-[10px] text-slate-500 font-normal select-none">
-                {ticks.map((t) => {
-                  const pct = (t / maxVal) * 100;
-                  return (
-                    <span
-                      key={t}
-                      className="absolute -translate-x-1/2"
-                      style={{ left: `${pct}%` }}
-                    >
-                      {t}
-                    </span>
-                  );
-                })}
-              </div>
+        {/* Funnel Visual Area */}
+        <div className="pt-2 pb-1 flex flex-col items-center justify-center min-h-[190px]">
+          <span className="text-[11px] font-semibold text-slate-700 mb-2 select-none">
+            Record Count: {manufacturingData.total}
+          </span>
+
+          {/* Trapezoid Funnel Segments */}
+          <div className="w-52 space-y-1">
+            {/* Unassigned (-) */}
+            <div
+              className="w-full bg-[#2996f5] hover:bg-blue-500 text-white text-[10px] font-bold py-2 px-3 text-center rounded-t-xs shadow-2xs transition select-none"
+              style={{ clipPath: 'polygon(0% 0%, 100% 0%, 90% 100%, 10% 100%)' }}
+              title={`- : ${manufacturingData.unassigned.count} (${manufacturingData.unassigned.pct}%)`}
+            >
+              - : {manufacturingData.unassigned.count} ({manufacturingData.unassigned.pct}%)
+            </div>
+            {/* Inhouse */}
+            <div
+              className="w-[88%] mx-auto bg-[#0176d3] hover:bg-blue-600 text-white text-[10px] font-bold py-2.5 px-3 text-center shadow-2xs transition select-none"
+              style={{ clipPath: 'polygon(5% 0%, 95% 0%, 88% 100%, 12% 100%)' }}
+              title={`Inhouse : ${manufacturingData.inhouse.count} (${manufacturingData.inhouse.pct}%)`}
+            >
+              Inhouse : {manufacturingData.inhouse.count} ({manufacturingData.inhouse.pct}%)
+            </div>
+            {/* CMO */}
+            <div
+              className="w-[74%] mx-auto bg-[#9353d3] hover:bg-purple-600 text-white text-[10px] font-bold py-2 px-3 text-center rounded-b-xs shadow-2xs transition select-none"
+              style={{ clipPath: 'polygon(8% 0%, 92% 0%, 82% 100%, 18% 100%)' }}
+              title={`CMO : ${manufacturingData.cmo.count} (${manufacturingData.cmo.pct}%)`}
+            >
+              CMO : {manufacturingData.cmo.count} ({manufacturingData.cmo.pct}%)
             </div>
           </div>
 
-          {/* Chart Plot Area */}
-          <div className="flex">
-            {/* Far Left: Rotated Axis Label */}
-            <div className="w-5 shrink-0 flex items-center justify-center">
-              <span
-                className="text-[9px] sm:text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
-                style={{
-                  writingMode: 'vertical-rl',
-                  transform: 'rotate(180deg)',
-                }}
-              >
-                {yAxisLabel}
-              </span>
-            </div>
+          {/* Legend */}
+          <div className="flex items-center justify-center gap-3 mt-4 text-[10px] text-slate-600 select-none">
+            <span className="font-semibold text-slate-700">Manufacturing Location</span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-2xs bg-[#2996f5]" /> -
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-2xs bg-[#0176d3]" /> Inhouse
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-2xs bg-[#9353d3]" /> CMO
+            </span>
+          </div>
+        </div>
+      </div>
 
-            {/* Middle: Y-Axis Category Names (right aligned against vertical line) */}
-            <div className="w-[120px] sm:w-[130px] shrink-0 flex flex-col justify-around pr-2 text-right">
-              {data.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="h-7 sm:h-7.5 flex items-center justify-end text-[10px] sm:text-[11px] text-slate-700 truncate"
-                  title={item.label}
-                >
-                  {item.label}
-                </div>
-              ))}
-            </div>
+      {/* Card Footer */}
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <Link to={reportLink} className="text-[#0176d3] hover:underline font-medium truncate max-w-[200px]">
+          {reportLinkLabel}
+        </Link>
+        <span className="shrink-0">As of {asOfDate}, {lastRefreshed}</span>
+      </div>
+    </div>
+  );
+}
 
-            {/* Right: Plot Area with Vertical Dividing Line, Gridlines & Bars */}
-            <div className="flex-1 relative border-l border-slate-400 flex flex-col justify-around py-0.5">
-              {/* Background vertical grid lines matching tick positions */}
-              <div className="absolute inset-0 pointer-events-none">
-                {ticks.map((t) => {
-                  if (t === 0) return null; // Tick 0 is border-l
-                  const pct = (t / maxVal) * 100;
-                  return (
-                    <div
-                      key={t}
-                      className="absolute top-0 bottom-0 border-r border-slate-200"
-                      style={{ left: `${pct}%` }}
-                    />
-                  );
-                })}
-              </div>
+// Card 11: Matrix Table matching Salesforce Lightning "Total Complaints SLA Report"
+function SalesforceMatrixReportCard({
+  title = 'Total Complaints SLA Report',
+  totalCount = 0,
+  reportLink = '/reports?reportId=rep-37',
+  reportLinkLabel = 'View Report (Total Complaints SLA Repo...)',
+  asOfDate,
+  lastRefreshed,
+  onRefresh,
+}) {
+  return (
+    <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+      <div>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{title}</h3>
+          <div className="flex items-center gap-1 text-slate-400">
+            <button type="button" onClick={onRefresh} title="Refresh">
+              <RotateCw className="h-3.5 w-3.5 hover:text-slate-600 transition" />
+            </button>
+            <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+          </div>
+        </div>
 
-              {/* Solid Blue Horizontal Bars */}
-              {data.map((item, idx) => {
-                const widthPct = Math.min((item.count / maxVal) * 100, 100);
-                return (
-                  <div key={idx} className="relative h-7 sm:h-7.5 flex items-center z-10">
-                    <div
-                      className="bg-[#1b8be8] hover:bg-[#0176d3] h-5 sm:h-5.5 flex items-center justify-end transition-all duration-300"
-                      style={{ width: `${Math.max(widthPct, item.count > 0 ? 5 : 0)}%` }}
-                      title={`${item.label}: ${item.count}`}
-                    >
-                      {item.count > 0 && (
-                        <span className="text-white text-[10px] sm:text-[11px] font-bold pr-1.5 leading-none select-none">
-                          {item.count}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Matrix Table */}
+        <div className="pt-2 pb-1">
+          <Link
+            to={reportLink}
+            className="text-[11px] text-[#0176d3] hover:underline font-medium block mb-2 select-none"
+          >
+            Alternative
+          </Link>
+
+          <div className="border border-slate-200 rounded-2xs overflow-hidden">
+            <table className="w-full text-[11px] border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-700 border-b border-slate-200">
+                  <th className="py-2 px-3 text-left font-semibold border-r border-slate-200 select-none">
+                    Confirmed or Not ↑
+                  </th>
+                  <th className="py-2 px-3 text-left font-semibold border-r border-slate-200 select-none">
+                    SLA Status ↑
+                  </th>
+                  <th className="py-2 px-3 text-right font-semibold select-none">
+                    Record Count
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                <tr>
+                  <td className="py-1.5 px-3 border-r border-slate-200 select-none">-</td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 select-none">-</td>
+                  <td className="py-1.5 px-3 text-right font-medium">{totalCount}</td>
+                </tr>
+                <tr className="bg-slate-50/60 font-semibold text-slate-800">
+                  <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                  <td className="py-1.5 px-3 border-r border-slate-200 select-none">Subtotal</td>
+                  <td className="py-1.5 px-3 text-right">{totalCount}</td>
+                </tr>
+                <tr className="bg-slate-100/70 font-bold text-slate-900 border-t border-slate-300">
+                  <td className="py-2 px-3 border-r border-slate-200 select-none">Total</td>
+                  <td className="py-2 px-3 border-r border-slate-200"></td>
+                  <td className="py-2 px-3 text-right text-[#0176d3] font-bold">{totalCount}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -292,47 +618,57 @@ export function DashboardsPage() {
       .sort((a, b) => b.count - a.count);
   }, [filteredComplaints]);
 
-  // Card 3: Complaint Stage wise Overview (D1, D2, D3, D4) - excludes Closed stage
+  // Card 3: Complaint Stage wise Overview (D2, D3, D4, Closed) - dynamic from backend
   const stageData = useMemo(() => {
-    const order = ['D1', 'D2', 'D3', 'D4'];
-    const counts = { D1: 0, D2: 0, D3: 0, D4: 0 };
+    const order = ['D2', 'D3', 'D4', 'Closed'];
+    const counts = { D2: 0, D3: 0, D4: 0, Closed: 0 };
     filteredComplaints.forEach((c) => {
       const s = (c.stage || '').toUpperCase();
       const status = (c.status || '').toUpperCase();
       if (s === 'CLOSED' || s === 'DONE' || status === 'CLOSED' || c.stage === 'Closed') {
-        return; // Ignore Closed complaints
+        counts.Closed++;
+      } else if (s === 'D2' || c.stage === 'D2') {
+        counts.D2++;
+      } else if (s === 'D3' || c.stage === 'D3') {
+        counts.D3++;
+      } else if (s === 'D4' || c.stage === 'D4') {
+        counts.D4++;
       }
-      if (counts[c.stage] !== undefined) counts[c.stage]++;
-      else if (counts[s] !== undefined) counts[s]++;
-      else counts.D3++;
     });
-    return order.map((stage) => ({ stage, count: counts[stage] }));
+    return order.map((stage) => ({ label: stage, count: counts[stage] }));
   }, [filteredComplaints]);
 
-  // Card 4: SBU's Wise Reports
+  // Card 4: SBU's Wise Reports - dynamic from backend
   const sbuData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach((c) => {
-      const s = c.sbu || 'AHP Rumicare';
+      const s = c.sbu || 'AHP-Rumicare';
       counts[s] = (counts[s] || 0) + 1;
     });
+    if (Object.keys(counts).length === 0) {
+      counts['AHP-Rumicare'] = 0;
+    }
     return Object.entries(counts).map(([sbu, count]) => ({ label: sbu, count }));
   }, [filteredComplaints]);
 
-  // Card 5: Inhouse Report (Location detail) - matches Salesforce report baseline
+  // Card 5: Inhouse Report (Location detail) - dynamic from backend
   const inhouseData = useMemo(() => {
     const counts = {
-      'NRPL-Bangalore-1100': 14,
-      'NRPL-Anniyalam-AHP-2000': 12,
-      'NRPL-Anniyalam-HHP-2100': 1,
-      'NLPL- Pithampur Indore-70...': 4,
+      'NRPL-Bangalore-1100': 0,
+      'NRPL-Anniyalam-AHP-2000': 0,
+      'NRPL-Anniyalam-HHP-2100': 0,
+      'NLPL- Pithampur Indore-70...': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'Inhouse' && c.locDetail && counts[c.locDetail] !== undefined) {
-        counts[c.locDetail]++;
+      const detail = c.locDetail || '';
+      if (counts[detail] !== undefined) {
+        counts[detail]++;
+      } else if (c.locType === 'Inhouse') {
+        const found = Object.keys(counts).find((k) => detail && k.toLowerCase().includes(detail.toLowerCase()));
+        if (found) counts[found]++;
+        else counts['NRPL-Bangalore-1100']++;
       }
     });
-    // Exact ordering from Salesforce reference report
     const order = [
       'NRPL-Bangalore-1100',
       'NRPL-Anniyalam-AHP-2000',
@@ -342,21 +678,25 @@ export function DashboardsPage() {
     return order.map((loc) => ({ label: loc, count: counts[loc] || 0 }));
   }, [filteredComplaints]);
 
-  // Card 6: CMO Wise Report (Location detail) - matches Salesforce report baseline
+  // Card 6: CMO Wise Report (Location detail) - dynamic from backend
   const cmoData = useMemo(() => {
     const counts = {
-      'Shamanur pharma-3033': 4,
-      'JCK-3004': 2,
-      'Harshavardhan-4200': 2,
-      'Indus spray-3003': 1,
-      'Venkat pharma-3007': 1,
+      'Shamanur pharma-3033': 0,
+      'JCK-3004': 0,
+      'Harshavardhan-4200': 0,
+      'Indus spray-3003': 0,
+      'Venkat pharma-3007': 0,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'CMO' && c.locDetail && counts[c.locDetail] !== undefined) {
-        counts[c.locDetail]++;
+      const detail = c.locDetail || '';
+      if (counts[detail] !== undefined) {
+        counts[detail]++;
+      } else if (c.locType === 'CMO') {
+        const found = Object.keys(counts).find((k) => detail && k.toLowerCase().includes(detail.toLowerCase()));
+        if (found) counts[found]++;
+        else counts['Shamanur pharma-3033']++;
       }
     });
-    // Exact ordering from Salesforce reference report
     const order = [
       'Shamanur pharma-3033',
       'JCK-3004',
@@ -367,22 +707,25 @@ export function DashboardsPage() {
     return order.map((loc) => ({ label: loc, count: counts[loc] || 0 }));
   }, [filteredComplaints]);
 
-  // Card 7: Report by Manufacturing (Funnel: [-], Inhouse, CMO)
+  // Card 7: Report by Manufacturing (Funnel: [-], Inhouse, CMO) - dynamic from backend
   const manufacturingData = useMemo(() => {
-    const inhouse = inhouseData.reduce((acc, d) => acc + d.count, 0);
-    const cmo = cmoData.reduce((acc, d) => acc + d.count, 0);
     let unassigned = 0;
+    let inhouse = 0;
+    let cmo = 0;
     filteredComplaints.forEach((c) => {
-      if (c.locType !== 'Inhouse' && c.locType !== 'CMO') unassigned++;
+      if (c.locType === 'Inhouse') inhouse++;
+      else if (c.locType === 'CMO') cmo++;
+      else unassigned++;
     });
-    const total = inhouse + cmo + unassigned || 1;
+    const total = filteredComplaints.length;
+    const safeTotal = total || 1;
     return {
-      total: inhouse + cmo + unassigned,
-      unassigned: { count: unassigned, pct: ((unassigned / total) * 100).toFixed(2) },
-      inhouse: { count: inhouse, pct: ((inhouse / total) * 100).toFixed(2) },
-      cmo: { count: cmo, pct: ((cmo / total) * 100).toFixed(2) },
+      total,
+      unassigned: { count: unassigned, pct: ((unassigned / safeTotal) * 100).toFixed(2) },
+      inhouse: { count: inhouse, pct: ((inhouse / safeTotal) * 100).toFixed(2) },
+      cmo: { count: cmo, pct: ((cmo / safeTotal) * 100).toFixed(2) },
     };
-  }, [filteredComplaints, inhouseData, cmoData]);
+  }, [filteredComplaints]);
 
   // Card 8: Complaint Raised by
   const raisedByData = useMemo(() => {
@@ -566,203 +909,120 @@ export function DashboardsPage() {
         {/* ========================================================
             CARD 1: No of Current Complaints Month wise
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                No of Current Complaints Month wise
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+        {monthData.length === 0 ? (
+          <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+            <div>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
+                  No of Current Complaints Month wise
+                </h3>
+                <div className="flex items-center gap-1 text-slate-400">
+                  <button type="button" onClick={fetchLiveComplaints} title="Refresh">
+                    <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
+                  </button>
+                  <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+                </div>
+              </div>
+              <div className="py-16 flex items-center justify-center min-h-[190px]">
+                <span className="text-xs text-slate-400 font-normal">No chart data.</span>
               </div>
             </div>
-
-            {/* Body */}
-            <div className="py-6 flex items-center justify-center min-h-[190px]">
-              {monthData.length === 0 ? (
-                <span className="text-xs text-slate-400 font-normal">No chart data</span>
-              ) : (
-                <div className="w-full space-y-2">
-                  {monthData.map((m) => (
-                    <div key={m.label} className="space-y-1">
-                      <div className="flex justify-between text-[11px] text-slate-600 font-medium">
-                        <span>{m.label}</span>
-                        <span>{m.count} complaints</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-xs h-4 overflow-hidden">
-                        <div
-                          className="bg-[#0176d3] h-full rounded-xs transition-all duration-500"
-                          style={{ width: `${Math.min((m.count / 20) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <Link to="/reports?reportId=rep-35" className="text-[#0176d3] hover:underline font-medium">
+                View Report (No of Current Complaints ...)
+              </Link>
+              <span>As of {asOfDate}, {lastRefreshed}</span>
             </div>
           </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-35" className="text-[#0176d3] hover:underline font-medium">
-              View Report (No of Current Complaints...)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        ) : (
+          <SalesforceHorizontalBarCard
+            title="No of Current Complaints Month wise"
+            yAxisLabel="Created Month"
+            xAxisLabel="Record Count"
+            data={monthData}
+            reportLink="/reports?reportId=rep-35"
+            reportLinkLabel="View Report (No of Current Complaints ...)"
+            asOfDate={asOfDate}
+            lastRefreshed={lastRefreshed}
+            onRefresh={fetchLiveComplaints}
+          />
+        )}
 
         {/* ========================================================
             CARD 2: Complaints by Type of Failure
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Complaints by Type of Failure
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="py-6 flex items-center justify-center min-h-[190px]">
-              {failureData.length === 0 ? (
-                <span className="text-xs text-slate-400 font-normal">No chart data</span>
-              ) : (
-                <div className="w-full space-y-2">
-                  {failureData.slice(0, 5).map((f) => (
-                    <div key={f.label} className="space-y-0.5">
-                      <div className="flex justify-between text-[11px] text-slate-600">
-                        <span className="truncate max-w-[190px]">{f.label}</span>
-                        <span className="font-semibold text-slate-800">{f.count}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
-                        <div
-                          className="bg-[#0176d3] h-full rounded-xs transition-all duration-500"
-                          style={{ width: `${Math.min((f.count / maxFailure) * 100, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+        {failureData.length === 0 ? (
+          <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+            <div>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
+                  Complaints by Type of Failure
+                </h3>
+                <div className="flex items-center gap-1 text-slate-400">
+                  <button type="button" onClick={fetchLiveComplaints} title="Refresh">
+                    <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
+                  </button>
+                  <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
                 </div>
-              )}
+              </div>
+              <div className="py-16 flex items-center justify-center min-h-[190px]">
+                <span className="text-xs text-slate-400 font-normal">No chart data.</span>
+              </div>
+            </div>
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+              <Link to="/reports?reportId=rep-36" className="text-[#0176d3] hover:underline font-medium">
+                View Report (Complaints by Type of Fail...)
+              </Link>
+              <span>As of {asOfDate}, {lastRefreshed}</span>
             </div>
           </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-36" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Complaints by Type of Fail...)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        ) : (
+          <SalesforceHorizontalBarCard
+            title="Complaints by Type of Failure"
+            yAxisLabel="Type of Failure"
+            xAxisLabel="Record Count"
+            data={failureData}
+            reportLink="/reports?reportId=rep-36"
+            reportLinkLabel="View Report (Complaints by Type of Fail...)"
+            asOfDate={asOfDate}
+            lastRefreshed={lastRefreshed}
+            onRefresh={fetchLiveComplaints}
+          />
+        )}
 
         {/* ========================================================
-            CARD 3: Complaint Stage wise Overview (Vertical Bar Chart)
+            CARD 3: Complaint Stage wise Overview (Salesforce Vertical Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Complaint Stage wise Overview
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Vertical Bar Chart matching screenshot */}
-            <div className="py-2 min-h-[190px] flex flex-col justify-end">
-              <div className="flex items-end justify-around h-40 pt-4 px-2 border-b border-slate-200">
-                {stageData.map((s) => {
-                  const heightPct = Math.max((s.count / maxStageCount) * 100, 4);
-                  return (
-                    <div key={s.stage} className="flex flex-col items-center gap-1 flex-1 max-w-[48px]">
-                      <span className="text-[10px] font-bold text-slate-700">{s.count}</span>
-                      <div className="w-full bg-slate-100 rounded-t-xs h-32 flex items-end">
-                        <div
-                          className="w-full bg-[#0176d3] rounded-t-xs transition-all duration-500 hover:bg-blue-600"
-                          style={{ height: `${heightPct}%` }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-600 font-medium">{s.stage}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex justify-between text-[9px] text-slate-400 pt-1 px-1">
-                <span>Record Count: {stageData.reduce((acc, s) => acc + s.count, 0)}</span>
-                <span>Stage</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-33" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Complaint Stage wise Over...)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceVerticalBarCard
+          title="Complaint Stage wise Overview"
+          yAxisLabel="Record Count"
+          xAxisLabel="Stage"
+          defaultTicks={[28, 21, 14, 7, 0]}
+          defaultMax={28}
+          data={stageData}
+          reportLink="/reports?reportId=rep-33"
+          reportLinkLabel="View Report (Complaint Stage wise Over...)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 4: SBU's Wise Reports (Vertical Bar Chart)
+            CARD 4: SBU's Wise Reports (Salesforce Vertical Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                SBU's Wise Reports
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Vertical Bar Chart matching screenshot */}
-            <div className="py-2 min-h-[190px] flex flex-col justify-end">
-              <div className="flex items-end justify-center h-40 pt-4 px-4 border-b border-slate-200">
-                {sbuData.map((item) => (
-                  <div key={item.label} className="flex flex-col items-center gap-1 w-24">
-                    <span className="text-[11px] font-bold text-slate-800">{item.count}</span>
-                    <div className="w-full bg-slate-100 rounded-t-xs h-32 flex items-end">
-                      <div
-                        className="w-full bg-[#0176d3] rounded-t-xs transition-all duration-500"
-                        style={{ height: `${Math.max(Math.min((item.count / maxSbu) * 100, 95), 20)}%` }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-slate-600 font-medium truncate max-w-[90px]">
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between text-[9px] text-slate-400 pt-1 px-1">
-                <span>Record Count</span>
-                <span>SBU</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-34" className="text-[#0176d3] hover:underline font-medium">
-              View Report (SBU's Wise Reports)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceVerticalBarCard
+          title="SBU's Wise Reports"
+          yAxisLabel="Record Count"
+          xAxisLabel="SBU"
+          defaultTicks={[20, 15, 10, 5, 0]}
+          defaultMax={20}
+          data={sbuData}
+          reportLink="/reports?reportId=rep-34"
+          reportLinkLabel="View Report (SBU's Wise Reports)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
             CARD 5: Inhouse Report (Salesforce Horizontal Bar Chart)
@@ -771,8 +1031,8 @@ export function DashboardsPage() {
           title="Inhouse Report"
           yAxisLabel="Location detail"
           xAxisLabel="Record Count"
-          ticks={[0, 5, 10, 15]}
-          maxVal={15}
+          defaultTicks={[0, 5, 10, 15]}
+          defaultMax={15}
           data={inhouseData}
           reportLink="/reports?reportId=rep-27"
           reportLinkLabel="View Report (Inhouse Report)"
@@ -788,8 +1048,8 @@ export function DashboardsPage() {
           title="CMO Wise Report"
           yAxisLabel="Location detail"
           xAxisLabel="Record Count"
-          ticks={[0, 1, 2, 3, 4]}
-          maxVal={4}
+          defaultTicks={[0, 1, 2, 3, 4]}
+          defaultMax={4}
           data={cmoData}
           reportLink="/reports?reportId=rep-28"
           reportLinkLabel="View Report (CMO Wise Report)"
@@ -799,307 +1059,81 @@ export function DashboardsPage() {
         />
 
         {/* ========================================================
-            CARD 7: Report by Manufacturing (Funnel Segmented Chart)
+            CARD 7: Report by Manufacturing (Salesforce Funnel Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Report by Manufacturing
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Funnel / Stacked Segments matching screenshot */}
-            <div className="py-3 flex flex-col items-center justify-center min-h-[190px]">
-              <span className="text-[11px] font-semibold text-slate-500 mb-2">
-                Record Count: {manufacturingData.total}
-              </span>
-
-              {/* Inverted Funnel Segments */}
-              <div className="w-48 space-y-1">
-                {/* Unassigned (-) */}
-                <div className="w-full bg-[#00a1e0] text-white text-[10px] font-bold py-1.5 px-3 text-center rounded-t-xs shadow-2xs">
-                  - : {manufacturingData.unassigned.count} ({manufacturingData.unassigned.pct}%)
-                </div>
-                {/* Inhouse */}
-                <div className="w-11/12 mx-auto bg-[#0176d3] text-white text-[10px] font-bold py-2 px-3 text-center shadow-2xs">
-                  Inhouse : {manufacturingData.inhouse.count} ({manufacturingData.inhouse.pct}%)
-                </div>
-                {/* CMO */}
-                <div className="w-9/12 mx-auto bg-[#9053ea] text-white text-[10px] font-bold py-1.5 px-3 text-center rounded-b-xs shadow-2xs">
-                  CMO : {manufacturingData.cmo.count} ({manufacturingData.cmo.pct}%)
-                </div>
-              </div>
-
-              {/* Legend */}
-              <div className="flex items-center justify-center gap-3 mt-4 text-[10px] text-slate-500">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#00a1e0]" /> -
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#0176d3]" /> Inhouse
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-[#9053ea]" /> CMO
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-29" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Report by Manufacturing)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceFunnelCard
+          title="Report by Manufacturing"
+          manufacturingData={manufacturingData}
+          reportLink="/reports?reportId=rep-29"
+          reportLinkLabel="View Report (Report by Manufacturing)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 8: Complaint Raised by (Horizontal Bar Chart)
+            CARD 8: Complaint Raised by (Salesforce Horizontal Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Complaint Raised by
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Horizontal Bar Chart matching screenshot */}
-            <div className="py-2 space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-              <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
-                <span>Complaint: Created By</span>
-                <span>Record Count (0 - 30)</span>
-              </div>
-              {raisedByData.slice(0, 8).map((r) => {
-                const widthPct = Math.max((r.count / maxRaisedBy) * 100, 2);
-                return (
-                  <div key={r.label} className="space-y-0.5">
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span className="truncate max-w-[170px]" title={r.label}>
-                        {r.label}
-                      </span>
-                      <span className="font-bold text-slate-800">{r.count}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
-                      <div
-                        className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-30" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Complaint Raised By)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceHorizontalBarCard
+          title="Complaint Raised by"
+          yAxisLabel="Complaint: Created By"
+          xAxisLabel="Record Count"
+          defaultTicks={[0, 10, 20, 30]}
+          defaultMax={30}
+          data={raisedByData}
+          reportLink="/reports?reportId=rep-30"
+          reportLinkLabel="View Report (Complaint Raised By)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 9: Product Wise Complaints (Horizontal Bar Chart)
+            CARD 9: Product Wise Complaints (Salesforce Horizontal Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Product Wise Complaints
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Horizontal Bar Chart matching screenshot */}
-            <div className="py-2 space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-              <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
-                <span>Product name</span>
-                <span>Record Count (0 - 6)</span>
-              </div>
-              {productData.slice(0, 10).map((p) => {
-                const widthPct = Math.max((p.count / maxProduct) * 100, 2);
-                return (
-                  <div key={p.label} className="space-y-0.5">
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span className="truncate max-w-[170px]" title={p.label}>
-                        {p.label}
-                      </span>
-                      <span className="font-bold text-slate-800">{p.count}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
-                      <div
-                        className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-31" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Product Wise Complaints)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceHorizontalBarCard
+          title="Product Wise Complaints"
+          yAxisLabel="Product name"
+          xAxisLabel="Record Count"
+          defaultTicks={[0, 1, 2, 3, 4, 5, 6]}
+          defaultMax={6}
+          data={productData}
+          reportLink="/reports?reportId=rep-31"
+          reportLinkLabel="View Report (Product Wise Complaints)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 10: Customer Wise Complaints (Horizontal Bar Chart)
+            CARD 10: Customer Wise Complaints (Salesforce Horizontal Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Customer Wise Complaints
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Horizontal Bar Chart matching screenshot */}
-            <div className="py-2 space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-              <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
-                <span>Distributor / Retailer Name</span>
-                <span>Record Count (0 - {maxCustomer})</span>
-              </div>
-              {customerData.length === 0 ? (
-                <div className="py-12 flex items-center justify-center text-xs text-slate-400 font-normal">
-                  No chart data
-                </div>
-              ) : (
-                customerData.slice(0, 10).map((c) => {
-                  const widthPct = Math.max((c.count / maxCustomer) * 100, 2);
-                  return (
-                    <div key={c.label} className="space-y-0.5">
-                      <div className="flex justify-between text-[10px] text-slate-600">
-                        <span className="truncate max-w-[170px]" title={c.label}>
-                          {c.label}
-                        </span>
-                        <span className="font-bold text-slate-800">{c.count}</span>
-                      </div>
-                      <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
-                        <div
-                          className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                          style={{ width: `${widthPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-32" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Customer Wise Complaints)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceHorizontalBarCard
+          title="Customer Wise Complaints"
+          yAxisLabel="Distributor / Retailer Name"
+          xAxisLabel="Record Count"
+          defaultTicks={[0, 0.5, 1, 1.5, 2, 2.5, 3]}
+          defaultMax={3}
+          data={customerData}
+          reportLink="/reports?reportId=rep-32"
+          reportLinkLabel="View Report (Customer Wise Complaints)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 11: Total Complaints SLA Report
+            CARD 11: Total Complaints SLA Report (Salesforce Matrix Table)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Total Complaints SLA Report
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* SLA Gauge & Metric Breakdown */}
-            <div className="py-4 flex flex-col justify-center min-h-[190px] space-y-3">
-              <div className="flex items-center justify-between px-2">
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-medium">
-                    SLA Compliance Rate
-                  </span>
-                  <span className="text-2xl font-bold text-emerald-600">
-                    {slaData.rate}%
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-500 block uppercase font-medium">
-                    Total Evaluated
-                  </span>
-                  <span className="text-lg font-bold text-slate-900">
-                    {slaData.total}
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress bar */}
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${slaData.rate}%` }}
-                />
-              </div>
-
-              {/* Status chips */}
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <div className="p-2 rounded bg-emerald-50 border border-emerald-200 text-center">
-                  <span className="text-[10px] text-emerald-700 block font-medium">
-                    Within SLA
-                  </span>
-                  <span className="text-base font-bold text-emerald-800">
-                    {slaData.within}
-                  </span>
-                </div>
-                <div className="p-2 rounded bg-amber-50 border border-amber-200 text-center">
-                  <span className="text-[10px] text-amber-700 block font-medium">
-                    Overdue / Escalated
-                  </span>
-                  <span className="text-base font-bold text-amber-800">
-                    {slaData.overdue}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-37" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Total Complaints SLA Report)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceMatrixReportCard
+          title="Total Complaints SLA Report"
+          totalCount={slaData.total}
+          reportLink="/reports?reportId=rep-37"
+          reportLinkLabel="View Report (Total Complaints SLA Repo...)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
       </div>
     </div>
   );
