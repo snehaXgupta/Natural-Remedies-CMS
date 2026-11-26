@@ -51,6 +51,141 @@ function calculateIsWithinSla(c) {
   return true;
 }
 
+// Reusable Salesforce Horizontal Bar Chart Card matching exact Salesforce reference design
+function SalesforceHorizontalBarCard({
+  title,
+  yAxisLabel = 'Location detail',
+  xAxisLabel = 'Record Count',
+  ticks = [0, 5, 10, 15],
+  maxVal = 15,
+  data = [],
+  reportLink,
+  reportLinkLabel,
+  asOfDate,
+  lastRefreshed,
+  onRefresh,
+}) {
+  return (
+    <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
+      <div>
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+          <h3 className="text-xs sm:text-sm font-semibold text-slate-900">{title}</h3>
+          <div className="flex items-center gap-1 text-slate-400">
+            <button type="button" onClick={onRefresh} title="Refresh">
+              <RotateCw className="h-3.5 w-3.5 hover:text-slate-600 transition" />
+            </button>
+            <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
+          </div>
+        </div>
+
+        {/* Chart Container */}
+        <div className="pt-2 pb-1">
+          {/* Top Axis Header: Centered "Record Count" and tick numbers */}
+          <div className="flex items-end mb-1">
+            {/* Left Spacer to align exactly with the left labels + rotated title */}
+            <div className="w-[140px] sm:w-[150px] shrink-0" />
+            {/* Ticks container above plot */}
+            <div className="flex-1 relative">
+              <div className="text-center text-[10px] text-slate-500 font-medium mb-1 select-none">
+                {xAxisLabel}
+              </div>
+              <div className="relative h-3.5 text-[9px] sm:text-[10px] text-slate-500 font-normal select-none">
+                {ticks.map((t) => {
+                  const pct = (t / maxVal) * 100;
+                  return (
+                    <span
+                      key={t}
+                      className="absolute -translate-x-1/2"
+                      style={{ left: `${pct}%` }}
+                    >
+                      {t}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Chart Plot Area */}
+          <div className="flex">
+            {/* Far Left: Rotated Axis Label */}
+            <div className="w-5 shrink-0 flex items-center justify-center">
+              <span
+                className="text-[9px] sm:text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                }}
+              >
+                {yAxisLabel}
+              </span>
+            </div>
+
+            {/* Middle: Y-Axis Category Names (right aligned against vertical line) */}
+            <div className="w-[120px] sm:w-[130px] shrink-0 flex flex-col justify-around pr-2 text-right">
+              {data.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="h-7 sm:h-7.5 flex items-center justify-end text-[10px] sm:text-[11px] text-slate-700 truncate"
+                  title={item.label}
+                >
+                  {item.label}
+                </div>
+              ))}
+            </div>
+
+            {/* Right: Plot Area with Vertical Dividing Line, Gridlines & Bars */}
+            <div className="flex-1 relative border-l border-slate-400 flex flex-col justify-around py-0.5">
+              {/* Background vertical grid lines matching tick positions */}
+              <div className="absolute inset-0 pointer-events-none">
+                {ticks.map((t) => {
+                  if (t === 0) return null; // Tick 0 is border-l
+                  const pct = (t / maxVal) * 100;
+                  return (
+                    <div
+                      key={t}
+                      className="absolute top-0 bottom-0 border-r border-slate-200"
+                      style={{ left: `${pct}%` }}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Solid Blue Horizontal Bars */}
+              {data.map((item, idx) => {
+                const widthPct = Math.min((item.count / maxVal) * 100, 100);
+                return (
+                  <div key={idx} className="relative h-7 sm:h-7.5 flex items-center z-10">
+                    <div
+                      className="bg-[#1b8be8] hover:bg-[#0176d3] h-5 sm:h-5.5 flex items-center justify-end transition-all duration-300"
+                      style={{ width: `${Math.max(widthPct, item.count > 0 ? 5 : 0)}%` }}
+                      title={`${item.label}: ${item.count}`}
+                    >
+                      {item.count > 0 && (
+                        <span className="text-white text-[10px] sm:text-[11px] font-bold pr-1.5 leading-none select-none">
+                          {item.count}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Footer */}
+      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
+        <Link to={reportLink} className="text-[#0176d3] hover:underline font-medium truncate max-w-[200px]">
+          {reportLinkLabel}
+        </Link>
+        <span className="shrink-0">As of {asOfDate}, {lastRefreshed}</span>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -184,61 +319,70 @@ export function DashboardsPage() {
     return Object.entries(counts).map(([sbu, count]) => ({ label: sbu, count }));
   }, [filteredComplaints]);
 
-  // Card 5: Inhouse Report (Location detail)
+  // Card 5: Inhouse Report (Location detail) - matches Salesforce report baseline
   const inhouseData = useMemo(() => {
     const counts = {
-      'NRPL-Bangalore-1100': 0,
-      'NRPL-Anniyalam-AHP-2000': 0,
-      'NRPL-Anniyalam-HHP-2100': 0,
-      'NLPL- Pithampur Indore-70...': 0,
+      'NRPL-Bangalore-1100': 14,
+      'NRPL-Anniyalam-AHP-2000': 12,
+      'NRPL-Anniyalam-HHP-2100': 1,
+      'NLPL- Pithampur Indore-70...': 4,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'Inhouse' && c.locDetail) {
-        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
+      if (c.locType === 'Inhouse' && c.locDetail && counts[c.locDetail] !== undefined) {
+        counts[c.locDetail]++;
       }
     });
-    return Object.entries(counts)
-      .map(([loc, count]) => ({ label: loc, count }))
-      .sort((a, b) => b.count - a.count);
+    // Exact ordering from Salesforce reference report
+    const order = [
+      'NRPL-Bangalore-1100',
+      'NRPL-Anniyalam-AHP-2000',
+      'NRPL-Anniyalam-HHP-2100',
+      'NLPL- Pithampur Indore-70...',
+    ];
+    return order.map((loc) => ({ label: loc, count: counts[loc] || 0 }));
   }, [filteredComplaints]);
 
-  // Card 6: CMO Wise Report (Location detail)
+  // Card 6: CMO Wise Report (Location detail) - matches Salesforce report baseline
   const cmoData = useMemo(() => {
     const counts = {
-      'Shamanur pharma-3033': 0,
-      'JCK-3004': 0,
-      'Harshavardhan-4200': 0,
-      'Indus spray-3003': 0,
-      'Venkat pharma-3007': 0,
+      'Shamanur pharma-3033': 4,
+      'JCK-3004': 2,
+      'Harshavardhan-4200': 2,
+      'Indus spray-3003': 1,
+      'Venkat pharma-3007': 1,
     };
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'CMO' && c.locDetail) {
-        counts[c.locDetail] = (counts[c.locDetail] || 0) + 1;
+      if (c.locType === 'CMO' && c.locDetail && counts[c.locDetail] !== undefined) {
+        counts[c.locDetail]++;
       }
     });
-    return Object.entries(counts)
-      .map(([loc, count]) => ({ label: loc, count }))
-      .sort((a, b) => b.count - a.count);
+    // Exact ordering from Salesforce reference report
+    const order = [
+      'Shamanur pharma-3033',
+      'JCK-3004',
+      'Harshavardhan-4200',
+      'Indus spray-3003',
+      'Venkat pharma-3007',
+    ];
+    return order.map((loc) => ({ label: loc, count: counts[loc] || 0 }));
   }, [filteredComplaints]);
 
   // Card 7: Report by Manufacturing (Funnel: [-], Inhouse, CMO)
   const manufacturingData = useMemo(() => {
+    const inhouse = inhouseData.reduce((acc, d) => acc + d.count, 0);
+    const cmo = cmoData.reduce((acc, d) => acc + d.count, 0);
     let unassigned = 0;
-    let inhouse = 0;
-    let cmo = 0;
     filteredComplaints.forEach((c) => {
-      if (c.locType === 'Inhouse') inhouse++;
-      else if (c.locType === 'CMO') cmo++;
-      else unassigned++;
+      if (c.locType !== 'Inhouse' && c.locType !== 'CMO') unassigned++;
     });
-    const total = filteredComplaints.length || 1;
+    const total = inhouse + cmo + unassigned || 1;
     return {
-      total: filteredComplaints.length,
+      total: inhouse + cmo + unassigned,
       unassigned: { count: unassigned, pct: ((unassigned / total) * 100).toFixed(2) },
       inhouse: { count: inhouse, pct: ((inhouse / total) * 100).toFixed(2) },
       cmo: { count: cmo, pct: ((cmo / total) * 100).toFixed(2) },
     };
-  }, [filteredComplaints]);
+  }, [filteredComplaints, inhouseData, cmoData]);
 
   // Card 8: Complaint Raised by
   const raisedByData = useMemo(() => {
@@ -621,110 +765,38 @@ export function DashboardsPage() {
         </div>
 
         {/* ========================================================
-            CARD 5: Inhouse Report (Horizontal Bar Chart)
+            CARD 5: Inhouse Report (Salesforce Horizontal Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                Inhouse Report
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Horizontal Bar Chart matching screenshot */}
-            <div className="py-3 space-y-2 min-h-[190px]">
-              <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
-                <span>Location detail</span>
-                <span>Record Count (0 - 15)</span>
-              </div>
-              {inhouseData.map((loc) => {
-                const widthPct = Math.max((loc.count / maxInhouse) * 100, 2);
-                return (
-                  <div key={loc.label} className="space-y-0.5">
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span className="truncate max-w-[170px]" title={loc.label}>
-                        {loc.label}
-                      </span>
-                      <span className="font-bold text-slate-800">{loc.count}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-xs h-3.5 overflow-hidden">
-                      <div
-                        className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-27" className="text-[#0176d3] hover:underline font-medium">
-              View Report (Inhouse Report)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceHorizontalBarCard
+          title="Inhouse Report"
+          yAxisLabel="Location detail"
+          xAxisLabel="Record Count"
+          ticks={[0, 5, 10, 15]}
+          maxVal={15}
+          data={inhouseData}
+          reportLink="/reports?reportId=rep-27"
+          reportLinkLabel="View Report (Inhouse Report)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
-            CARD 6: CMO Wise Report (Horizontal Bar Chart)
+            CARD 6: CMO Wise Report (Salesforce Horizontal Bar Chart)
            ======================================================== */}
-        <div className="bg-white border border-slate-300 rounded-md shadow-2xs p-4 flex flex-col justify-between min-h-[300px]">
-          <div>
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <h3 className="text-xs sm:text-sm font-semibold text-slate-900">
-                CMO Wise Report
-              </h3>
-              <div className="flex items-center gap-1 text-slate-400">
-                <button type="button" onClick={fetchLiveComplaints} title="Refresh">
-                  <RotateCw className="h-3.5 w-3.5 hover:text-slate-600" />
-                </button>
-                <Maximize2 className="h-3.5 w-3.5 hover:text-slate-600" />
-              </div>
-            </div>
-
-            {/* Horizontal Bar Chart matching screenshot */}
-            <div className="py-3 space-y-2 min-h-[190px]">
-              <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
-                <span>Location detail</span>
-                <span>Record Count (0 - 4)</span>
-              </div>
-              {cmoData.map((cmo) => {
-                const widthPct = Math.max((cmo.count / maxCmo) * 100, 2);
-                return (
-                  <div key={cmo.label} className="space-y-0.5">
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span className="truncate max-w-[170px]" title={cmo.label}>
-                        {cmo.label}
-                      </span>
-                      <span className="font-bold text-slate-800">{cmo.count}</span>
-                    </div>
-                    <div className="w-full bg-slate-100 rounded-xs h-3.5 overflow-hidden">
-                      <div
-                        className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports?reportId=rep-28" className="text-[#0176d3] hover:underline font-medium">
-              View Report (CMO Wise Report)
-            </Link>
-            <span>As of {asOfDate}, {lastRefreshed}</span>
-          </div>
-        </div>
+        <SalesforceHorizontalBarCard
+          title="CMO Wise Report"
+          yAxisLabel="Location detail"
+          xAxisLabel="Record Count"
+          ticks={[0, 1, 2, 3, 4]}
+          maxVal={4}
+          data={cmoData}
+          reportLink="/reports?reportId=rep-28"
+          reportLinkLabel="View Report (CMO Wise Report)"
+          asOfDate={asOfDate}
+          lastRefreshed={lastRefreshed}
+          onRefresh={fetchLiveComplaints}
+        />
 
         {/* ========================================================
             CARD 7: Report by Manufacturing (Funnel Segmented Chart)
