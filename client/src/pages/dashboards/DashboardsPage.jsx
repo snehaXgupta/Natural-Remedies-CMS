@@ -571,8 +571,17 @@ export function DashboardsPage() {
           year: c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026',
           month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : '',
           stage: c.stage === 'CLOSED' || (c.status || '').toUpperCase() === 'CLOSED' ? 'Closed' : c.stage || 'D1',
-          locType: c.d2?.investigation?.manufacturingLocation || null,
-          locDetail: c.d2?.investigation?.locationDetail || null,
+          locType:
+            c.manufacturingLocation ||
+            c.d2?.investigation?.manufacturingLocation ||
+            c.locType ||
+            null,
+          locDetail:
+            c.locationDetail ||
+            c.d2?.investigation?.locationDetail ||
+            c.manufacturingLocationDetail ||
+            c.locDetail ||
+            null,
           creator: c.createdBy?.name || c.requester?.name || 'Unassigned',
           product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Unspecified Product',
           customer: c.customer?.name || c.complainant?.name || c.distributorName || null,
@@ -660,13 +669,24 @@ export function DashboardsPage() {
       'NLPL- Pithampur Indore-70...': 0,
     };
     filteredComplaints.forEach((c) => {
-      const detail = c.locDetail || '';
-      if (counts[detail] !== undefined) {
-        counts[detail]++;
-      } else if (c.locType === 'Inhouse') {
-        const found = Object.keys(counts).find((k) => detail && k.toLowerCase().includes(detail.toLowerCase()));
-        if (found) counts[found]++;
-        else counts['NRPL-Bangalore-1100']++;
+      const detail = (c.locDetail || '').toLowerCase().trim();
+      const mfg = (c.locType || '').toLowerCase().trim();
+
+      let matched = null;
+      if (detail.includes('bangalore') || detail.includes('1100')) {
+        matched = 'NRPL-Bangalore-1100';
+      } else if (detail.includes('anniyalam-ahp') || (detail.includes('anniyalam') && !detail.includes('hhp')) || detail.includes('2000')) {
+        matched = 'NRPL-Anniyalam-AHP-2000';
+      } else if (detail.includes('anniyalam-hhp') || detail.includes('2100')) {
+        matched = 'NRPL-Anniyalam-HHP-2100';
+      } else if (detail.includes('pithampur') || detail.includes('indore') || detail.includes('7000') || detail.includes('70')) {
+        matched = 'NLPL- Pithampur Indore-70...';
+      } else if (mfg === 'inhouse' || mfg.includes('inhouse') || detail.startsWith('nrpl') || detail.startsWith('nlpl')) {
+        matched = 'NRPL-Bangalore-1100';
+      }
+
+      if (matched && counts[matched] !== undefined) {
+        counts[matched]++;
       }
     });
     const order = [
@@ -688,13 +708,26 @@ export function DashboardsPage() {
       'Venkat pharma-3007': 0,
     };
     filteredComplaints.forEach((c) => {
-      const detail = c.locDetail || '';
-      if (counts[detail] !== undefined) {
-        counts[detail]++;
-      } else if (c.locType === 'CMO') {
-        const found = Object.keys(counts).find((k) => detail && k.toLowerCase().includes(detail.toLowerCase()));
-        if (found) counts[found]++;
-        else counts['Shamanur pharma-3033']++;
+      const detail = (c.locDetail || '').toLowerCase().trim();
+      const mfg = (c.locType || '').toLowerCase().trim();
+
+      let matched = null;
+      if (detail.includes('shamanur') || detail.includes('3033')) {
+        matched = 'Shamanur pharma-3033';
+      } else if (detail.includes('jck') || detail.includes('3004')) {
+        matched = 'JCK-3004';
+      } else if (detail.includes('harshavardhan') || detail.includes('4200')) {
+        matched = 'Harshavardhan-4200';
+      } else if (detail.includes('indus') || detail.includes('3003')) {
+        matched = 'Indus spray-3003';
+      } else if (detail.includes('venkat') || detail.includes('3007')) {
+        matched = 'Venkat pharma-3007';
+      } else if (mfg === 'cmo' || mfg.includes('cmo')) {
+        matched = 'Shamanur pharma-3033';
+      }
+
+      if (matched && counts[matched] !== undefined) {
+        counts[matched]++;
       }
     });
     const order = [
