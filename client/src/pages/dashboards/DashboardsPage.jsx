@@ -63,6 +63,7 @@ export function DashboardsPage() {
 
   // Live complaints fetched from MongoDB
   const [dbComplaints, setDbComplaints] = useState([]);
+  const asOfDate = useMemo(() => new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }), []);
   const [lastRefreshed, setLastRefreshed] = useState(() =>
     new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
   );
@@ -281,6 +282,7 @@ export function DashboardsPage() {
   const maxInhouse = Math.max(...inhouseData.map((d) => d.count), 1);
   const maxCmo = Math.max(...cmoData.map((d) => d.count), 1);
   const maxRaisedBy = Math.max(...raisedByData.map((d) => d.count), 1);
+  const maxFailure = Math.max(...failureData.map((d) => d.count), 1);
   const maxProduct = Math.max(...productData.map((d) => d.count), 1);
   const maxCustomer = Math.max(...customerData.map((d) => d.count), 1);
 
@@ -450,7 +452,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (No of Current Complaints...)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -486,7 +488,7 @@ export function DashboardsPage() {
                       <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
                         <div
                           className="bg-[#0176d3] h-full rounded-xs transition-all duration-500"
-                          style={{ width: `${Math.min((f.count / 8) * 100, 100)}%` }}
+                          style={{ width: `${Math.min((f.count / maxFailure) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
@@ -500,7 +502,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaints by Type of Fail...)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -551,7 +553,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaint Stage wise Over...)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -601,7 +603,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (SBU's Wise Reports)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -654,7 +656,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Inhouse Report)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -707,7 +709,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (CMO Wise Report)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -769,7 +771,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Report by Manufacturing)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -822,7 +824,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaint Raised By)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -875,7 +877,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Product Wise Complaints)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -900,27 +902,33 @@ export function DashboardsPage() {
             <div className="py-2 space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
               <div className="flex justify-between text-[9px] text-slate-400 pb-1 border-b border-slate-100">
                 <span>Distributor / Retailer Name</span>
-                <span>Record Count (0 - 3)</span>
+                <span>Record Count (0 - {maxCustomer})</span>
               </div>
-              {customerData.slice(0, 10).map((c) => {
-                const widthPct = Math.max((c.count / maxCustomer) * 100, 2);
-                return (
-                  <div key={c.label} className="space-y-0.5">
-                    <div className="flex justify-between text-[10px] text-slate-600">
-                      <span className="truncate max-w-[170px]" title={c.label}>
-                        {c.label}
-                      </span>
-                      <span className="font-bold text-slate-800">{c.count}</span>
+              {customerData.length === 0 ? (
+                <div className="py-12 flex items-center justify-center text-xs text-slate-400 font-normal">
+                  No chart data
+                </div>
+              ) : (
+                customerData.slice(0, 10).map((c) => {
+                  const widthPct = Math.max((c.count / maxCustomer) * 100, 2);
+                  return (
+                    <div key={c.label} className="space-y-0.5">
+                      <div className="flex justify-between text-[10px] text-slate-600">
+                        <span className="truncate max-w-[170px]" title={c.label}>
+                          {c.label}
+                        </span>
+                        <span className="font-bold text-slate-800">{c.count}</span>
+                      </div>
+                      <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
+                        <div
+                          className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
+                          style={{ width: `${widthPct}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-xs h-3 overflow-hidden">
-                      <div
-                        className="bg-[#0176d3] h-full rounded-xs transition-all duration-500 hover:bg-blue-600"
-                        style={{ width: `${widthPct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -928,7 +936,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Customer Wise Complaints)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
 
@@ -1004,7 +1012,7 @@ export function DashboardsPage() {
             <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
               View Report (Total Complaints SLA Report)
             </Link>
-            <span>As of 23-Nov-2026, {lastRefreshed}</span>
+            <span>As of {asOfDate}, {lastRefreshed}</span>
           </div>
         </div>
       </div>
