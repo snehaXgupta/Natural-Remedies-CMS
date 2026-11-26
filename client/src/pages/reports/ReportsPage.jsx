@@ -488,6 +488,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '10/8/2023, 10:59 am',
     subscribed: false,
     type: 'stage-wise-overview',
+    columns: ['complaintNo', 'productName', 'daysOpen', 'status'],
+    groupBy: ['stage'],
   },
   // 34. Screenshot Extract 14
   {
@@ -662,7 +664,10 @@ function getCategoryFilteredComplaints(report, pool) {
   } else if (n.includes('stage wise overview') || n.includes('stage-wise-overview')) {
     filtered = filtered.filter((c) => {
       const s = (c.stage || '').toUpperCase();
-      return s !== 'D1' && s !== 'NEW' && s !== 'REGISTERED';
+      const status = (c.status || '').toUpperCase();
+      // Requirement: In Complaint Stage wise Overview report, only stages D1, D2, D3, D4 (NO Closed)
+      if (s === 'CLOSED' || status === 'CLOSED' || c.isClosed) return false;
+      return true;
     });
   } else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
     filtered = filtered.filter((c) => c.year === '2026');
@@ -723,6 +728,13 @@ export function ReportsPage() {
                   ...p,
                   columns: ['complaintNo', 'productName', 'distributor'],
                   groupBy: [],
+                };
+              }
+              if (p.id === 'rep-33' || (p.name && p.name.toLowerCase().includes('stage wise overview'))) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'productName', 'daysOpen', 'status'],
+                  groupBy: ['stage'],
                 };
               }
               return p;
@@ -891,7 +903,7 @@ export function ReportsPage() {
           '—',
         createdDate: createdTime.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         createdMonthYear: createdTime.toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-        stage: c.stage || 'D1',
+        stage: (c.stage === 'NEW' || c.stage === 'REGISTERED' || !c.stage) ? 'D1' : c.stage,
         status: (c.status || '').toUpperCase() === 'CLOSED' || c.stage === 'CLOSED' ? 'Closed' : 'Open',
         category: c.category || (c.d2?.verifiedProduct?.performanceRelated ? 'Efficacy' : 'Non-Efficacy'),
         batchNumber: c.reportedProduct?.batchNumber || c.d2?.verifiedProduct?.batchNumber || '—',
@@ -950,6 +962,9 @@ export function ReportsPage() {
       } else if (activeReport.id === 'rep-14' || repName.includes('closed within sla')) {
         cols = ['complaintNo', 'productName', 'distributor'];
         grp = [];
+      } else if (activeReport.id === 'rep-33' || repName.includes('stage wise overview')) {
+        cols = ['complaintNo', 'productName', 'daysOpen', 'status'];
+        grp = ['stage'];
       }
     }
 
@@ -1476,6 +1491,16 @@ export function ReportsPage() {
         if (!map[k1]) map[k1] = [];
         map[k1].push(row);
       });
+      if (g1 === 'stage') {
+        const ordered = {};
+        ['D1', 'D2', 'D3', 'D4'].forEach((st) => {
+          if (map[st]) ordered[st] = map[st];
+        });
+        Object.keys(map).forEach((k) => {
+          if (!ordered[k] && k.toUpperCase() !== 'CLOSED') ordered[k] = map[k];
+        });
+        return ordered;
+      }
       return map;
     })();
 
@@ -2164,6 +2189,16 @@ export function ReportsPage() {
         if (!map[k1]) map[k1] = [];
         map[k1].push(row);
       });
+      if (g1 === 'stage') {
+        const ordered = {};
+        ['D1', 'D2', 'D3', 'D4'].forEach((st) => {
+          if (map[st]) ordered[st] = map[st];
+        });
+        Object.keys(map).forEach((k) => {
+          if (!ordered[k] && k.toUpperCase() !== 'CLOSED') ordered[k] = map[k];
+        });
+        return ordered;
+      }
       return map;
     })();
 
