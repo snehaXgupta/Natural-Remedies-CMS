@@ -615,6 +615,12 @@ function getCategoryFilteredComplaints(report, pool) {
     filtered = filtered.filter((c) => c.distributor && c.distributor.trim().length > 0);
   } else if (n.includes('previous') && (n.includes('year') || n.includes('month'))) {
     filtered = filtered.filter((c) => c.year === '2024' || c.year === '2025');
+  } else if (n.includes('stage wise overview') || n.includes('stage-wise-overview')) {
+    filtered = filtered.filter((c) => {
+      const s = (c.stage || '').toUpperCase();
+      const st = (c.status || '').toUpperCase();
+      return s !== 'CLOSED' && s !== 'DONE' && st !== 'CLOSED';
+    });
   } else if (n.includes('current complaints month wise') || (n.includes('current') && n.includes('month'))) {
     filtered = filtered.filter((c) => c.year === '2026');
   }

@@ -137,11 +137,7 @@ export function DashboardsPage() {
     });
   }, [allComplaints, sbuFilter, fyFilter, dateFilter]);
 
-  // -------------------------------------------------------------
-  // DYNAMIC COMPUTATIONS FOR EACH OF THE 11 KPI CARDS
-  // -------------------------------------------------------------
 
-  // Card 1: No of Current Complaints Month wise
   const monthData = useMemo(() => {
     const counts = {};
     filteredComplaints.forEach((c) => {
@@ -161,14 +157,18 @@ export function DashboardsPage() {
       .sort((a, b) => b.count - a.count);
   }, [filteredComplaints]);
 
-  // Card 3: Complaint Stage wise Overview (D1, D2, D3, D4, Closed)
+  // Card 3: Complaint Stage wise Overview (D1, D2, D3, D4) - excludes Closed stage
   const stageData = useMemo(() => {
-    const order = ['D1', 'D2', 'D3', 'D4', 'Closed'];
-    const counts = { D1: 0, D2: 0, D3: 0, D4: 0, Closed: 0 };
+    const order = ['D1', 'D2', 'D3', 'D4'];
+    const counts = { D1: 0, D2: 0, D3: 0, D4: 0 };
     filteredComplaints.forEach((c) => {
-      const s = c.stage === 'Done' ? 'Closed' : c.stage;
-      if (counts[s] !== undefined) counts[s]++;
-      else if (s === 'CLOSED' || s === 'Closed') counts.Closed++;
+      const s = (c.stage || '').toUpperCase();
+      const status = (c.status || '').toUpperCase();
+      if (s === 'CLOSED' || s === 'DONE' || status === 'CLOSED' || c.stage === 'Closed') {
+        return; // Ignore Closed complaints
+      }
+      if (counts[c.stage] !== undefined) counts[c.stage]++;
+      else if (counts[s] !== undefined) counts[s]++;
       else counts.D3++;
     });
     return order.map((stage) => ({ stage, count: counts[stage] }));
@@ -556,7 +556,7 @@ export function DashboardsPage() {
                 })}
               </div>
               <div className="flex justify-between text-[9px] text-slate-400 pt-1 px-1">
-                <span>Record Count: {filteredComplaints.length}</span>
+                <span>Record Count: {stageData.reduce((acc, s) => acc + s.count, 0)}</span>
                 <span>Stage</span>
               </div>
             </div>
