@@ -211,14 +211,14 @@ export function D4Tab({ complaint, onRefresh }) {
                         <button
                           type="button"
                           onClick={() => handleOpenEdit(capa)}
-                          className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-200"
+                          className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-200 cursor-pointer transition-colors"
                         >
                           Edit Details
                         </button>
                         <button
                           type="button"
                           onClick={() => handleOpenClose(capa)}
-                          className="px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100 rounded border border-slate-200"
+                          className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-200 cursor-pointer transition-colors"
                         >
                           Review & Close
                         </button>

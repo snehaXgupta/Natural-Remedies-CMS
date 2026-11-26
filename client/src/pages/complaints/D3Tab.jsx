@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, Trash2, CornerDownRight, Lock, ChevronDown, X } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Plus, Pencil, Trash2, CornerDownRight, Lock, ChevronDown, X, Clock } from 'lucide-react';
 import { d3Api, complaintApi } from '../../api/endpoints.js';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { readError } from '../../api/client.js';
@@ -1336,8 +1336,16 @@ function CapaImplementationSection({ complaint, d3, onReload }) {
   const [decisionType, setDecisionType] = useState('APPROVED');
   const [decisionComments, setDecisionComments] = useState('');
 
-  const capas = (d3.rootCauses || []).flatMap((r) => r.capas || []);
+  const capas = (d3.rootCauses || []).flatMap((r) => r.capas || r.capaRecords || []);
   if (capas.length === 0) return null;
+
+  // Only display CAPAs approved by Complaint Handler (or all if stage review is approved)
+  const isStageApproved = (d3?.review?.status || '').toUpperCase() === 'APPROVED';
+  const approvedCapas = isStageApproved
+    ? capas
+    : capas.filter((c) => (c.handlerApproval?.status || '').toUpperCase() === 'APPROVED');
+
+  if (approvedCapas.length === 0) return null;
 
   const handleSaveImplementation = async (capaId) => {
     try {
@@ -1399,7 +1407,7 @@ function CapaImplementationSection({ complaint, d3, onReload }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {capas.map((capa) => {
+            {approvedCapas.map((capa) => {
               const isEditing = editingId === capa._id;
               const isRp = String(capa.responsiblePerson?._id || capa.responsiblePerson) === String(user._id);
               const isFrp = String(complaint.frp?._id || complaint.frp) === String(user._id);
@@ -1650,6 +1658,18 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
   }
   const { canEdit } = d3;
 
+  const allCapas = useMemo(() => {
+    return d3?.capas || (d3?.rootCauses || []).flatMap((rc) => rc.capas || rc.capaRecords || []);
+  }, [d3?.capas, d3?.rootCauses]);
+
+  const isHandlerApproved = useMemo(() => {
+    if (!allCapas.length) return false;
+    return (
+      allCapas.some((c) => (c.handlerApproval?.status || '').toUpperCase() === 'APPROVED') ||
+      (d3?.review?.status || '').toUpperCase() === 'APPROVED'
+    );
+  }, [allCapas, d3?.review]);
+
   return (
     <div className="space-y-4">
       {/* Centered Title matching screenshot */}
@@ -1781,7 +1801,22 @@ export function D3Tab({ complaint, review, refreshKey, onChanged, onApprove, onR
       {(activeStage === 'Fishbone' || activeStage === 'Why-Why') && (
         <>
           <RootCauses complaintId={complaint._id} complaint={complaint} d3={d3} setData={setData} canEdit={canEdit} onReload={load} onSubmitForApproval={onSubmitForApproval} />
-          <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
+          {/* V. CAPA Implementation - only visible after Complaint Handler has approved */}
+          {isHandlerApproved ? (
+            <CapaImplementationSection complaint={complaint} d3={d3} onReload={load} />
+          ) : (
+            allCapas.length > 0 && (
+              <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50/70 p-4 text-center mt-3">
+                <div className="flex items-center justify-center gap-2 text-slate-600 font-semibold text-xs">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <span>V. CAPA Implementation will unlock after Complaint Handler approval</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1 max-w-lg mx-auto">
+                  Root Causes & CAPA plan must be reviewed and approved by the Complaint Handler before Responsible Persons can execute and submit CAPA actions.
+                </p>
+              </div>
+            )
+          )}
         </>
       )}
 
