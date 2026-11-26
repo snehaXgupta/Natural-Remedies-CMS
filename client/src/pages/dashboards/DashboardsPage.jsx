@@ -462,7 +462,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-35" className="text-[#0176d3] hover:underline font-medium">
               View Report (No of Current Complaints...)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -512,7 +512,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-36" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaints by Type of Fail...)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -563,7 +563,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-33" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaint Stage wise Over...)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -613,7 +613,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-34" className="text-[#0176d3] hover:underline font-medium">
               View Report (SBU's Wise Reports)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -666,7 +666,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-27" className="text-[#0176d3] hover:underline font-medium">
               View Report (Inhouse Report)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -719,7 +719,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-28" className="text-[#0176d3] hover:underline font-medium">
               View Report (CMO Wise Report)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -781,7 +781,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-29" className="text-[#0176d3] hover:underline font-medium">
               View Report (Report by Manufacturing)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -834,7 +834,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-30" className="text-[#0176d3] hover:underline font-medium">
               View Report (Complaint Raised By)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -887,7 +887,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-31" className="text-[#0176d3] hover:underline font-medium">
               View Report (Product Wise Complaints)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -946,7 +946,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-32" className="text-[#0176d3] hover:underline font-medium">
               View Report (Customer Wise Complaints)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>
@@ -1022,7 +1022,7 @@ export function DashboardsPage() {
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-            <Link to="/reports" className="text-[#0176d3] hover:underline font-medium">
+            <Link to="/reports?reportId=rep-37" className="text-[#0176d3] hover:underline font-medium">
               View Report (Total Complaints SLA Report)
             </Link>
             <span>As of {asOfDate}, {lastRefreshed}</span>

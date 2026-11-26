@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Search,
   ChevronDown,
@@ -205,61 +206,6 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '14/3/2023, 12:10 pm',
     subscribed: false,
     type: 'current-vs-previous-year',
-  },
-  // 7. Screenshot Report 7 (Rumicare Previous)
-  {
-    id: 'rep-7',
-    name: 'Complaints Current Vs Previous rumicare',
-    description: '',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '4/2/2025, 10:13 am',
-    subscribed: false,
-    type: 'rumicare-comparison',
-  },
-  // 8. Screenshot Report 8 (Rumicare Monthly)
-  {
-    id: 'rep-8',
-    name: 'Current Complaints Month wise Rumicare',
-    description: '',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '4/2/2025, 10:41 am',
-    subscribed: false,
-    type: 'rumicare-monthly',
-  },
-  // 9. Screenshot Report 9 (Rumicare Raised)
-  {
-    id: 'rep-9',
-    name: 'Complaint Raised By Rumicare',
-    description: '',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '4/2/2025, 10:49 am',
-    subscribed: false,
-    type: 'rumicare-raised',
-  },
-  // 10. Screenshot Report 10 (Rumicare Type of Failure)
-  {
-    id: 'rep-10',
-    name: 'Type of Failure - Rumicare Complaints',
-    description: '',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '4/2/2025, 10:52 am',
-    subscribed: false,
-    type: 'rumicare-failures',
-  },
-  // 11. Screenshot Report 11 (Rumicare Stage Overview)
-  {
-    id: 'rep-11',
-    name: 'Complaint Stage wise Overview Rumicare',
-    description: '',
-    folder: 'Complaint Management Reports',
-    createdBy: 'Narayan Rao Vakamudi',
-    createdOn: '4/2/2025, 10:54 am',
-    subscribed: false,
-    type: 'rumicare-stages',
   },
   // 12. Screenshot Report 12 (Efficacy Related)
   {
@@ -536,6 +482,17 @@ const NARAYAN_RAO_REPORTS = [
     subscribed: false,
     type: 'type-of-failure-breakdown',
   },
+  // 37. Screenshot Extract 17
+  {
+    id: 'rep-37',
+    name: 'Total Complaints SLA Report',
+    description: '',
+    folder: 'Complaint Management Reports',
+    createdBy: 'Narayan Rao Vakamudi',
+    createdOn: '2/2/2024, 5:20 pm',
+    subscribed: false,
+    type: 'total-sla-report',
+  },
 ];
 
 const AUGMENTED_REPORTS = NARAYAN_RAO_REPORTS.map((r) => ({
@@ -665,17 +622,38 @@ function getCategoryFilteredComplaints(report, pool) {
   return filtered;
 }
 
+const EXCLUDED_REPORT_IDS = new Set(['rep-7', 'rep-8', 'rep-9', 'rep-10', 'rep-11']);
+const isExcludedReport = (r) => {
+  if (!r) return false;
+  if (EXCLUDED_REPORT_IDS.has(r.id)) return true;
+  const n = (r.name || '').trim().toLowerCase();
+  return (
+    n === 'complaint raised by rumicare' ||
+    n === 'complaint stage wise overview rumicare' ||
+    n === 'complaints current vs previous rumicare' ||
+    n === 'current complaints month wise rumicare' ||
+    n === 'type of failure - rumicare complaints' ||
+    n === 'type of failure rumicare complaints'
+  );
+};
+
 export function ReportsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [reports, setReports] = useState(() => {
     try {
       const saved = localStorage.getItem('vetaura_reports_definitions');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const cleaned = parsed.filter((p) => !isExcludedReport(p));
+          const existingIds = new Set(cleaned.map((p) => p.id));
+          const missing = AUGMENTED_REPORTS.filter((ar) => !existingIds.has(ar.id) && !isExcludedReport(ar));
+          return [...cleaned, ...missing];
+        }
       }
     } catch (_) {}
-    return AUGMENTED_REPORTS;
+    return AUGMENTED_REPORTS.filter((ar) => !isExcludedReport(ar));
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -684,6 +662,35 @@ export function ReportsPage() {
   const [isBuilderMode, setIsBuilderMode] = useState(false); // Salesforce Report Builder View (Edit Mode)
   const [builderDraft, setBuilderDraft] = useState(null); // Draft being edited in Builder
   const [runtimeOverrides, setRuntimeOverrides] = useState({}); // Per-report runtime overrides from "Run" (not saved)
+
+  // Automatically open report if reportId or id query param is present
+  const reportParamId = searchParams.get('reportId') || searchParams.get('id');
+  useEffect(() => {
+    if (reportParamId && reports.length > 0) {
+      const match = reports.find(
+        (r) =>
+          r.id === reportParamId ||
+          (r.name && r.name.toLowerCase() === reportParamId.toLowerCase()) ||
+          (r.type && r.type.toLowerCase() === reportParamId.toLowerCase())
+      );
+      if (match) {
+        setActiveReport(match);
+      }
+    }
+  }, [reportParamId, reports]);
+
+  const handleBackToReports = () => {
+    setActiveReport(null);
+    setIsBuilderMode(false);
+    setSearchParams({});
+  };
+
+  const handleSelectReport = (rep) => {
+    setActiveReport(rep);
+    if (rep?.id) {
+      setSearchParams({ reportId: rep.id });
+    }
+  };
 
   // Report Builder state
   const [builderTab, setBuilderTab] = useState('outline'); // 'outline' | 'filters'
@@ -734,9 +741,10 @@ export function ReportsPage() {
 
   // Persist updated report definitions to localStorage
   const saveReportsToStorage = (updatedList) => {
-    setReports(updatedList);
+    const cleaned = updatedList.filter((p) => !isExcludedReport(p));
+    setReports(cleaned);
     try {
-      localStorage.setItem('vetaura_reports_definitions', JSON.stringify(updatedList));
+      localStorage.setItem('vetaura_reports_definitions', JSON.stringify(cleaned));
     } catch (_) {}
   };
 
@@ -1804,7 +1812,7 @@ export function ReportsPage() {
           <div className="flex items-center gap-2 text-slate-500 flex-wrap">
             <button
               type="button"
-              onClick={() => setActiveReport(null)}
+              onClick={handleBackToReports}
               className="inline-flex items-center gap-1 font-semibold text-[#0176d3] hover:underline cursor-pointer"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
@@ -1813,7 +1821,7 @@ export function ReportsPage() {
             <span className="text-slate-300">/</span>
             <button
               type="button"
-              onClick={() => setActiveReport(null)}
+              onClick={handleBackToReports}
               className="text-[#0176d3] hover:underline"
             >
               All Folders
@@ -1821,7 +1829,7 @@ export function ReportsPage() {
             <span className="text-slate-300">&gt;</span>
             <button
               type="button"
-              onClick={() => setActiveReport(null)}
+              onClick={handleBackToReports}
               className="text-[#0176d3] hover:underline"
             >
               Complaint Management Reports
@@ -2474,7 +2482,7 @@ export function ReportsPage() {
                 {filteredReports.map((report) => (
                   <tr
                     key={report.id}
-                    onClick={() => setActiveReport(report)}
+                    onClick={() => handleSelectReport(report)}
                     className="hover:bg-blue-50/40 cursor-pointer transition group"
                   >
                     <td className="py-2.5 px-4 font-medium text-slate-800">
