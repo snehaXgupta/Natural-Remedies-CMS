@@ -90,29 +90,43 @@ export function DashboardsPage() {
   // Merged complaints pool: MongoDB Live records
   const allComplaints = useMemo(() => {
     if (!dbComplaints || dbComplaints.length === 0) return [];
-    return dbComplaints.map((c, idx) => ({
-      id: c._id || 'db-live-' + idx,
-      num: c.complaintNumber || 'CMP-' + idx,
-      sbu: c.sbu || 'Unassigned',
-      year: c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026',
-      month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : '',
-      stage: c.stage === 'CLOSED' || (c.status || '').toUpperCase() === 'CLOSED' ? 'Closed' : c.stage || 'D1',
-      locType: c.d2?.investigation?.manufacturingLocation || null,
-      locDetail: c.d2?.investigation?.locationDetail || null,
-      creator: c.createdBy?.name || c.requester?.name || 'Unassigned',
-      product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Unspecified Product',
-      customer: c.customer?.name || c.complainant?.name || c.distributorName || null,
-      failure: c.d2?.investigation?.typeOfFailure || null,
-      withinSla: calculateIsWithinSla(c),
-    }));
+    return dbComplaints
+      .filter((c) => {
+        // Platform is strictly for AHP - Rumicare: ignore HHP and Omnicare complaints
+        const s = (c.sbu || '').trim().toLowerCase();
+        if (s.includes('hhp') || s.includes('omnicare')) return false;
+        return true;
+      })
+      .map((c, idx) => {
+        // Standardize any Rumicare variation into canonical 'AHP - Rumicare'
+        let sbuStandard = c.sbu || 'AHP - Rumicare';
+        if (sbuStandard.toLowerCase().includes('rumicare')) {
+          sbuStandard = 'AHP - Rumicare';
+        }
+        return {
+          id: c._id || 'db-live-' + idx,
+          num: c.complaintNumber || 'CMP-' + idx,
+          sbu: sbuStandard,
+          year: c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026',
+          month: c.createdAt ? new Date(c.createdAt).toLocaleString('en-US', { month: 'long' }) : '',
+          stage: c.stage === 'CLOSED' || (c.status || '').toUpperCase() === 'CLOSED' ? 'Closed' : c.stage || 'D1',
+          locType: c.d2?.investigation?.manufacturingLocation || null,
+          locDetail: c.d2?.investigation?.locationDetail || null,
+          creator: c.createdBy?.name || c.requester?.name || 'Unassigned',
+          product: c.reportedProduct?.name || c.productDetails?.productName || c.productName || 'Unspecified Product',
+          customer: c.customer?.name || c.complainant?.name || c.distributorName || null,
+          failure: c.d2?.investigation?.typeOfFailure || null,
+          withinSla: calculateIsWithinSla(c),
+        };
+      });
   }, [dbComplaints, user]);
 
   // Apply Filter Dropdowns (SBU, FinancialYear, Date)
   const filteredComplaints = useMemo(() => {
     return allComplaints.filter((c) => {
       if (sbuFilter !== 'All') {
-        const s = sbuFilter.toLowerCase();
-        const cs = (c.sbu || '').toLowerCase();
+        const s = sbuFilter.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cs = (c.sbu || '').toLowerCase().replace(/[^a-z0-9]/g, '');
         if (!cs.includes(s) && !s.includes(cs)) return false;
       }
       if (fyFilter !== 'All') {
@@ -285,6 +299,7 @@ export function DashboardsPage() {
   const maxFailure = Math.max(...failureData.map((d) => d.count), 1);
   const maxProduct = Math.max(...productData.map((d) => d.count), 1);
   const maxCustomer = Math.max(...customerData.map((d) => d.count), 1);
+  const maxSbu = Math.max(...sbuData.map((d) => d.count), 1);
 
   return (
     <div className="space-y-4 pb-12 text-slate-800 animate-in fade-in">
@@ -355,9 +370,7 @@ export function DashboardsPage() {
                 className="w-full appearance-none rounded border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 pr-8"
               >
                 <option value="All">All</option>
-                <option value="AHP Rumicare">AHP Rumicare</option>
-                <option value="Animal Health Products">Animal Health Products</option>
-                <option value="Companion Animal Care">Companion Animal Care</option>
+                <option value="AHP - Rumicare">AHP - Rumicare</option>
               </select>
               <ChevronDown className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             </div>
@@ -583,7 +596,7 @@ export function DashboardsPage() {
                     <div className="w-full bg-slate-100 rounded-t-xs h-32 flex items-end">
                       <div
                         className="w-full bg-[#0176d3] rounded-t-xs transition-all duration-500"
-                        style={{ height: `${Math.min((item.count / 20) * 100, 95)}%` }}
+                        style={{ height: `${Math.max(Math.min((item.count / maxSbu) * 100, 95), 20)}%` }}
                       />
                     </div>
                     <span className="text-[10px] text-slate-600 font-medium truncate max-w-[90px]">

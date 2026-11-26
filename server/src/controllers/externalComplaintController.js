@@ -8,12 +8,6 @@ const VALID_SBUS = [
   'AHP - Rumicare',
   'AHP – Rumicare',
   'AHP-Rumicare',
-  'AHP-Avicare',
-  'AHP-Omnicare',
-  'HHP',
-  'PET',
-  'PET-Online',
-  'SBP',
 ];
 
 /**

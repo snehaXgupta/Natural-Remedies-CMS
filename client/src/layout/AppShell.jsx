@@ -677,7 +677,7 @@ export function AppShell() {
                     <span className="text-blue-600 font-semibold">Admin (admin@naturalremedies.com)</span>
                   </div>
                   <div className="p-2.5 flex justify-between">
-                    <span className="font-medium text-slate-800">Quality Coordinator (Omnicare)</span>
+                    <span className="font-medium text-slate-800">Quality Coordinator (Rumicare)</span>
                     <span className="text-slate-600">Jensy Josephine / Sneha</span>
                   </div>
                   <div className="p-2.5 flex justify-between">
