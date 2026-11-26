@@ -270,7 +270,7 @@ export async function listComplaints(query, user, permissions, page) {
       .skip(page.skip)
       .limit(page.limit)
       .select(
-        'complaintNumber complaintDate requester.name sbu country reportedProduct.name d2 customer reportedProduct acknowledgement closedAt stage status priority frp origin lastActivityAt stageDueAt createdAt updatedAt createdBy',
+        'complaintNumber complaintDate requester sbu country customer reportedProduct d2 acknowledgement closedAt stage status priority frp origin lastActivityAt stageDueAt createdAt updatedAt createdBy',
       )
       .populate('frp', 'name')
       .populate('createdBy', 'name email')
