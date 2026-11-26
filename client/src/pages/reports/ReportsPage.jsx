@@ -92,6 +92,39 @@ export const AVAILABLE_GROUP_FIELDS = [
   { id: 'category', label: 'Nature / Category' },
 ];
 
+// Salesforce Lightning Checkbox Toggle Switch (matching exact Salesforce SLDS reference)
+function SalesforceToggle({ label, checked, onChange }) {
+  return (
+    <label className="inline-flex items-center gap-1.5 cursor-pointer select-none group">
+      <span className="text-[11px] font-normal text-slate-700 whitespace-nowrap">{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onChange(!checked);
+        }}
+        className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+          checked ? 'bg-[#0176d3]' : 'bg-[#b0adab]'
+        }`}
+      >
+        {checked && (
+          <span className="absolute left-1 text-[8px] font-bold text-white select-none pointer-events-none leading-none">
+            ✓
+          </span>
+        )}
+        <span
+          className={`pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow-xs transform transition duration-200 ease-in-out ${
+            checked ? 'translate-x-3.5' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
 function getDefaultColumnsForReport(repId, repName) {
   const n = (repName || '').toLowerCase().trim();
   // Exact Salesforce Schema for Report by Manufacturing (Screenshot confirmed)
@@ -812,7 +845,7 @@ export function ReportsPage() {
   const [dbComplaints, setDbComplaints] = useState([]);
 
   const [toggles, setToggles] = useState({
-    rowCounts: true,
+    rowCounts: false,
     detailRows: true,
     subtotals: true,
     grandTotal: true,
@@ -2087,43 +2120,27 @@ export function ReportsPage() {
             </div>
 
             {/* Bottom Toggles */}
-            <div className="bg-[#f3f3f3] border-t border-slate-300 px-4 py-2 mt-2 rounded flex items-center gap-6 text-xs text-slate-700 select-none overflow-x-auto">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Row Counts</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.rowCounts}
-                  onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
-                  className="rounded text-blue-600"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Detail Rows</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.detailRows}
-                  onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
-                  className="rounded text-blue-600"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Subtotals</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.subtotals}
-                  onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
-                  className="rounded text-blue-600"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Grand Total</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.grandTotal}
-                  onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
-                  className="rounded text-blue-600"
-                />
-              </label>
+            <div className="bg-[#f3f3f3] border-t border-slate-300 px-4 py-2 mt-2 rounded flex items-center gap-5 text-xs text-slate-700 select-none overflow-x-auto">
+              <SalesforceToggle
+                label="Row Counts"
+                checked={toggles.rowCounts}
+                onChange={(val) => setToggles((prev) => ({ ...prev, rowCounts: val }))}
+              />
+              <SalesforceToggle
+                label="Detail Rows"
+                checked={toggles.detailRows}
+                onChange={(val) => setToggles((prev) => ({ ...prev, detailRows: val }))}
+              />
+              <SalesforceToggle
+                label="Subtotals"
+                checked={toggles.subtotals}
+                onChange={(val) => setToggles((prev) => ({ ...prev, subtotals: val }))}
+              />
+              <SalesforceToggle
+                label="Grand Total"
+                checked={toggles.grandTotal}
+                onChange={(val) => setToggles((prev) => ({ ...prev, grandTotal: val }))}
+              />
             </div>
           </main>
         </div>
@@ -2688,43 +2705,27 @@ export function ReportsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-6 overflow-x-auto w-full sm:w-auto justify-end">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Row Counts</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.rowCounts}
-                  onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-0"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Detail Rows</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.detailRows}
-                  onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-0"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Subtotals</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.subtotals}
-                  onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-0"
-                />
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <span className="font-semibold text-slate-700">Grand Total</span>
-                <input
-                  type="checkbox"
-                  checked={toggles.grandTotal}
-                  onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
-                  className="rounded text-blue-600 focus:ring-0"
-                />
-              </label>
+            <div className="flex items-center gap-5 overflow-x-auto w-full sm:w-auto justify-end">
+              <SalesforceToggle
+                label="Row Counts"
+                checked={toggles.rowCounts}
+                onChange={(val) => setToggles((prev) => ({ ...prev, rowCounts: val }))}
+              />
+              <SalesforceToggle
+                label="Detail Rows"
+                checked={toggles.detailRows}
+                onChange={(val) => setToggles((prev) => ({ ...prev, detailRows: val }))}
+              />
+              <SalesforceToggle
+                label="Subtotals"
+                checked={toggles.subtotals}
+                onChange={(val) => setToggles((prev) => ({ ...prev, subtotals: val }))}
+              />
+              <SalesforceToggle
+                label="Grand Total"
+                checked={toggles.grandTotal}
+                onChange={(val) => setToggles((prev) => ({ ...prev, grandTotal: val }))}
+              />
             </div>
           </div>
         </div>
