@@ -50,6 +50,10 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 // ============================================================================
 export const AVAILABLE_FIELDS = [
   { id: 'complaintNo', label: 'Complaint: Complaint No', type: 'link', category: 'Identification' },
+  { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
+  { id: 'locationDetail', label: 'Location detail', type: 'text', category: 'Manufacturing' },
+  { id: 'contactPerson', label: 'Contact Person', type: 'text', category: 'Origin' },
+  { id: 'financialYear', label: 'FinancialYear', type: 'text', category: 'Intake' },
   { id: 'productName', label: 'Product name', type: 'text', category: 'Product' },
   { id: 'distributor', label: 'Distributor / Retailer Name', type: 'text', category: 'Customer' },
   { id: 'requestedBy', label: 'Requested By', type: 'text', category: 'Origin' },
@@ -60,7 +64,6 @@ export const AVAILABLE_FIELDS = [
   { id: 'category', label: 'Nature / Category', type: 'text', category: 'Quality' },
   { id: 'batchNumber', label: 'Batch Number', type: 'mono', category: 'Product' },
   { id: 'typeOfFailure', label: 'Type of Failure', type: 'text', category: 'Investigation' },
-  { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
   { id: 'acknowledgement', label: 'Acknowledgement', type: 'text', category: 'Workflow' },
   { id: 'assignedFrp', label: 'Assigned FRP', type: 'text', category: 'Workflow' },
   { id: 'daysOpen', label: 'Days Open', type: 'text', category: 'Turnaround' },
@@ -77,19 +80,38 @@ export const AVAILABLE_FIELDS = [
 ];
 
 export const AVAILABLE_GROUP_FIELDS = [
+  { id: 'manufacturingLocation', label: 'Manufacturing Location' },
+  { id: 'locationDetail', label: 'Location detail' },
   { id: 'createdMonthYear', label: 'Complaint: Created Date (Month/Year)' },
+  { id: 'requestedBy', label: 'Requested By' },
   { id: 'productName', label: 'Product name' },
   { id: 'distributor', label: 'Distributor / Retailer Name' },
-  { id: 'requestedBy', label: 'Requested By' },
   { id: 'stage', label: 'Stage' },
   { id: 'status', label: 'Status' },
   { id: 'typeOfFailure', label: 'Type of Failure' },
   { id: 'category', label: 'Nature / Category' },
-  { id: 'manufacturingLocation', label: 'Manufacturing Location' },
 ];
 
 function getDefaultColumnsForReport(repId, repName) {
-  const n = (repName || '').toLowerCase();
+  const n = (repName || '').toLowerCase().trim();
+  // Exact Salesforce Schema for Report by Manufacturing (Screenshot confirmed)
+  if (n === 'report by manufacturing' || repId === 'rep-29') {
+    return ['complaintNo', 'contactPerson', 'financialYear'];
+  }
+  // Exact Salesforce Schema for Non - Confirmed Complaints (Screenshot confirmed)
+  if (n === 'non - confirmed complaints' || n === 'non-confirmed complaints' || repId === 'rep-13') {
+    return ['complaintNo', 'distributor', 'productName'];
+  }
+  // Exact Salesforce Schema for Complaints Closed within SLA (Screenshot confirmed)
+  if (n === 'complaints closed within sla' || repId === 'rep-14') {
+    return ['complaintNo', 'productName', 'distributor'];
+  }
+  if (n.includes('inhouse') || n.includes('cmo')) {
+    return ['complaintNo', 'contactPerson', 'financialYear'];
+  }
+  if (n.includes('manufacturing')) {
+    return ['complaintNo', 'contactPerson', 'financialYear'];
+  }
   if (n.includes('sla')) {
     return [
       'complaintNo',
@@ -103,9 +125,6 @@ function getDefaultColumnsForReport(repId, repName) {
       'd3Duration',
       'overallSla',
     ];
-  }
-  if (n.includes('manufacturing') || n.includes('inhouse') || n.includes('cmo')) {
-    return ['complaintNo', 'productName', 'batchNumber', 'manufacturingLocation', 'typeOfFailure', 'stage', 'status'];
   }
   if (n.includes('raised by')) {
     return ['requestedBy', 'complaintNo', 'productName', 'createdDate', 'stage', 'status'];
@@ -129,12 +148,27 @@ function getDefaultColumnsForReport(repId, repName) {
 }
 
 function getDefaultGroupByForReport(repId, repName) {
-  const n = (repName || '').toLowerCase();
-  if (n.includes('raised by')) return 'requestedBy';
-  if (n.includes('product wise')) return 'productName';
-  if (n.includes('customer wise')) return 'distributor';
-  if (n.includes('stage')) return 'stage';
-  return 'createdMonthYear';
+  const n = (repName || '').toLowerCase().trim();
+  if (n === 'report by manufacturing' || repId === 'rep-29') {
+    return ['manufacturingLocation', 'locationDetail'];
+  }
+  if (n === 'inhouse report' || repId === 'rep-27') {
+    return ['locationDetail'];
+  }
+  if (n === 'cmo wise report' || repId === 'rep-28') {
+    return ['locationDetail'];
+  }
+  if (n === 'non - confirmed complaints' || n === 'non-confirmed complaints' || repId === 'rep-13') {
+    return ['requestedBy'];
+  }
+  if (n === 'complaints closed within sla' || repId === 'rep-14') {
+    return [];
+  }
+  if (n.includes('raised by')) return ['requestedBy'];
+  if (n.includes('product wise')) return ['productName'];
+  if (n.includes('customer wise')) return ['distributor'];
+  if (n.includes('stage')) return ['stage'];
+  return ['createdMonthYear'];
 }
 
 // ============================================================================
@@ -228,6 +262,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '8/1/2024, 3:17 pm',
     subscribed: false,
     type: 'non-confirmed',
+    columns: ['complaintNo', 'distributor', 'productName'],
+    groupBy: ['requestedBy'],
   },
   // 14. User Report 2
   {
@@ -239,6 +275,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '2/2/2024, 5:20 pm',
     subscribed: false,
     type: 'closed-sla',
+    columns: ['complaintNo', 'productName', 'distributor'],
+    groupBy: [],
   },
   // 15. User Report 3
   {
@@ -404,6 +442,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '14/3/2023, 12:19 pm',
     subscribed: false,
     type: 'manufacturing-report',
+    columns: ['complaintNo', 'contactPerson', 'financialYear'],
+    groupBy: ['manufacturingLocation', 'locationDetail'],
   },
   // 30. Screenshot Extract 10
   {
@@ -495,18 +535,22 @@ const NARAYAN_RAO_REPORTS = [
   },
 ];
 
-const AUGMENTED_REPORTS = NARAYAN_RAO_REPORTS.map((r) => ({
-  ...r,
-  columns: r.columns || getDefaultColumnsForReport(r.id, r.name),
-  groupBy: r.groupBy || [getDefaultGroupByForReport(r.id, r.name)],
-  filters: r.filters || {
-    showMe: 'all',
-    dateRange: 'all',
-    status: 'all',
-    category: 'all',
-    manufacturing: 'all',
-  },
-}));
+const AUGMENTED_REPORTS = NARAYAN_RAO_REPORTS.map((r) => {
+  const defaultCols = getDefaultColumnsForReport(r.id, r.name);
+  const defaultGroup = getDefaultGroupByForReport(r.id, r.name);
+  return {
+    ...r,
+    columns: r.columns || defaultCols,
+    groupBy: r.groupBy !== undefined ? r.groupBy : defaultGroup,
+    filters: r.filters || {
+      showMe: 'all',
+      dateRange: 'all',
+      status: 'all',
+      category: 'all',
+      manufacturing: 'all',
+    },
+  };
+});
 
 // ============================================================================
 // EXACT SLA CALCULATION ENGINE
@@ -656,7 +700,33 @@ export function ReportsPage() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const cleaned = parsed.filter((p) => !isExcludedReport(p));
+          const cleaned = parsed
+            .filter((p) => !isExcludedReport(p))
+            .map((p) => {
+              // Ensure rep-29 and screenshot reports are always synchronized to exact screenshot columns
+              if (p.id === 'rep-29' || (p.name && p.name.toLowerCase() === 'report by manufacturing')) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'contactPerson', 'financialYear'],
+                  groupBy: ['manufacturingLocation', 'locationDetail'],
+                };
+              }
+              if (p.id === 'rep-13' || (p.name && p.name.toLowerCase().includes('non - confirmed complaints'))) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'distributor', 'productName'],
+                  groupBy: ['requestedBy'],
+                };
+              }
+              if (p.id === 'rep-14' || (p.name && p.name.toLowerCase().includes('closed within sla'))) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'productName', 'distributor'],
+                  groupBy: [],
+                };
+              }
+              return p;
+            });
           const existingIds = new Set(cleaned.map((p) => p.id));
           const missing = AUGMENTED_REPORTS.filter((ar) => !existingIds.has(ar.id) && !isExcludedReport(ar));
           return [...cleaned, ...missing];
@@ -735,6 +805,7 @@ export function ReportsPage() {
     subtotals: true,
     grandTotal: true,
   });
+  const [tableSearch, setTableSearch] = useState('');
 
   // Fetch real complaints from MongoDB on mount
   useEffect(() => {
@@ -777,6 +848,29 @@ export function ReportsPage() {
       const overallInSla = d1SlaInfo.inSla && d2SlaInfo.inSla && d3SlaInfo.inSla;
       const daysOpenNum = Math.max(1, Math.round((Date.now() - createdTime.getTime()) / (1000 * 60 * 60 * 24)));
 
+      const locDetail =
+        c.locationDetail ||
+        c.d2?.investigation?.locationDetail ||
+        c.manufacturingLocationDetail ||
+        (c.d2?.investigation?.manufacturingLocation === 'Inhouse' || c.manufacturingLocation === 'Inhouse'
+          ? 'NRPL-Bangalore-1100'
+          : 'Shamanur pharma-3033');
+
+      const mfgLoc =
+        c.d2?.investigation?.manufacturingLocation ||
+        c.manufacturingLocation ||
+        (locDetail.startsWith('NRPL') || locDetail.startsWith('NLPL') ? 'Inhouse' : 'CMO');
+
+      const contactPerson =
+        c.contactPerson ||
+        c.complainant?.contactPerson ||
+        c.contactName ||
+        '-';
+
+      const finYear =
+        c.financialYear ||
+        (c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026');
+
       return {
         id: c._id || 'c-' + i,
         complaintNo: c.complaintNumber || `CMP-2026-${String(i + 1).padStart(4, '0')}`,
@@ -802,7 +896,10 @@ export function ReportsPage() {
         category: c.category || (c.d2?.verifiedProduct?.performanceRelated ? 'Efficacy' : 'Non-Efficacy'),
         batchNumber: c.reportedProduct?.batchNumber || c.d2?.verifiedProduct?.batchNumber || '—',
         typeOfFailure: c.d2?.investigation?.typeOfFailure || '—',
-        manufacturingLocation: c.d2?.investigation?.manufacturingLocation || 'Inhouse',
+        manufacturingLocation: mfgLoc,
+        locationDetail: locDetail,
+        contactPerson: contactPerson,
+        financialYear: finYear,
         acknowledgement:
           c.acknowledgement?.remarks ||
           (c.acknowledgement?.approvedAt
@@ -839,10 +936,29 @@ export function ReportsPage() {
   const currentViewReport = useMemo(() => {
     if (!activeReport) return null;
     const runtime = runtimeOverrides[activeReport.id];
+    let cols = runtime?.columns || activeReport.columns || getDefaultColumnsForReport(activeReport.id, activeReport.name);
+    let grp = runtime?.groupBy !== undefined ? runtime.groupBy : (activeReport.groupBy !== undefined ? activeReport.groupBy : getDefaultGroupByForReport(activeReport.id, activeReport.name));
+
+    if (!runtime) {
+      const repName = (activeReport.name || '').toLowerCase().trim();
+      if (activeReport.id === 'rep-29' || repName === 'report by manufacturing') {
+        cols = ['complaintNo', 'contactPerson', 'financialYear'];
+        grp = ['manufacturingLocation', 'locationDetail'];
+      } else if (activeReport.id === 'rep-13' || repName.includes('non - confirmed complaints')) {
+        cols = ['complaintNo', 'distributor', 'productName'];
+        grp = ['requestedBy'];
+      } else if (activeReport.id === 'rep-14' || repName.includes('closed within sla')) {
+        cols = ['complaintNo', 'productName', 'distributor'];
+        grp = [];
+      }
+    }
+
+    if (!Array.isArray(grp)) grp = grp ? [grp] : [];
+
     return {
       ...activeReport,
-      columns: runtime?.columns || activeReport.columns || getDefaultColumnsForReport(activeReport.id, activeReport.name),
-      groupBy: runtime?.groupBy || activeReport.groupBy || [getDefaultGroupByForReport(activeReport.id, activeReport.name)],
+      columns: cols,
+      groupBy: grp,
       filters: runtime?.filters || activeReport.filters || {},
     };
   }, [activeReport, runtimeOverrides]);
@@ -1010,13 +1126,25 @@ export function ReportsPage() {
     }));
   };
 
-  const handleSetGroup = (groupFieldId) => {
+  const handleRemoveGroupItem = (groupFieldId) => {
     if (!builderDraft) return;
     setBuilderDraft((prev) => ({
       ...prev,
-      groupBy: [groupFieldId],
+      groupBy: prev.groupBy.filter((g) => g !== groupFieldId),
+    }));
+  };
+
+  const handleAddGroup = (groupFieldId) => {
+    if (!builderDraft || builderDraft.groupBy.includes(groupFieldId)) return;
+    setBuilderDraft((prev) => ({
+      ...prev,
+      groupBy: [...prev.groupBy, groupFieldId],
     }));
     setIsAddGroupOpen(false);
+  };
+
+  const handleSetGroup = (groupFieldId) => {
+    handleAddGroup(groupFieldId);
   };
 
   const toggleSubscribe = (id, e) => {
@@ -1297,6 +1425,20 @@ export function ReportsPage() {
   // VIEW 1: SALESFORCE LIGHTNING REPORT BUILDER (EDIT MODE - SCREENSHOT FIDELITY)
   // ==========================================================================
   if (isBuilderMode && builderDraft) {
+    const builderGroupFieldIds = Array.isArray(builderDraft.groupBy)
+      ? builderDraft.groupBy
+      : [builderDraft.groupBy].filter(Boolean);
+
+    const builderGroupCols = builderGroupFieldIds.map(
+      (gid) =>
+        AVAILABLE_GROUP_FIELDS.find((f) => f.id === gid) ||
+        AVAILABLE_FIELDS.find((f) => f.id === gid) || { id: gid, label: gid }
+    );
+
+    const builderDetailCols = builderDraft.columns
+      .filter((cid) => !builderGroupFieldIds.includes(cid))
+      .map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
+
     const activeCols = builderDraft.columns.map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
     const groupField = builderDraft.groupBy?.[0] || 'createdMonthYear';
     const groupObj = AVAILABLE_GROUP_FIELDS.find((g) => g.id === groupField) || { id: groupField, label: groupField };
@@ -1309,6 +1451,33 @@ export function ReportsPage() {
       filters: builderDraft.filters,
     };
     const previewComplaints = updatePreviewAuto ? getCategoryFilteredComplaints(builderReportRef, mappedAllComplaints) : [];
+
+    const builderNested2LevelData = (() => {
+      if (builderGroupFieldIds.length !== 2) return null;
+      const g1 = builderGroupFieldIds[0];
+      const g2 = builderGroupFieldIds[1];
+      const tree = {};
+      previewComplaints.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        const k2 = String(row[g2] || '—');
+        if (!tree[k1]) tree[k1] = {};
+        if (!tree[k1][k2]) tree[k1][k2] = [];
+        tree[k1][k2].push(row);
+      });
+      return tree;
+    })();
+
+    const builderSingleLevelData = (() => {
+      if (builderGroupFieldIds.length !== 1) return null;
+      const g1 = builderGroupFieldIds[0];
+      const map = {};
+      previewComplaints.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        if (!map[k1]) map[k1] = [];
+        map[k1].push(row);
+      });
+      return map;
+    })();
 
     // Group preview data
     const previewGroups = {};
@@ -1473,23 +1642,32 @@ export function ReportsPage() {
                     </span>
                   </div>
 
-                  {/* Active Group Pill */}
+                  {/* Active Group Pills */}
                   {builderDraft.groupBy.length > 0 ? (
                     <div className="space-y-1.5 mb-2">
-                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white border border-slate-300 text-xs shadow-2xs group">
-                        <div className="flex items-center gap-1.5 text-slate-700">
-                          <GripVertical className="h-3 w-3 text-slate-400" />
-                          <span className="font-medium">{groupObj.label}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleRemoveGroup}
-                          className="text-slate-400 hover:text-slate-700 p-0.5 rounded"
-                          title="Remove Group"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
+                      {builderDraft.groupBy.map((gid) => {
+                        const gObj =
+                          AVAILABLE_GROUP_FIELDS.find((g) => g.id === gid) || { id: gid, label: gid };
+                        return (
+                          <div
+                            key={gid}
+                            className="flex items-center justify-between px-2.5 py-1.5 rounded bg-white border border-slate-300 text-xs shadow-2xs group"
+                          >
+                            <div className="flex items-center gap-1.5 text-slate-700">
+                              <GripVertical className="h-3 w-3 text-slate-400" />
+                              <span className="font-medium">{gObj.label}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveGroupItem(gid)}
+                              className="text-slate-400 hover:text-slate-700 p-0.5 rounded"
+                              title="Remove Group"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-[11px] text-slate-400 italic mb-2">No row grouping selected.</p>
@@ -1507,10 +1685,10 @@ export function ReportsPage() {
                     </button>
                     {isAddGroupOpen && (
                       <div className="absolute top-9 left-0 right-0 z-40 bg-white border border-slate-300 rounded shadow-lg py-1 max-h-48 overflow-y-auto text-xs animate-in fade-in">
-                        {AVAILABLE_GROUP_FIELDS.map((g) => (
+                        {AVAILABLE_GROUP_FIELDS.filter((g) => !builderDraft.groupBy.includes(g.id)).map((g) => (
                           <div
                             key={g.id}
-                            onClick={() => handleSetGroup(g.id)}
+                            onClick={() => handleAddGroup(g.id)}
                             className="px-3 py-1.5 hover:bg-slate-100 cursor-pointer text-slate-700 font-medium"
                           >
                             {g.label}
@@ -1691,11 +1869,22 @@ export function ReportsPage() {
                     <th className="py-2.5 px-3 w-10 text-center border-r border-slate-300">
                       <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
                     </th>
-                    {activeCols.map((col, idx) => (
+                    {builderGroupCols.map((col) => (
                       <th
                         key={col.id}
-                        className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap ${
-                          idx === activeCols.length - 1 ? 'border-r-0' : ''
+                        className="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left"
+                      >
+                        <div className="flex items-center gap-1.5 cursor-pointer">
+                          <span>{col.label}</span>
+                          <span className="text-slate-600 font-bold text-xs">↑</span>
+                        </div>
+                      </th>
+                    ))}
+                    {builderDetailCols.map((col, idx) => (
+                      <th
+                        key={col.id}
+                        className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left ${
+                          idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1707,48 +1896,12 @@ export function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.keys(previewGroups).length > 0 ? (
-                    Object.entries(previewGroups).map(([groupKey, groupRows]) => (
-                      <div key={groupKey} className="contents">
-                        {/* Group Header Row */}
-                        <tr className="bg-[#f8fafc] font-medium text-slate-700 border-b border-slate-200">
-                          <td className="py-2 px-3 text-center border-r border-slate-200">
-                            <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
-                          </td>
-                          <td
-                            className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800"
-                            colSpan={activeCols.length}
-                          >
-                            <span className="text-[#0176d3]">
-                              {groupKey} ({groupRows.length})
-                            </span>
-                          </td>
-                        </tr>
-
-                        {/* Detail Rows */}
-                        {groupRows.map((row) => (
-                          <tr
-                            key={row.id}
-                            className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-                          >
-                            <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
-                            {activeCols.map((col, idx) => (
-                              <td
-                                key={col.id}
-                                className={`py-2 px-3 border-r border-slate-200 ${
-                                  idx === activeCols.length - 1 ? 'border-r-0' : ''
-                                }`}
-                              >
-                                {renderCellContent(row, col.id)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </div>
-                    ))
-                  ) : (
+                  {previewComplaints.length === 0 ? (
                     <tr>
-                      <td colSpan={activeCols.length + 1} className="py-12 text-center text-slate-400">
+                      <td
+                        colSpan={1 + builderGroupCols.length + builderDetailCols.length}
+                        className="py-12 text-center text-slate-400"
+                      >
                         <div className="max-w-sm mx-auto space-y-1">
                           <p className="font-semibold text-slate-600">No records returned for this report.</p>
                           <p className="text-[11px] text-slate-400">
@@ -1756,6 +1909,152 @@ export function ReportsPage() {
                           </p>
                         </div>
                       </td>
+                    </tr>
+                  ) : builderNested2LevelData ? (
+                    Object.entries(builderNested2LevelData).map(([k1, subMap]) => {
+                      let isFirstL1Row = true;
+                      return (
+                        <div key={k1} className="contents">
+                          {Object.entries(subMap).map(([k2, rows], l2Idx) => {
+                            let isFirstL2Row = true;
+                            return (
+                              <div key={k2} className="contents">
+                                {toggles.detailRows &&
+                                  rows.map((row) => {
+                                    const showL1 = isFirstL1Row;
+                                    const showL2 = isFirstL2Row;
+                                    isFirstL1Row = false;
+                                    isFirstL2Row = false;
+                                    return (
+                                      <tr
+                                        key={row.id}
+                                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                      >
+                                        <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                        <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
+                                          {showL1 ? k1 : ''}
+                                        </td>
+                                        <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                          {showL2 ? (
+                                            <span>
+                                              {k2} {toggles.rowCounts && <span className="text-slate-500 font-normal">({rows.length})</span>}
+                                            </span>
+                                          ) : (
+                                            ''
+                                          )}
+                                        </td>
+                                        {builderDetailCols.map((col, idx) => (
+                                          <td
+                                            key={col.id}
+                                            className={`py-2 px-3 border-r border-slate-200 ${
+                                              idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                                            }`}
+                                          >
+                                            {renderCellContent(row, col.id)}
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    );
+                                  })}
+                                {toggles.subtotals && (
+                                  <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                                    <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                    <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                    <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                                    <td colSpan={builderDetailCols.length} className="py-1.5 px-3"></td>
+                                  </tr>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {toggles.subtotals && (
+                            <tr className="bg-slate-100/70 border-b border-slate-200 font-bold text-slate-800 text-xs">
+                              <td className="py-2 px-3 border-r border-slate-200"></td>
+                              <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-800">Subtotal</td>
+                              <td colSpan={1 + builderDetailCols.length} className="py-2 px-3"></td>
+                            </tr>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : builderSingleLevelData ? (
+                    Object.entries(builderSingleLevelData).map(([groupKey, groupRows]) => {
+                      let isFirst = true;
+                      return (
+                        <div key={groupKey} className="contents">
+                          {toggles.detailRows &&
+                            groupRows.map((row) => {
+                              const showGroup = isFirst;
+                              isFirst = false;
+                              return (
+                                <tr
+                                  key={row.id}
+                                  className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                >
+                                  <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                  <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-medium align-top whitespace-nowrap">
+                                    {showGroup ? (
+                                      <span>
+                                        {groupKey} {toggles.rowCounts && <span className="text-slate-500 font-normal">({groupRows.length})</span>}
+                                      </span>
+                                    ) : (
+                                      ''
+                                    )}
+                                  </td>
+                                  {builderDetailCols.map((col, idx) => (
+                                    <td
+                                      key={col.id}
+                                      className={`py-2 px-3 border-r border-slate-200 ${
+                                        idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                                      }`}
+                                    >
+                                      {renderCellContent(row, col.id)}
+                                    </td>
+                                  ))}
+                                </tr>
+                              );
+                            })}
+                          {toggles.subtotals && (
+                            <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                              <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                              <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                              <td colSpan={builderDetailCols.length} className="py-1.5 px-3"></td>
+                            </tr>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    toggles.detailRows &&
+                    previewComplaints.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                      >
+                        <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                        {builderDetailCols.map((col, idx) => (
+                          <td
+                            key={col.id}
+                            className={`py-2 px-3 border-r border-slate-200 ${
+                              idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                            }`}
+                          >
+                            {renderCellContent(row, col.id)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  )}
+                  {toggles.grandTotal && previewComplaints.length > 0 && (
+                    <tr className="bg-[#f0f4f8] font-bold text-slate-900 border-t-2 border-slate-300 text-xs">
+                      <td className="py-2.5 px-3 border-r border-slate-300 text-center"></td>
+                      <td className="py-2.5 px-3 border-r border-slate-300 font-bold whitespace-nowrap">
+                        Total ({previewComplaints.length})
+                      </td>
+                      <td
+                        colSpan={builderGroupCols.length + builderDetailCols.length - 1}
+                        className="py-2.5 px-3"
+                      ></td>
                     </tr>
                   )}
                 </tbody>
@@ -1812,8 +2111,61 @@ export function ReportsPage() {
   // ==========================================================================
   if (activeReport && currentViewReport) {
     const isRuntimeOverrideActive = Boolean(runtimeOverrides[activeReport.id]);
-    const activeCols = currentViewReport.columns.map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
-    const groupField = currentViewReport.groupBy?.[0] || 'createdMonthYear';
+    const groupFieldIds = Array.isArray(currentViewReport.groupBy)
+      ? currentViewReport.groupBy
+      : [currentViewReport.groupBy].filter(Boolean);
+
+    const groupCols = groupFieldIds.map(
+      (gid) =>
+        AVAILABLE_GROUP_FIELDS.find((f) => f.id === gid) ||
+        AVAILABLE_FIELDS.find((f) => f.id === gid) || { id: gid, label: gid }
+    );
+
+    const detailCols = currentViewReport.columns
+      .filter((cid) => !groupFieldIds.includes(cid))
+      .map((cid) => AVAILABLE_FIELDS.find((f) => f.id === cid) || { id: cid, label: cid });
+
+    const displayRows = activeReportRows.filter((r) => {
+      if (!tableSearch) return true;
+      const q = tableSearch.toLowerCase().trim();
+      return (
+        (r.complaintNo && r.complaintNo.toLowerCase().includes(q)) ||
+        (r.productName && r.productName.toLowerCase().includes(q)) ||
+        (r.locationDetail && r.locationDetail.toLowerCase().includes(q)) ||
+        (r.manufacturingLocation && r.manufacturingLocation.toLowerCase().includes(q)) ||
+        (r.contactPerson && r.contactPerson.toLowerCase().includes(q)) ||
+        (r.distributor && r.distributor.toLowerCase().includes(q)) ||
+        (r.requestedBy && r.requestedBy.toLowerCase().includes(q)) ||
+        (r.financialYear && r.financialYear.toLowerCase().includes(q))
+      );
+    });
+
+    const nested2LevelData = (() => {
+      if (groupFieldIds.length !== 2) return null;
+      const g1 = groupFieldIds[0];
+      const g2 = groupFieldIds[1];
+      const tree = {};
+      displayRows.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        const k2 = String(row[g2] || '—');
+        if (!tree[k1]) tree[k1] = {};
+        if (!tree[k1][k2]) tree[k1][k2] = [];
+        tree[k1][k2].push(row);
+      });
+      return tree;
+    })();
+
+    const singleLevelData = (() => {
+      if (groupFieldIds.length !== 1) return null;
+      const g1 = groupFieldIds[0];
+      const map = {};
+      displayRows.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        if (!map[k1]) map[k1] = [];
+        map[k1].push(row);
+      });
+      return map;
+    })();
 
     return (
       <div className="space-y-0 pb-8 text-slate-800 animate-in fade-in">
@@ -2074,11 +2426,11 @@ export function ReportsPage() {
             <div>
               <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
               <span className="text-[16px] font-bold text-slate-900 leading-tight">
-                {activeReportRows.length}
+                {displayRows.length}
               </span>
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              Columns: {activeCols.length} | Grouped by: {AVAILABLE_GROUP_FIELDS.find((g) => g.id === groupField)?.label || groupField}
+              Columns: {detailCols.length} {groupCols.length > 0 ? `| Grouped by: ${groupCols.map((g) => g.label).join(', ')}` : ''}
             </div>
           </div>
 
@@ -2090,11 +2442,22 @@ export function ReportsPage() {
                   <th className="py-2.5 px-3 w-10 text-center border-r border-slate-300">
                     <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
                   </th>
-                  {activeCols.map((col, idx) => (
+                  {groupCols.map((col) => (
                     <th
                       key={col.id}
-                      className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap ${
-                        idx === activeCols.length - 1 ? 'border-r-0' : ''
+                      className="py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left"
+                    >
+                      <div className="flex items-center gap-1.5 cursor-pointer">
+                        <span>{col.label}</span>
+                        <span className="text-slate-600 font-bold text-xs">↑</span>
+                      </div>
+                    </th>
+                  ))}
+                  {detailCols.map((col, idx) => (
+                    <th
+                      key={col.id}
+                      className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left ${
+                        idx === detailCols.length - 1 ? 'border-r-0' : ''
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -2106,118 +2469,228 @@ export function ReportsPage() {
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(groupedData).length > 0 && activeReportRows.length > 0 ? (
-                  Object.entries(groupedData).map(([groupKey, groupRows]) => {
-                    const isCollapsed = Boolean(collapsedGroups[groupKey]);
+                {displayRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={1 + groupCols.length + detailCols.length}
+                      className="py-14 text-center text-slate-400"
+                    >
+                      <div className="max-w-md mx-auto space-y-1.5">
+                        <p className="text-sm font-semibold text-slate-700">No records returned for this report.</p>
+                        <p className="text-xs text-slate-500">
+                          Currently no complaints match the active report criteria.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : nested2LevelData ? (
+                  // 2-Level Nested Grouping (Exact match to Report by Manufacturing screenshot)
+                  Object.entries(nested2LevelData).map(([k1, subMap]) => {
+                    let isFirstL1Row = true;
+                    return (
+                      <div key={k1} className="contents">
+                        {Object.entries(subMap).map(([k2, rows], l2Idx) => {
+                          let isFirstL2Row = true;
+                          return (
+                            <div key={k2} className="contents">
+                              {toggles.detailRows &&
+                                rows.map((row) => {
+                                  const showL1 = isFirstL1Row;
+                                  const showL2 = isFirstL2Row;
+                                  isFirstL1Row = false;
+                                  isFirstL2Row = false;
+                                  return (
+                                    <tr
+                                      key={row.id}
+                                      className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                                    >
+                                      <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                      <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
+                                        {showL1 ? k1 : ''}
+                                      </td>
+                                      <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                        {showL2 ? (
+                                          <span>
+                                            {k2} {toggles.rowCounts && <span className="text-slate-500 font-normal">({rows.length})</span>}
+                                          </span>
+                                        ) : (
+                                          ''
+                                        )}
+                                      </td>
+                                      {detailCols.map((col, idx) => (
+                                        <td
+                                          key={col.id}
+                                          className={`py-2 px-3 border-r border-slate-200 ${
+                                            idx === detailCols.length - 1 ? 'border-r-0' : ''
+                                          }`}
+                                        >
+                                          {renderCellContent(row, col.id)}
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  );
+                                })}
+                              {toggles.subtotals && (
+                                <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                                  <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                  <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                  <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                                  <td colSpan={detailCols.length} className="py-1.5 px-3"></td>
+                                </tr>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {toggles.subtotals && (
+                          <tr className="bg-slate-100/70 border-b border-slate-200 font-bold text-slate-800 text-xs">
+                            <td className="py-2 px-3 border-r border-slate-200"></td>
+                            <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-800">Subtotal</td>
+                            <td colSpan={1 + detailCols.length} className="py-2 px-3"></td>
+                          </tr>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : singleLevelData ? (
+                  // 1-Level Grouping (e.g. Non - Confirmed Complaints grouped by Requested By)
+                  Object.entries(singleLevelData).map(([groupKey, groupRows]) => {
+                    let isFirst = true;
                     return (
                       <div key={groupKey} className="contents">
-                        {/* Group Header Row */}
-                        <tr className="bg-[#f8fafc] font-medium text-slate-700 border-b border-slate-200">
-                          <td className="py-2 px-3 text-center border-r border-slate-200">
-                            <input type="checkbox" className="rounded text-blue-600 border-slate-300" />
-                          </td>
-                          <td
-                            className="py-2 px-3 border-r border-slate-200 font-semibold text-slate-800"
-                            colSpan={activeCols.length}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => toggleGroupCollapse(groupKey)}
-                              className="flex items-center gap-1.5 text-slate-800 hover:text-blue-600 font-semibold text-xs cursor-pointer"
-                            >
-                              <span className="w-3 text-center">{isCollapsed ? '+' : '−'}</span>
-                              <span>
-                                {groupKey} ({groupRows.length})
-                              </span>
-                            </button>
-                          </td>
-                        </tr>
-
-                        {/* Detail Rows */}
-                        {!isCollapsed &&
-                          groupRows.map((row) => (
-                            <tr
-                              key={row.id}
-                              className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
-                            >
-                              <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
-                              {activeCols.map((col, idx) => (
-                                <td
-                                  key={col.id}
-                                  className={`py-2 px-3 border-r border-slate-200 ${
-                                    idx === activeCols.length - 1 ? 'border-r-0' : ''
-                                  }`}
-                                >
-                                  {renderCellContent(row, col.id)}
+                        {toggles.detailRows &&
+                          groupRows.map((row) => {
+                            const showGroup = isFirst;
+                            isFirst = false;
+                            return (
+                              <tr
+                                key={row.id}
+                                className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                              >
+                                <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-medium align-top whitespace-nowrap">
+                                  {showGroup ? (
+                                    <span>
+                                      {groupKey} {toggles.rowCounts && <span className="text-slate-500 font-normal">({groupRows.length})</span>}
+                                    </span>
+                                  ) : (
+                                    ''
+                                  )}
                                 </td>
-                              ))}
-                            </tr>
-                          ))}
+                                {detailCols.map((col, idx) => (
+                                  <td
+                                    key={col.id}
+                                    className={`py-2 px-3 border-r border-slate-200 ${
+                                      idx === detailCols.length - 1 ? 'border-r-0' : ''
+                                    }`}
+                                  >
+                                    {renderCellContent(row, col.id)}
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        {toggles.subtotals && (
+                          <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                            <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                            <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                            <td colSpan={detailCols.length} className="py-1.5 px-3"></td>
+                          </tr>
+                        )}
                       </div>
                     );
                   })
                 ) : (
-                  <tr>
-                    <td colSpan={activeCols.length + 1} className="py-14 text-center text-slate-400">
-                      <div className="max-w-md mx-auto space-y-1.5">
-                        <p className="text-sm font-semibold text-slate-700">No records returned for this report.</p>
-                        <p className="text-xs text-slate-500">
-                          This report is configured with {activeCols.length} columns. Currently no complaints in the system match its criteria.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenBuilder(activeReport)}
-                          className="mt-2 inline-flex items-center gap-1 px-3 py-1 rounded border border-slate-300 text-xs font-semibold text-[#0176d3] hover:bg-slate-50"
+                  // Flat Table with 0 Grouping (e.g. Complaints Closed within SLA)
+                  toggles.detailRows &&
+                  displayRows.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                    >
+                      <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                      {detailCols.map((col, idx) => (
+                        <td
+                          key={col.id}
+                          className={`py-2 px-3 border-r border-slate-200 ${
+                            idx === detailCols.length - 1 ? 'border-r-0' : ''
+                          }`}
                         >
-                          <Pencil className="h-3 w-3" />
-                          <span>Customize Filters in Edit Mode</span>
-                        </button>
-                      </div>
+                          {renderCellContent(row, col.id)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                )}
+                {/* Grand Total Row */}
+                {toggles.grandTotal && displayRows.length > 0 && (
+                  <tr className="bg-[#f0f4f8] font-bold text-slate-900 border-t-2 border-slate-300 text-xs">
+                    <td className="py-2.5 px-3 border-r border-slate-300 text-center"></td>
+                    <td className="py-2.5 px-3 border-r border-slate-300 font-bold whitespace-nowrap">
+                      Total ({displayRows.length})
                     </td>
+                    <td
+                      colSpan={groupCols.length + detailCols.length - 1}
+                      className="py-2.5 px-3"
+                    ></td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          {/* Bottom Toolbar Toggles */}
-          <div className="bg-[#f3f3f3] border-t border-slate-300 px-6 py-2.5 flex items-center gap-6 text-xs text-slate-700 select-none overflow-x-auto">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="font-semibold text-slate-700">Row Counts</span>
-              <input
-                type="checkbox"
-                checked={toggles.rowCounts}
-                onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-0"
-              />
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="font-semibold text-slate-700">Detail Rows</span>
-              <input
-                type="checkbox"
-                checked={toggles.detailRows}
-                onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-0"
-              />
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="font-semibold text-slate-700">Subtotals</span>
-              <input
-                type="checkbox"
-                checked={toggles.subtotals}
-                onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-0"
-              />
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <span className="font-semibold text-slate-700">Grand Total</span>
-              <input
-                type="checkbox"
-                checked={toggles.grandTotal}
-                onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-0"
-              />
-            </label>
+          {/* Bottom Toolbar: Search input + Toggles */}
+          <div className="bg-[#f3f3f3] border-t border-slate-300 px-6 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-700 select-none">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative w-full sm:w-48">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search this list..."
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  className="w-full pl-8 pr-2.5 py-1 rounded border border-slate-300 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0176d3]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6 overflow-x-auto w-full sm:w-auto justify-end">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Row Counts</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.rowCounts}
+                  onChange={(e) => setToggles({ ...toggles, rowCounts: e.target.checked })}
+                  className="rounded text-blue-600 focus:ring-0"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Detail Rows</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.detailRows}
+                  onChange={(e) => setToggles({ ...toggles, detailRows: e.target.checked })}
+                  className="rounded text-blue-600 focus:ring-0"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Subtotals</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.subtotals}
+                  onChange={(e) => setToggles({ ...toggles, subtotals: e.target.checked })}
+                  className="rounded text-blue-600 focus:ring-0"
+                />
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="font-semibold text-slate-700">Grand Total</span>
+                <input
+                  type="checkbox"
+                  checked={toggles.grandTotal}
+                  onChange={(e) => setToggles({ ...toggles, grandTotal: e.target.checked })}
+                  className="rounded text-blue-600 focus:ring-0"
+                />
+              </label>
+            </div>
           </div>
         </div>
 
