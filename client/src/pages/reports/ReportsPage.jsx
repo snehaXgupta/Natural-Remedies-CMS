@@ -92,6 +92,204 @@ export const AVAILABLE_GROUP_FIELDS = [
   { id: 'category', label: 'Nature / Category' },
 ];
 
+// Salesforce Lightning Report Chart Component (matching exact Salesforce SLDS reference)
+function ReportVisualChart({ report, chartData, groupFieldLabel = 'Stage', chartType = 'vertical' }) {
+  if (!chartData || chartData.length === 0) return null;
+
+  const maxInArray = Math.max(...chartData.map((d) => d.count || 0), 0);
+  const step = Math.max(Math.ceil(maxInArray / 3), 1);
+  const maxTick = Math.max(step * 3, 3);
+  const ticks = [maxTick, step * 2, step, 0];
+
+  if (chartType === 'horizontal') {
+    const defaultTicks = [0, step, step * 2, maxTick];
+    return (
+      <div className="bg-white border-b border-slate-200 px-6 pt-4 pb-3 animate-in fade-in">
+        <div className="max-w-4xl mx-auto">
+          {/* Top Axis: Record Count */}
+          <div className="flex items-end mb-1">
+            <div className="w-[150px] shrink-0" />
+            <div className="flex-1 relative">
+              <div className="text-center text-[10px] text-slate-500 font-medium mb-1 select-none">
+                Record Count
+              </div>
+              <div className="relative h-3.5 text-[10px] text-slate-500 font-normal select-none">
+                {defaultTicks.map((t) => {
+                  const pct = (t / maxTick) * 100;
+                  return (
+                    <span
+                      key={t}
+                      className="absolute -translate-x-1/2"
+                      style={{ left: `${pct}%` }}
+                    >
+                      {t}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Chart Plot Area */}
+          <div className="flex max-h-[190px] overflow-y-auto pr-1">
+            <div className="w-5 shrink-0 flex items-center justify-center">
+              <span
+                className="text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                }}
+              >
+                {groupFieldLabel}
+              </span>
+            </div>
+
+            <div className="w-[130px] shrink-0 flex flex-col justify-around pr-2 text-right">
+              {chartData.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="h-7 flex items-center justify-end text-[11px] text-slate-700 truncate"
+                  title={item.label}
+                >
+                  {item.label}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex-1 relative border-l border-slate-400 flex flex-col justify-around py-0.5 min-h-[90px]">
+              <div className="absolute inset-0 pointer-events-none">
+                {defaultTicks.map((t) => {
+                  if (t === 0) return null;
+                  const pct = (t / maxTick) * 100;
+                  return (
+                    <div
+                      key={t}
+                      className="absolute top-0 bottom-0 border-r border-slate-200"
+                      style={{ left: `${pct}%` }}
+                    />
+                  );
+                })}
+              </div>
+
+              {chartData.map((item, idx) => {
+                const widthPct = Math.min((item.count / maxTick) * 100, 100);
+                return (
+                  <div key={idx} className="relative h-7 flex items-center z-10">
+                    <div
+                      className="bg-[#1b8be8] hover:bg-[#0176d3] h-5 flex items-center justify-end transition-all duration-300"
+                      style={{ width: `${Math.max(widthPct, item.count > 0 ? 5 : 0)}%` }}
+                      title={`${item.label}: ${item.count}`}
+                    >
+                      {item.count > 0 && (
+                        <span className="text-white text-[10px] font-bold pr-1.5 leading-none select-none">
+                          {item.count}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Vertical Bar Chart (Exact match to Salesforce reference in media_1795696001096_242c8217.jpg)
+  return (
+    <div className="bg-white border-b border-slate-200 px-6 pt-5 pb-3 animate-in fade-in">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex">
+          {/* Far Left: Rotated Y-Axis Label "Record Count" */}
+          <div className="w-5 shrink-0 flex items-center justify-center">
+            <span
+              className="text-[10px] text-slate-500 font-normal whitespace-nowrap select-none"
+              style={{
+                writingMode: 'vertical-rl',
+                transform: 'rotate(180deg)',
+              }}
+            >
+              Record Count
+            </span>
+          </div>
+
+          {/* Y-Axis Tick Numbers */}
+          <div className="w-7 shrink-0 flex flex-col justify-between items-end pr-2 h-44 text-[10px] text-slate-500 font-normal select-none py-0.5">
+            {ticks.map((t) => (
+              <span key={t} className="leading-none">{t}</span>
+            ))}
+          </div>
+
+          {/* Plot Area with Horizontal Gridlines & Vertical Bars */}
+          <div className="flex-1 relative h-44 border-b border-slate-300">
+            {/* Background Horizontal Grid Lines at ticks */}
+            <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-0.5">
+              {ticks.map((t, idx) => (
+                <div
+                  key={t}
+                  className={`w-full ${idx === ticks.length - 1 ? 'border-b border-slate-300' : 'border-b border-slate-200'}`}
+                />
+              ))}
+            </div>
+
+            {/* Bars Container */}
+            <div className="absolute inset-0 flex items-end justify-around px-4 z-10">
+              {chartData.map((item) => {
+                const heightPct = Math.min((item.count / maxTick) * 100, 100);
+                const isSmall = heightPct < 15;
+                return (
+                  <div
+                    key={item.label}
+                    className="flex-1 max-w-[76px] mx-2 h-full flex items-end justify-center group"
+                  >
+                    <div
+                      className="w-full bg-[#1b8be8] hover:bg-[#0176d3] transition-all duration-300 flex items-center justify-center relative cursor-pointer"
+                      style={{ height: `${Math.max(heightPct, item.count > 0 ? 5 : 0)}%` }}
+                      title={`${item.label}: ${item.count}`}
+                    >
+                      {item.count > 0 && (
+                        <span
+                          className={`text-slate-900 text-[11px] font-bold select-none ${
+                            isSmall ? 'absolute -top-4.5' : 'text-white'
+                          }`}
+                        >
+                          {item.count}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom X-Axis: Labels & Axis Title */}
+        <div className="flex">
+          <div className="w-12 shrink-0" />
+          <div className="flex-1">
+            <div className="flex justify-around px-4 pt-1.5">
+              {chartData.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex-1 max-w-[76px] mx-2 text-center text-[11px] text-slate-700 font-medium select-none truncate"
+                  title={item.label}
+                >
+                  {item.label}
+                </div>
+              ))}
+            </div>
+            <div className="text-center text-[10px] text-slate-500 font-medium pt-1 select-none">
+              {groupFieldLabel}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Salesforce Lightning Checkbox Toggle Switch (matching exact Salesforce SLDS reference)
 function SalesforceToggle({ label, checked, onChange }) {
   return (
@@ -800,6 +998,7 @@ export function ReportsPage() {
       );
       if (match) {
         setActiveReport(match);
+        setShowChart(true);
       }
     }
   }, [reportParamId, reports]);
@@ -812,6 +1011,7 @@ export function ReportsPage() {
 
   const handleSelectReport = (rep) => {
     setActiveReport(rep);
+    setShowChart(true);
     if (rep?.id) {
       setSearchParams({ reportId: rep.id });
     }
@@ -843,6 +1043,7 @@ export function ReportsPage() {
   const [sortField, setSortField] = useState('name');
   const [sortAsc, setSortAsc] = useState(true);
   const [dbComplaints, setDbComplaints] = useState([]);
+  const [showChart, setShowChart] = useState(true);
 
   const [toggles, setToggles] = useState({
     rowCounts: false,
@@ -2219,6 +2420,60 @@ export function ReportsPage() {
       return map;
     })();
 
+    const isChartHorizontal = (() => {
+      const repName = (activeReport.name || '').toLowerCase();
+      if (activeReport.id === 'rep-33' || repName.includes('stage')) return false;
+      if (
+        repName.includes('inhouse') ||
+        repName.includes('cmo') ||
+        repName.includes('customer') ||
+        repName.includes('product') ||
+        repName.includes('failure')
+      ) {
+        return true;
+      }
+      return false;
+    })();
+
+    const chartData = (() => {
+      const repName = (activeReport.name || '').toLowerCase();
+      // Exact match to Complaint Stage wise Overview screenshot (D2, D3, D4, Closed)
+      if (activeReport.id === 'rep-33' || repName.includes('stage wise overview')) {
+        const counts = { D2: 0, D3: 0, D4: 0, Closed: 0 };
+        dbComplaints.forEach((c) => {
+          const s = (c.stage || '').toUpperCase();
+          const status = (c.status || '').toUpperCase();
+          if (s === 'CLOSED' || status === 'CLOSED' || c.isClosed) {
+            counts.Closed++;
+          } else if (s === 'D2') {
+            counts.D2++;
+          } else if (s === 'D3') {
+            counts.D3++;
+          } else if (s === 'D4') {
+            counts.D4++;
+          }
+        });
+        const order = ['D2', 'D3', 'D4', 'Closed'];
+        return order.map((k) => ({ label: k, count: counts[k] || 0 }));
+      }
+
+      if (nested2LevelData) {
+        return Object.entries(nested2LevelData).map(([k1, subMap]) => {
+          const total = Object.values(subMap).reduce((sum, rows) => sum + rows.length, 0);
+          return { label: k1, count: total };
+        });
+      }
+
+      if (singleLevelData) {
+        return Object.entries(singleLevelData).map(([k, rows]) => ({
+          label: k,
+          count: rows.length,
+        }));
+      }
+
+      return [];
+    })();
+
     return (
       <div className="space-y-0 pb-8 text-slate-800 animate-in fade-in">
         {/* Top Breadcrumb Navigation */}
@@ -2347,10 +2602,15 @@ export function ReportsPage() {
 
               <button
                 type="button"
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs"
+                onClick={() => setShowChart(!showChart)}
+                className={`p-1.5 rounded border shadow-2xs transition ${
+                  showChart
+                    ? 'border-[#0176d3] bg-[#0176d3] text-white hover:bg-[#0165b8]'
+                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-600'
+                }`}
+                title={showChart ? 'Hide Chart' : 'Show Chart'}
               >
-                <BarChart3 className="h-3.5 w-3.5 text-slate-600" />
-                <span>Add Chart</span>
+                <BarChart3 className="h-4 w-4" />
               </button>
 
               <button
@@ -2472,6 +2732,16 @@ export function ReportsPage() {
               </div>
             </div>
           </div>
+
+          {/* Salesforce Report Chart (Shown by default & toggleable from action toolbar) */}
+          {showChart && chartData && chartData.length > 0 && (
+            <ReportVisualChart
+              report={activeReport}
+              chartData={chartData}
+              groupFieldLabel={groupCols[0]?.label || 'Stage'}
+              chartType={isChartHorizontal ? 'horizontal' : 'vertical'}
+            />
+          )}
 
           {/* Total Records Row */}
           <div className="bg-[#f8fafc] border-b border-slate-200 px-6 py-2.5 flex items-center justify-between">
