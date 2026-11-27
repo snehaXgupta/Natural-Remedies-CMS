@@ -477,7 +477,7 @@ function getDefaultGroupByForReport(repId, repName) {
     return ['manufacturingLocation', 'locationDetail'];
   }
   if (n === 'inhouse report' || repId === 'rep-27') {
-    return ['locationDetail'];
+    return ['manufacturingLocation', 'locationDetail'];
   }
   if (n === 'cmo wise report' || repId === 'rep-28') {
     return ['locationDetail'];
@@ -796,6 +796,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '27/3/2023, 7:23 pm',
     subscribed: false,
     type: 'inhouse-report',
+    columns: ['complaintNo', 'contactPerson', 'financialYear'],
+    groupBy: ['manufacturingLocation', 'locationDetail'],
   },
   // 28. Screenshot Extract 8
   {
@@ -1128,7 +1130,12 @@ export function ReportsPage() {
                   groupBy: ['createdMonthYear', 'confirmedOrNot', 'd7Completed'],
                 };
               }
-              if (p.id === 'rep-29' || (p.name && p.name.toLowerCase() === 'report by manufacturing')) {
+              if (
+                p.id === 'rep-27' ||
+                (p.name && p.name.toLowerCase() === 'inhouse report') ||
+                p.id === 'rep-29' ||
+                (p.name && p.name.toLowerCase() === 'report by manufacturing')
+              ) {
                 return {
                   ...p,
                   columns: ['complaintNo', 'contactPerson', 'financialYear'],
@@ -1471,7 +1478,12 @@ export function ReportsPage() {
       ) {
         cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
         grp = ['sbu'];
-      } else if (activeReport.id === 'rep-29' || repName === 'report by manufacturing') {
+      } else if (
+        activeReport.id === 'rep-27' ||
+        repName === 'inhouse report' ||
+        activeReport.id === 'rep-29' ||
+        repName === 'report by manufacturing'
+      ) {
         cols = ['complaintNo', 'contactPerson', 'financialYear'];
         grp = ['manufacturingLocation', 'locationDetail'];
       } else if (activeReport.id === 'rep-13' || repName.includes('non - confirmed complaints')) {
@@ -3362,9 +3374,6 @@ export function ReportsPage() {
                   </span>
                 </div>
               )}
-            </div>
-            <div className="text-[11px] text-slate-500 font-medium">
-              Columns: {detailCols.length} {groupCols.length > 0 ? `| Grouped by: ${groupCols.map((g) => g.label).join(', ')}` : ''}
             </div>
           </div>
 
