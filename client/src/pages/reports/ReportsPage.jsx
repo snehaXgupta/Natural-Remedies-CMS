@@ -67,12 +67,13 @@ export const AVAILABLE_FIELDS = [
   { id: 'acknowledgement', label: 'Acknowledgement', type: 'text', category: 'Workflow' },
   { id: 'assignedFrp', label: 'Assigned FRP', type: 'text', category: 'Workflow' },
   { id: 'daysOpen', label: 'Days Open', type: 'text', category: 'Turnaround' },
-  { id: 'd1Sla', label: 'D1 SLA (9h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd1Sla', label: 'D1 SLA', type: 'sla_dot', category: 'SLA Tracking' },
   { id: 'd1Duration', label: 'D1 Duration', type: 'duration', category: 'SLA Tracking' },
-  { id: 'd1Status', label: 'D1 Status', type: 'text', category: 'SLA Tracking' },
-  { id: 'd2Sla', label: 'D2 SLA (9h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd1Status', label: 'D1 Completion Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd2Sla', label: 'D2 SLA', type: 'sla_dot', category: 'SLA Tracking' },
   { id: 'd2Duration', label: 'D2 Duration', type: 'duration', category: 'SLA Tracking' },
-  { id: 'd2Status', label: 'D2 Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd2Status', label: 'D2 Completion Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'totalDaysTaken', label: 'Total Days taken Including all Stages', type: 'number', category: 'SLA Tracking' },
   { id: 'd3Sla', label: 'D3 SLA (36h)', type: 'sla_dot', category: 'SLA Tracking' },
   { id: 'd3Duration', label: 'D3 Duration', type: 'duration', category: 'SLA Tracking' },
   { id: 'd3Status', label: 'D3 Status', type: 'text', category: 'SLA Tracking' },
@@ -80,6 +81,7 @@ export const AVAILABLE_FIELDS = [
 ];
 
 export const AVAILABLE_GROUP_FIELDS = [
+  { id: 'slaStatus', label: 'SLA Status' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location' },
   { id: 'locationDetail', label: 'Location detail' },
   { id: 'createdMonthYear', label: 'Complaint: Created Date (Month/Year)' },
@@ -329,6 +331,24 @@ function getDefaultColumnsForReport(repId, repName) {
   if (n === 'report by manufacturing' || repId === 'rep-29') {
     return ['complaintNo', 'contactPerson', 'financialYear'];
   }
+  // Exact Salesforce Schema for Non - Confirmed: Complaints SLA Reports (Screenshot confirmed)
+  if (
+    n === 'non - confirmed: complaints sla reports' ||
+    n.includes('non - confirmed: complaints sla') ||
+    n.includes('non-confirmed: complaints sla') ||
+    repId === 'rep-18'
+  ) {
+    return [
+      'complaintNo',
+      'd1Sla',
+      'd1Duration',
+      'd1Status',
+      'd2Sla',
+      'd2Duration',
+      'd2Status',
+      'totalDaysTaken',
+    ];
+  }
   // Exact Salesforce Schema for Non - Confirmed Complaints (Screenshot confirmed)
   if (n === 'non - confirmed complaints' || n === 'non-confirmed complaints' || repId === 'rep-13') {
     return ['complaintNo', 'distributor', 'productName'];
@@ -388,6 +408,14 @@ function getDefaultGroupByForReport(repId, repName) {
   }
   if (n === 'cmo wise report' || repId === 'rep-28') {
     return ['locationDetail'];
+  }
+  if (
+    n === 'non - confirmed: complaints sla reports' ||
+    n.includes('non - confirmed: complaints sla') ||
+    n.includes('non-confirmed: complaints sla') ||
+    repId === 'rep-18'
+  ) {
+    return ['slaStatus'];
   }
   if (n === 'non - confirmed complaints' || n === 'non-confirmed complaints' || repId === 'rep-13') {
     return ['requestedBy'];
@@ -552,6 +580,17 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '2/2/2024, 5:08 pm',
     subscribed: false,
     type: 'non-confirmed-sla',
+    columns: [
+      'complaintNo',
+      'd1Sla',
+      'd1Duration',
+      'd1Status',
+      'd2Sla',
+      'd2Duration',
+      'd2Status',
+      'totalDaysTaken',
+    ],
+    groupBy: ['slaStatus'],
   },
   // 19. User Report 7
   {
@@ -798,11 +837,15 @@ function calculateStageSla(startTime, endTime, targetHours, isCompleted) {
   }
   const start = new Date(startTime).getTime();
   const end = endTime ? new Date(endTime).getTime() : Date.now();
-  const diffHours = Math.max(0, (end - start) / (1000 * 60 * 60));
+  const diffMs = Math.max(0, end - start);
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const durationStr = `${days}:${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const diffHours = diffMs / (1000 * 60 * 60);
   const inSla = diffHours <= targetHours;
-  const hours = Math.floor(diffHours);
-  const minutes = Math.floor((diffHours - hours) * 60);
-  const durationStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
 
   return {
     duration: durationStr,
@@ -952,6 +995,22 @@ export function ReportsPage() {
                   ...p,
                   columns: ['complaintNo', 'distributor', 'productName'],
                   groupBy: ['requestedBy'],
+                };
+              }
+              if (p.id === 'rep-18' || (p.name && p.name.toLowerCase().includes('non - confirmed: complaints sla'))) {
+                return {
+                  ...p,
+                  columns: [
+                    'complaintNo',
+                    'd1Sla',
+                    'd1Duration',
+                    'd1Status',
+                    'd2Sla',
+                    'd2Duration',
+                    'd2Status',
+                    'totalDaysTaken',
+                  ],
+                  groupBy: ['slaStatus'],
                 };
               }
               if (p.id === 'rep-14' || (p.name && p.name.toLowerCase().includes('closed within sla'))) {
@@ -1157,6 +1216,8 @@ export function ReportsPage() {
             : '—'),
         assignedFrp: c.frp?.name || c.frp?.email || '—',
         daysOpen: `${daysOpenNum} days`,
+        totalDaysTaken: daysOpenNum,
+        slaStatus: overallInSla ? 'Completed With in SLA' : 'Not Completed with in SLA',
         d1Sla: d1SlaInfo,
         d1Duration: d1SlaInfo.duration,
         d1Status: d1SlaInfo.statusText,
@@ -1195,6 +1256,18 @@ export function ReportsPage() {
       } else if (activeReport.id === 'rep-13' || repName.includes('non - confirmed complaints')) {
         cols = ['complaintNo', 'distributor', 'productName'];
         grp = ['requestedBy'];
+      } else if (activeReport.id === 'rep-18' || repName.includes('non - confirmed: complaints sla')) {
+        cols = [
+          'complaintNo',
+          'd1Sla',
+          'd1Duration',
+          'd1Status',
+          'd2Sla',
+          'd2Duration',
+          'd2Status',
+          'totalDaysTaken',
+        ];
+        grp = ['slaStatus'];
       } else if (activeReport.id === 'rep-14' || repName.includes('closed within sla')) {
         cols = ['complaintNo', 'productName', 'distributor'];
         grp = [];
@@ -1734,6 +1807,16 @@ export function ReportsPage() {
         });
         Object.keys(map).forEach((k) => {
           if (!ordered[k] && k.toUpperCase() !== 'CLOSED') ordered[k] = map[k];
+        });
+        return ordered;
+      }
+      if (g1 === 'slaStatus') {
+        const ordered = {};
+        ['Completed With in SLA', 'Not Completed with in SLA'].forEach((st) => {
+          if (map[st]) ordered[st] = map[st];
+        });
+        Object.keys(map).forEach((k) => {
+          if (!ordered[k]) ordered[k] = map[k];
         });
         return ordered;
       }
@@ -2419,6 +2502,16 @@ export function ReportsPage() {
         });
         return ordered;
       }
+      if (g1 === 'slaStatus') {
+        const ordered = {};
+        ['Completed With in SLA', 'Not Completed with in SLA'].forEach((st) => {
+          if (map[st]) ordered[st] = map[st];
+        });
+        Object.keys(map).forEach((k) => {
+          if (!ordered[k]) ordered[k] = map[k];
+        });
+        return ordered;
+      }
       return map;
     })();
 
@@ -2721,11 +2814,25 @@ export function ReportsPage() {
 
           {/* Total Records Row */}
           <div className="bg-[#f8fafc] border-b border-slate-200 px-6 py-2.5 flex items-center justify-between">
-            <div>
-              <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
-              <span className="text-[16px] font-bold text-slate-900 leading-tight">
-                {displayRows.length}
-              </span>
+            <div className="flex items-baseline gap-6">
+              <div>
+                <span className="text-[11px] font-normal text-slate-500 block">Total Records</span>
+                <span className="text-[16px] font-bold text-slate-900 leading-tight">
+                  {displayRows.length}
+                </span>
+              </div>
+              {detailCols.some((c) => c.id === 'totalDaysTaken') && (
+                <div>
+                  <span className="text-[11px] font-normal text-slate-500 block">
+                    Total Total Days taken Including all Stages
+                  </span>
+                  <span className="text-[16px] font-bold text-slate-900 leading-tight">
+                    {displayRows
+                      .reduce((acc, r) => acc + (Number(r.totalDaysTaken) || 0), 0)
+                      .toLocaleString()}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
               Columns: {detailCols.length} {groupCols.length > 0 ? `| Grouped by: ${groupCols.map((g) => g.label).join(', ')}` : ''}
@@ -2891,7 +2998,29 @@ export function ReportsPage() {
                           <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
                             <td className="py-1.5 px-3 border-r border-slate-200"></td>
                             <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
-                            <td colSpan={detailCols.length} className="py-1.5 px-3"></td>
+                            {detailCols.map((col, idx) => {
+                              if (col.id === 'totalDaysTaken') {
+                                const sum = groupRows.reduce((acc, r) => acc + (Number(r.totalDaysTaken) || 0), 0);
+                                return (
+                                  <td
+                                    key={col.id}
+                                    className={`py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-800 ${
+                                      idx === detailCols.length - 1 ? 'border-r-0' : ''
+                                    }`}
+                                  >
+                                    {sum.toLocaleString()}
+                                  </td>
+                                );
+                              }
+                              return (
+                                <td
+                                  key={col.id}
+                                  className={`py-1.5 px-3 border-r border-slate-200 ${
+                                    idx === detailCols.length - 1 ? 'border-r-0' : ''
+                                  }`}
+                                ></td>
+                              );
+                            })}
                           </tr>
                         )}
                       </div>
@@ -2926,10 +3055,32 @@ export function ReportsPage() {
                     <td className="py-2.5 px-3 border-r border-slate-300 font-bold whitespace-nowrap">
                       Total ({displayRows.length})
                     </td>
-                    <td
-                      colSpan={groupCols.length + detailCols.length - 1}
-                      className="py-2.5 px-3"
-                    ></td>
+                    {groupCols.slice(1).map((_, idx) => (
+                      <td key={idx} className="py-2.5 px-3 border-r border-slate-300"></td>
+                    ))}
+                    {detailCols.map((col, idx) => {
+                      if (col.id === 'totalDaysTaken') {
+                        const grandSum = displayRows.reduce((acc, r) => acc + (Number(r.totalDaysTaken) || 0), 0);
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-2.5 px-3 border-r border-slate-300 font-bold text-slate-900 ${
+                              idx === detailCols.length - 1 ? 'border-r-0' : ''
+                            }`}
+                          >
+                            {grandSum.toLocaleString()}
+                          </td>
+                        );
+                      }
+                      return (
+                        <td
+                          key={col.id}
+                          className={`py-2.5 px-3 border-r border-slate-300 ${
+                            idx === detailCols.length - 1 ? 'border-r-0' : ''
+                          }`}
+                        ></td>
+                      );
+                    })}
                   </tr>
                 )}
               </tbody>
