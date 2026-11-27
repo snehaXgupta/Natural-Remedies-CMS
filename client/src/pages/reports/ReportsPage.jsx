@@ -998,8 +998,8 @@ export function ReportsPage() {
       );
       if (match) {
         setActiveReport(match);
-        const isMfg = match.id === 'rep-29' || (match.name && match.name.toLowerCase().includes('manufacturing'));
-        setShowChart(!isMfg);
+        const isStageWise = match.id === 'rep-33' || (match.name && match.name.toLowerCase().includes('stage wise overview'));
+        setShowChart(Boolean(isStageWise));
       }
     }
   }, [reportParamId, reports]);
@@ -1012,8 +1012,8 @@ export function ReportsPage() {
 
   const handleSelectReport = (rep) => {
     setActiveReport(rep);
-    const isMfg = rep?.id === 'rep-29' || (rep?.name && rep?.name.toLowerCase().includes('manufacturing'));
-    setShowChart(!isMfg);
+    const isStageWise = rep?.id === 'rep-33' || (rep?.name && rep?.name.toLowerCase().includes('stage wise overview'));
+    setShowChart(Boolean(isStageWise));
     if (rep?.id) {
       setSearchParams({ reportId: rep.id });
     }
@@ -2422,58 +2422,30 @@ export function ReportsPage() {
       return map;
     })();
 
-    const isChartHorizontal = (() => {
-      const repName = (activeReport.name || '').toLowerCase();
-      if (activeReport.id === 'rep-33' || repName.includes('stage')) return false;
-      if (
-        repName.includes('inhouse') ||
-        repName.includes('cmo') ||
-        repName.includes('customer') ||
-        repName.includes('product') ||
-        repName.includes('failure')
-      ) {
-        return true;
-      }
-      return false;
-    })();
+    const isStageWiseOverview =
+      activeReport.id === 'rep-33' ||
+      (activeReport.name || '').toLowerCase().includes('stage wise overview');
 
     const chartData = (() => {
-      const repName = (activeReport.name || '').toLowerCase();
-      // Exact match to Complaint Stage wise Overview screenshot (D2, D3, D4, Closed)
-      if (activeReport.id === 'rep-33' || repName.includes('stage wise overview')) {
-        const counts = { D2: 0, D3: 0, D4: 0, Closed: 0 };
-        dbComplaints.forEach((c) => {
-          const s = (c.stage || '').toUpperCase();
-          const status = (c.status || '').toUpperCase();
-          if (s === 'CLOSED' || status === 'CLOSED' || c.isClosed) {
-            counts.Closed++;
-          } else if (s === 'D2') {
-            counts.D2++;
-          } else if (s === 'D3') {
-            counts.D3++;
-          } else if (s === 'D4') {
-            counts.D4++;
-          }
-        });
-        const order = ['D2', 'D3', 'D4', 'Closed'];
-        return order.map((k) => ({ label: k, count: counts[k] || 0 }));
-      }
+      // ONLY Complaint Stage wise Overview has a chart (removed from all other reports)
+      if (!isStageWiseOverview) return null;
 
-      if (nested2LevelData) {
-        return Object.entries(nested2LevelData).map(([k1, subMap]) => {
-          const total = Object.values(subMap).reduce((sum, rows) => sum + rows.length, 0);
-          return { label: k1, count: total };
-        });
-      }
-
-      if (singleLevelData) {
-        return Object.entries(singleLevelData).map(([k, rows]) => ({
-          label: k,
-          count: rows.length,
-        }));
-      }
-
-      return [];
+      const counts = { D2: 0, D3: 0, D4: 0, Closed: 0 };
+      dbComplaints.forEach((c) => {
+        const s = (c.stage || '').toUpperCase();
+        const status = (c.status || '').toUpperCase();
+        if (s === 'CLOSED' || status === 'CLOSED' || c.isClosed) {
+          counts.Closed++;
+        } else if (s === 'D2') {
+          counts.D2++;
+        } else if (s === 'D3') {
+          counts.D3++;
+        } else if (s === 'D4') {
+          counts.D4++;
+        }
+      });
+      const order = ['D2', 'D3', 'D4', 'Closed'];
+      return order.map((k) => ({ label: k, count: counts[k] || 0 }));
     })();
 
     return (
@@ -2602,24 +2574,18 @@ export function ReportsPage() {
                 <Search className="h-4 w-4" />
               </button>
 
-              {showChart ? (
+              {isStageWiseOverview && (
                 <button
                   type="button"
-                  onClick={() => setShowChart(false)}
-                  className="p-1.5 rounded border border-[#0176d3] bg-[#0176d3] text-white hover:bg-[#0165b8] shadow-2xs transition"
-                  title="Hide Chart"
+                  onClick={() => setShowChart(!showChart)}
+                  className={`p-1.5 rounded border shadow-2xs transition ${
+                    showChart
+                      ? 'border-[#0176d3] bg-[#0176d3] text-white hover:bg-[#0165b8]'
+                      : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-600'
+                  }`}
+                  title={showChart ? 'Hide Chart' : 'Show Chart'}
                 >
                   <BarChart3 className="h-4 w-4" />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowChart(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
-                  title="Add Chart"
-                >
-                  <BarChart3 className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Add Chart</span>
                 </button>
               )}
 
@@ -2743,13 +2709,13 @@ export function ReportsPage() {
             </div>
           </div>
 
-          {/* Salesforce Report Chart (Shown by default & toggleable from action toolbar) */}
-          {showChart && chartData && chartData.length > 0 && (
+          {/* Salesforce Report Chart (ONLY for Complaint Stage wise Overview) */}
+          {isStageWiseOverview && showChart && chartData && chartData.length > 0 && (
             <ReportVisualChart
               report={activeReport}
               chartData={chartData}
-              groupFieldLabel={groupCols[0]?.label || 'Stage'}
-              chartType={isChartHorizontal ? 'horizontal' : 'vertical'}
+              groupFieldLabel="Stage"
+              chartType="vertical"
             />
           )}
 
