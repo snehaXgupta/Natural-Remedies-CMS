@@ -51,6 +51,7 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 export const AVAILABLE_FIELDS = [
   { id: 'complaintNo', label: 'Complaint: Complaint No', type: 'link', category: 'Identification' },
   { id: 'complaintId', label: 'Complaint: ID', type: 'link', category: 'Identification' },
+  { id: 'ownerName', label: 'Complaint: Owner Name', type: 'text', category: 'Identification' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
   { id: 'locationDetail', label: 'Location detail', type: 'text', category: 'Manufacturing' },
   { id: 'contactPerson', label: 'Contact Person', type: 'text', category: 'Origin' },
@@ -442,8 +443,8 @@ function getDefaultColumnsForReport(repId, repName) {
   if (n.includes('product wise') || repId === 'rep-31') {
     return ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'];
   }
-  if (n.includes('customer wise')) {
-    return ['distributor', 'complaintNo', 'productName', 'requestedBy', 'createdDate', 'status'];
+  if (n.includes('customer wise') || repId === 'rep-32') {
+    return ['complaintNo', 'complaintId', 'ownerName', 'financialYear'];
   }
   if (n.includes('stage')) {
     return ['stage', 'complaintNo', 'productName', 'daysOpen', 'status'];
@@ -860,6 +861,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '14/3/2023, 11:58 am',
     subscribed: false,
     type: 'customer-wise',
+    columns: ['complaintNo', 'complaintId', 'ownerName', 'financialYear'],
+    groupBy: ['distributor'],
   },
   // 33. Screenshot Extract 13
   {
@@ -1136,6 +1139,16 @@ export function ReportsPage() {
                 };
               }
               if (
+                p.id === 'rep-32' ||
+                (p.name && p.name.toLowerCase() === 'customer wise complaints')
+              ) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'complaintId', 'ownerName', 'financialYear'],
+                  groupBy: ['distributor'],
+                };
+              }
+              if (
                 p.id === 'rep-31' ||
                 (p.name && p.name.toLowerCase() === 'product wise complaints')
               ) {
@@ -1407,6 +1420,14 @@ export function ReportsPage() {
           (c.complaintNumber
             ? `a0QOW${c.complaintNumber.replace(/[^a-zA-Z0-9]/g, '').slice(-10).padStart(10, '0')}`
             : `a0QOW00000${String(i + 1).padStart(5, '0')}`),
+        ownerName:
+          c.owner?.name ||
+          c.ownerName ||
+          c.assignedTo?.name ||
+          c.assignedFrp ||
+          c.frp?.name ||
+          c.createdBy?.name ||
+          'Chandan Mj',
         complaintDescription:
           c.complaintDetails?.description ||
           c.description ||
@@ -1514,6 +1535,9 @@ export function ReportsPage() {
       ) {
         cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
         grp = ['sbu'];
+      } else if (activeReport.id === 'rep-32' || repName === 'customer wise complaints') {
+        cols = ['complaintNo', 'complaintId', 'ownerName', 'financialYear'];
+        grp = ['distributor'];
       } else if (activeReport.id === 'rep-31' || repName === 'product wise complaints') {
         cols = ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'];
         grp = ['productName'];
