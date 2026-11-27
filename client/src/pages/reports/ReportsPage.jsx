@@ -375,8 +375,6 @@ function getDefaultColumnsForReport(repId, repName) {
   ) {
     return [
       'complaintNo',
-      'productName',
-      'distributor',
       'd1Sla',
       'd1Duration',
       'd1Status',
@@ -389,7 +387,7 @@ function getDefaultColumnsForReport(repId, repName) {
       'd4Sla',
       'd4Duration',
       'd4Status',
-      'overallSla',
+      'totalDaysTaken',
     ];
   }
   if (n.includes('sla')) {
@@ -658,8 +656,6 @@ const NARAYAN_RAO_REPORTS = [
     type: 'confirmed-sla',
     columns: [
       'complaintNo',
-      'productName',
-      'distributor',
       'd1Sla',
       'd1Duration',
       'd1Status',
@@ -672,7 +668,7 @@ const NARAYAN_RAO_REPORTS = [
       'd4Sla',
       'd4Duration',
       'd4Status',
-      'overallSla',
+      'totalDaysTaken',
     ],
     groupBy: ['slaStatus'],
   },
@@ -952,6 +948,8 @@ function getCategoryFilteredComplaints(report, pool) {
     !n.includes('confirmed or not-confirmed')
   ) {
     filtered = filtered.filter((c) => c.isConfirmed === false);
+  } else if (n.includes('confirmed : complaints sla') || report.id === 'rep-20') {
+    filtered = filtered.filter((c) => c.isConfirmed !== false);
   } else if (n.includes('closed within sla') && !n.includes('not closed')) {
     filtered = filtered.filter((c) => c.isClosed && c.isClosedWithinSla);
   } else if (n.includes('not closed within sla') || n.includes('not closed')) {
@@ -1086,8 +1084,6 @@ export function ReportsPage() {
                   ...p,
                   columns: [
                     'complaintNo',
-                    'productName',
-                    'distributor',
                     'd1Sla',
                     'd1Duration',
                     'd1Status',
@@ -1100,7 +1096,7 @@ export function ReportsPage() {
                     'd4Sla',
                     'd4Duration',
                     'd4Status',
-                    'overallSla',
+                    'totalDaysTaken',
                   ],
                   groupBy: ['slaStatus'],
                 };
@@ -1369,8 +1365,6 @@ export function ReportsPage() {
       } else if (activeReport.id === 'rep-20' || repName.includes('confirmed : complaints sla')) {
         cols = [
           'complaintNo',
-          'productName',
-          'distributor',
           'd1Sla',
           'd1Duration',
           'd1Status',
@@ -1383,7 +1377,7 @@ export function ReportsPage() {
           'd4Sla',
           'd4Duration',
           'd4Status',
-          'overallSla',
+          'totalDaysTaken',
         ];
         grp = ['slaStatus'];
       } else if (activeReport.id === 'rep-14' || repName.includes('closed within sla')) {
@@ -1715,7 +1709,26 @@ export function ReportsPage() {
         </span>
       );
     }
-    if (colId === 'd1Sla' || colId === 'd2Sla' || colId === 'd3Sla' || colId === 'd4Sla' || colId === 'overallSla') {
+    if (colId === 'd1Sla' || colId === 'd2Sla' || colId === 'd3Sla' || colId === 'd4Sla') {
+      if (!val) return '—';
+      const dot = val.dot || (val.inSla ? 'green' : 'red');
+      const tooltip = val.statusText || (dot === 'green' ? 'With in SLA' : 'Not in SLA');
+      return (
+        <div className="flex items-center justify-center py-0.5">
+          <span
+            title={tooltip}
+            className={`inline-block w-3.5 h-3.5 rounded-full transition-transform hover:scale-110 shadow-xs cursor-default ${
+              dot === 'green'
+                ? 'bg-[radial-gradient(circle_at_35%_35%,#4ade80,#16a34a,#15803d)] border border-emerald-600/40 ring-1 ring-emerald-400/20'
+                : dot === 'red'
+                ? 'bg-[radial-gradient(circle_at_35%_35%,#f87171,#dc2626,#b91c1c)] border border-rose-600/40 ring-1 ring-rose-400/20'
+                : 'bg-[radial-gradient(circle_at_35%_35%,#fde047,#eab308,#ca8a04)] border border-amber-600/40 ring-1 ring-amber-400/20'
+            }`}
+          />
+        </div>
+      );
+    }
+    if (colId === 'overallSla') {
       if (!val) return '—';
       const dot = val.dot || 'slate';
       const statusText = val.statusText || '—';
@@ -1731,7 +1744,13 @@ export function ReportsPage() {
       );
     }
     if (colId === 'd1Duration' || colId === 'd2Duration' || colId === 'd3Duration' || colId === 'd4Duration') {
-      return <span className="font-mono text-slate-600 text-[11px]">{val || '00:00:00'}</span>;
+      return <span className="font-mono text-slate-700 text-[11px] whitespace-nowrap">{val || '0:00:00:00'}</span>;
+    }
+    if (colId === 'd1Status' || colId === 'd2Status' || colId === 'd3Status' || colId === 'd4Status') {
+      return <span className="text-slate-700 text-[11px] whitespace-nowrap">{val || '—'}</span>;
+    }
+    if (colId === 'totalDaysTaken') {
+      return <span className="text-slate-800 text-[11px] font-medium whitespace-nowrap">{val != null ? val : '—'}</span>;
     }
     if (colId === 'stage') {
       return (
@@ -2342,19 +2361,22 @@ export function ReportsPage() {
                         </div>
                       </th>
                     ))}
-                    {builderDetailCols.map((col, idx) => (
-                      <th
-                        key={col.id}
-                        className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left ${
-                          idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span>{col.label}</span>
-                          <ChevronDown className="h-3 w-3 text-slate-400" />
-                        </div>
-                      </th>
-                    ))}
+                    {builderDetailCols.map((col, idx) => {
+                      const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                      return (
+                        <th
+                          key={col.id}
+                          className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 ${
+                            isDotCol ? 'text-center' : 'text-left'
+                          } ${idx === builderDetailCols.length - 1 ? 'border-r-0' : ''}`}
+                        >
+                          <div className={`flex items-center gap-1.5 ${isDotCol ? 'justify-center' : 'justify-between'}`}>
+                            <span>{col.label}</span>
+                            <ChevronDown className="h-3 w-3 text-slate-400" />
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -2405,16 +2427,19 @@ export function ReportsPage() {
                                             ''
                                           )}
                                         </td>
-                                        {builderDetailCols.map((col, idx) => (
-                                          <td
-                                            key={col.id}
-                                            className={`py-2 px-3 border-r border-slate-200 ${
-                                              idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
-                                            }`}
-                                          >
-                                            {renderCellContent(row, col.id)}
-                                          </td>
-                                        ))}
+                                        {builderDetailCols.map((col, idx) => {
+                                          const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                          return (
+                                            <td
+                                              key={col.id}
+                                              className={`py-2 px-3 border-r border-slate-200 ${
+                                                isDotCol ? 'text-center' : ''
+                                              } ${idx === builderDetailCols.length - 1 ? 'border-r-0' : ''}`}
+                                            >
+                                              {renderCellContent(row, col.id)}
+                                            </td>
+                                          );
+                                        })}
                                       </tr>
                                     );
                                   })}
@@ -2463,16 +2488,19 @@ export function ReportsPage() {
                                       ''
                                     )}
                                   </td>
-                                  {builderDetailCols.map((col, idx) => (
-                                    <td
-                                      key={col.id}
-                                      className={`py-2 px-3 border-r border-slate-200 ${
-                                        idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
-                                      }`}
-                                    >
-                                      {renderCellContent(row, col.id)}
-                                    </td>
-                                  ))}
+                                  {builderDetailCols.map((col, idx) => {
+                                    const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                    return (
+                                      <td
+                                        key={col.id}
+                                        className={`py-2 px-3 border-r border-slate-200 ${
+                                          isDotCol ? 'text-center' : ''
+                                        } ${idx === builderDetailCols.length - 1 ? 'border-r-0' : ''}`}
+                                      >
+                                        {renderCellContent(row, col.id)}
+                                      </td>
+                                    );
+                                  })}
                                 </tr>
                               );
                             })}
@@ -2480,7 +2508,29 @@ export function ReportsPage() {
                             <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
                               <td className="py-1.5 px-3 border-r border-slate-200"></td>
                               <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
-                              <td colSpan={builderDetailCols.length} className="py-1.5 px-3"></td>
+                              {builderDetailCols.map((col, idx) => {
+                                if (col.id === 'totalDaysTaken') {
+                                  const sum = groupRows.reduce((acc, r) => acc + (Number(r.totalDaysTaken) || 0), 0);
+                                  return (
+                                    <td
+                                      key={col.id}
+                                      className={`py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-800 ${
+                                        idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                                      }`}
+                                    >
+                                      {sum.toLocaleString()}
+                                    </td>
+                                  );
+                                }
+                                return (
+                                  <td
+                                    key={col.id}
+                                    className={`py-1.5 px-3 border-r border-slate-200 ${
+                                      idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                                    }`}
+                                  ></td>
+                                );
+                              })}
                             </tr>
                           )}
                         </div>
@@ -2494,16 +2544,19 @@ export function ReportsPage() {
                         className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                       >
                         <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
-                        {builderDetailCols.map((col, idx) => (
-                          <td
-                            key={col.id}
-                            className={`py-2 px-3 border-r border-slate-200 ${
-                              idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
-                            }`}
-                          >
-                            {renderCellContent(row, col.id)}
-                          </td>
-                        ))}
+                        {builderDetailCols.map((col, idx) => {
+                          const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                          return (
+                            <td
+                              key={col.id}
+                              className={`py-2 px-3 border-r border-slate-200 ${
+                                isDotCol ? 'text-center' : ''
+                              } ${idx === builderDetailCols.length - 1 ? 'border-r-0' : ''}`}
+                            >
+                              {renderCellContent(row, col.id)}
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))
                   )}
@@ -2976,19 +3029,22 @@ export function ReportsPage() {
                       </div>
                     </th>
                   ))}
-                  {detailCols.map((col, idx) => (
-                    <th
-                      key={col.id}
-                      className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 text-left ${
-                        idx === detailCols.length - 1 ? 'border-r-0' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span>{col.label}</span>
-                        <ChevronDown className="h-3 w-3 text-slate-400" />
-                      </div>
-                    </th>
-                  ))}
+                  {detailCols.map((col, idx) => {
+                    const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                    return (
+                      <th
+                        key={col.id}
+                        className={`py-2.5 px-3 border-r border-slate-300 whitespace-nowrap font-semibold text-slate-700 ${
+                          isDotCol ? 'text-center' : 'text-left'
+                        } ${idx === detailCols.length - 1 ? 'border-r-0' : ''}`}
+                      >
+                        <div className={`flex items-center gap-1.5 ${isDotCol ? 'justify-center' : 'justify-between'}`}>
+                          <span>{col.label}</span>
+                          <ChevronDown className="h-3 w-3 text-slate-400" />
+                        </div>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -3040,16 +3096,19 @@ export function ReportsPage() {
                                           ''
                                         )}
                                       </td>
-                                      {detailCols.map((col, idx) => (
-                                        <td
-                                          key={col.id}
-                                          className={`py-2 px-3 border-r border-slate-200 ${
-                                            idx === detailCols.length - 1 ? 'border-r-0' : ''
-                                          }`}
-                                        >
-                                          {renderCellContent(row, col.id)}
-                                        </td>
-                                      ))}
+                                      {detailCols.map((col, idx) => {
+                                        const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                        return (
+                                          <td
+                                            key={col.id}
+                                            className={`py-2 px-3 border-r border-slate-200 ${
+                                              isDotCol ? 'text-center' : ''
+                                            } ${idx === detailCols.length - 1 ? 'border-r-0' : ''}`}
+                                          >
+                                            {renderCellContent(row, col.id)}
+                                          </td>
+                                        );
+                                      })}
                                     </tr>
                                   );
                                 })}
@@ -3099,16 +3158,19 @@ export function ReportsPage() {
                                     ''
                                   )}
                                 </td>
-                                {detailCols.map((col, idx) => (
-                                  <td
-                                    key={col.id}
-                                    className={`py-2 px-3 border-r border-slate-200 ${
-                                      idx === detailCols.length - 1 ? 'border-r-0' : ''
-                                    }`}
-                                  >
-                                    {renderCellContent(row, col.id)}
-                                  </td>
-                                ))}
+                                {detailCols.map((col, idx) => {
+                                  const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                  return (
+                                    <td
+                                      key={col.id}
+                                      className={`py-2 px-3 border-r border-slate-200 ${
+                                        isDotCol ? 'text-center' : ''
+                                      } ${idx === detailCols.length - 1 ? 'border-r-0' : ''}`}
+                                    >
+                                      {renderCellContent(row, col.id)}
+                                    </td>
+                                  );
+                                })}
                               </tr>
                             );
                           })}
@@ -3153,16 +3215,19 @@ export function ReportsPage() {
                       className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
                     >
                       <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
-                      {detailCols.map((col, idx) => (
-                        <td
-                          key={col.id}
-                          className={`py-2 px-3 border-r border-slate-200 ${
-                            idx === detailCols.length - 1 ? 'border-r-0' : ''
-                          }`}
-                        >
-                          {renderCellContent(row, col.id)}
-                        </td>
-                      ))}
+                      {detailCols.map((col, idx) => {
+                        const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-2 px-3 border-r border-slate-200 ${
+                              isDotCol ? 'text-center' : ''
+                            } ${idx === detailCols.length - 1 ? 'border-r-0' : ''}`}
+                          >
+                            {renderCellContent(row, col.id)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))
                 )}
