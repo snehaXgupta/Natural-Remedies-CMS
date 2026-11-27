@@ -54,6 +54,8 @@ export const AVAILABLE_FIELDS = [
   { id: 'locationDetail', label: 'Location detail', type: 'text', category: 'Manufacturing' },
   { id: 'contactPerson', label: 'Contact Person', type: 'text', category: 'Origin' },
   { id: 'financialYear', label: 'FinancialYear', type: 'text', category: 'Intake' },
+  { id: 'confirmedOrNot', label: 'Confirmed or Not', type: 'text', category: 'Workflow' },
+  { id: 'd7Completed', label: 'D7 completed', type: 'text', category: 'Workflow' },
   { id: 'productName', label: 'Product name', type: 'text', category: 'Product' },
   { id: 'distributor', label: 'Distributor / Retailer Name', type: 'text', category: 'Customer' },
   { id: 'requestedBy', label: 'Requested By', type: 'text', category: 'Origin' },
@@ -90,8 +92,10 @@ export const AVAILABLE_GROUP_FIELDS = [
   { id: 'slaStatus', label: 'SLA Status' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location' },
   { id: 'locationDetail', label: 'Location detail' },
-  { id: 'createdMonthYear', label: 'Complaint: Created Date (Month/Year)' },
+  { id: 'createdMonthYear', label: 'Complaint: Created Date' },
   { id: 'requestedBy', label: 'Requested By' },
+  { id: 'confirmedOrNot', label: 'Confirmed or Not' },
+  { id: 'd7Completed', label: 'D7 completed' },
   { id: 'productName', label: 'Product name' },
   { id: 'distributor', label: 'Distributor / Retailer Name' },
   { id: 'stage', label: 'Stage' },
@@ -425,6 +429,10 @@ function getDefaultColumnsForReport(repId, repName) {
       'overallSla',
     ];
   }
+  // Exact Salesforce Schema for Open Complaints / Closed Complaints
+  if (n === 'open complaints' || repId === 'rep-23' || n === 'closed complaints' || repId === 'rep-24') {
+    return ['complaintNo', 'productName', 'distributor', 'financialYear'];
+  }
   if (n.includes('raised by')) {
     return ['requestedBy', 'complaintNo', 'productName', 'createdDate', 'stage', 'status'];
   }
@@ -448,6 +456,12 @@ function getDefaultColumnsForReport(repId, repName) {
 
 function getDefaultGroupByForReport(repId, repName) {
   const n = (repName || '').toLowerCase().trim();
+  if (n === 'open complaints' || repId === 'rep-23') {
+    return ['createdMonthYear', 'requestedBy'];
+  }
+  if (n === 'closed complaints' || repId === 'rep-24') {
+    return ['createdMonthYear', 'confirmedOrNot', 'd7Completed'];
+  }
   if (
     n === 'avg.days open efficacy' ||
     n.includes('days open efficacy') ||
@@ -734,6 +748,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '27/3/2023, 7:36 pm',
     subscribed: false,
     type: 'open-complaints',
+    columns: ['complaintNo', 'productName', 'distributor', 'financialYear'],
+    groupBy: ['createdMonthYear', 'requestedBy'],
   },
   // 24. Screenshot Extract 4
   {
@@ -745,6 +761,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '16/3/2023, 11:47 am',
     subscribed: false,
     type: 'closed-complaints',
+    columns: ['complaintNo', 'productName', 'distributor', 'financialYear'],
+    groupBy: ['createdMonthYear', 'confirmedOrNot', 'd7Completed'],
   },
   // 25. Screenshot Extract 5
   {
@@ -984,9 +1002,9 @@ function getCategoryFilteredComplaints(report, pool) {
     filtered = filtered.filter((c) => c.isClosed && c.isClosedWithinSla);
   } else if (n.includes('not closed within sla') || n.includes('not closed')) {
     filtered = filtered.filter((c) => c.isOverdue || (!c.isClosedWithinSla && c.isClosed));
-  } else if (n === 'open complaints' || n.startsWith('open complaints')) {
+  } else if (n === 'open complaints' || n.startsWith('open complaints') || report.id === 'rep-23') {
     filtered = filtered.filter((c) => c.status === 'Open');
-  } else if (n === 'closed complaints' || n.startsWith('closed complaints')) {
+  } else if (n === 'closed complaints' || n.startsWith('closed complaints') || report.id === 'rep-24') {
     filtered = filtered.filter((c) => c.status === 'Closed');
   } else if (n.includes('days required to close complaint') || n.includes('close complaint')) {
     filtered = filtered.filter((c) => c.status === 'Closed');
@@ -1094,6 +1112,20 @@ export function ReportsPage() {
                   ...p,
                   columns: ['complaintNo', 'stage', 'complaintOpenDuration'],
                   groupBy: ['sbu'],
+                };
+              }
+              if (p.id === 'rep-23' || (p.name && p.name.toLowerCase() === 'open complaints')) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'productName', 'distributor', 'financialYear'],
+                  groupBy: ['createdMonthYear', 'requestedBy'],
+                };
+              }
+              if (p.id === 'rep-24' || (p.name && p.name.toLowerCase() === 'closed complaints')) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'productName', 'distributor', 'financialYear'],
+                  groupBy: ['createdMonthYear', 'confirmedOrNot', 'd7Completed'],
                 };
               }
               if (p.id === 'rep-29' || (p.name && p.name.toLowerCase() === 'report by manufacturing')) {
@@ -1340,11 +1372,17 @@ export function ReportsPage() {
         ? Math.max(1, Math.round((closedTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60 * 24)))
         : daysOpenNum;
 
+      const isConf = c.status !== 'REJECTED' && c.stage !== 'REJECTED' && c.isConfirmed !== false;
+      const confOrNot = isConf ? 'Confirmed' : 'Not confirmed';
+      const d7Comp = (c.status === 'CLOSED' || c.stage === 'CLOSED' || c.d7?.completedAt) ? '☑' : '☐';
+
       return {
         id: c._id || 'c-' + i,
         complaintNo: c.complaintNumber || `CMP-2026-${String(i + 1).padStart(4, '0')}`,
         sbu: sbuVal,
         complaintOpenDuration: openDurationDays,
+        confirmedOrNot: confOrNot,
+        d7Completed: d7Comp,
         productName:
           c.reportedProduct?.name ||
           c.productDetails?.productName ||
@@ -1417,7 +1455,13 @@ export function ReportsPage() {
 
     if (!runtime) {
       const repName = (activeReport.name || '').toLowerCase().trim();
-      if (activeReport.id === 'rep-2' || repName.includes('days open efficacy')) {
+      if (activeReport.id === 'rep-23' || repName === 'open complaints') {
+        cols = ['complaintNo', 'productName', 'distributor', 'financialYear'];
+        grp = ['createdMonthYear', 'requestedBy'];
+      } else if (activeReport.id === 'rep-24' || repName === 'closed complaints') {
+        cols = ['complaintNo', 'productName', 'distributor', 'financialYear'];
+        grp = ['createdMonthYear', 'confirmedOrNot', 'd7Completed'];
+      } else if (activeReport.id === 'rep-2' || repName.includes('days open efficacy')) {
         cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
         grp = ['sbu'];
       } else if (
@@ -2009,6 +2053,24 @@ export function ReportsPage() {
     };
     const previewComplaints = updatePreviewAuto ? getCategoryFilteredComplaints(builderReportRef, mappedAllComplaints) : [];
 
+    const builderNested3LevelData = (() => {
+      if (builderGroupFieldIds.length !== 3) return null;
+      const g1 = builderGroupFieldIds[0];
+      const g2 = builderGroupFieldIds[1];
+      const g3 = builderGroupFieldIds[2];
+      const tree = {};
+      previewComplaints.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        const k2 = String(row[g2] || '—');
+        const k3 = String(row[g3] || '—');
+        if (!tree[k1]) tree[k1] = {};
+        if (!tree[k1][k2]) tree[k1][k2] = {};
+        if (!tree[k1][k2][k3]) tree[k1][k2][k3] = [];
+        tree[k1][k2][k3].push(row);
+      });
+      return tree;
+    })();
+
     const builderNested2LevelData = (() => {
       if (builderGroupFieldIds.length !== 2) return null;
       const g1 = builderGroupFieldIds[0];
@@ -2490,8 +2552,109 @@ export function ReportsPage() {
                         </div>
                       </td>
                     </tr>
+                  ) : builderNested3LevelData ? (
+                    Object.entries(builderNested3LevelData).map(([k1, subMap1]) => {
+                      const l1Count = Object.values(subMap1).reduce(
+                        (acc1, m2) => acc1 + Object.values(m2).reduce((acc2, arr) => acc2 + arr.length, 0),
+                        0
+                      );
+                      let isFirstL1Row = true;
+                      return (
+                        <div key={k1} className="contents">
+                          {Object.entries(subMap1).map(([k2, subMap2]) => {
+                            const l2Count = Object.values(subMap2).reduce((acc, arr) => acc + arr.length, 0);
+                            let isFirstL2Row = true;
+                            return (
+                              <div key={k2} className="contents">
+                                {Object.entries(subMap2).map(([k3, rows]) => {
+                                  let isFirstL3Row = true;
+                                  return (
+                                    <div key={k3} className="contents">
+                                      {toggles.detailRows &&
+                                        rows.map((row) => {
+                                          const showL1 = isFirstL1Row;
+                                          const showL2 = isFirstL2Row;
+                                          const showL3 = isFirstL3Row;
+                                          isFirstL1Row = false;
+                                          isFirstL2Row = false;
+                                          isFirstL3Row = false;
+                                          return (
+                                            <tr
+                                              key={row.id}
+                                              className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
+                                            >
+                                              <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                              <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
+                                                {showL1 ? (
+                                                  <span>
+                                                    {k1} {toggles.rowCounts && <span className="text-slate-500 font-normal">({l1Count})</span>}
+                                                  </span>
+                                                ) : (
+                                                  ''
+                                                )}
+                                              </td>
+                                              <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                                {showL2 ? (
+                                                  <span>
+                                                    {k2} {toggles.rowCounts && <span className="text-slate-500 font-normal">({l2Count})</span>}
+                                                  </span>
+                                                ) : (
+                                                  ''
+                                                )}
+                                              </td>
+                                              <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                                {showL3 ? (
+                                                  <span>
+                                                    {k3} {toggles.rowCounts && <span className="text-slate-500 font-normal">({rows.length})</span>}
+                                                  </span>
+                                                ) : (
+                                                  ''
+                                                )}
+                                              </td>
+                                              {builderDetailCols.map((col, idx) => {
+                                                const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                                return (
+                                                  <td
+                                                    key={col.id}
+                                                    className={`py-2 px-3 border-r border-slate-200 ${
+                                                      isDotCol ? 'text-center' : ''
+                                                    } ${idx === builderDetailCols.length - 1 ? 'border-r-0' : ''}`}
+                                                  >
+                                                    {renderCellContent(row, col.id)}
+                                                  </td>
+                                                );
+                                              })}
+                                            </tr>
+                                          );
+                                        })}
+                                      {toggles.subtotals && (
+                                        <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                                          <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                          <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                          <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                          <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                                          <td colSpan={builderDetailCols.length} className="py-1.5 px-3"></td>
+                                        </tr>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                          {toggles.subtotals && (
+                            <tr className="bg-slate-100/70 border-b border-slate-200 font-bold text-slate-800 text-xs">
+                              <td className="py-2 px-3 border-r border-slate-200"></td>
+                              <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-800">Subtotal</td>
+                              <td colSpan={2 + builderDetailCols.length} className="py-2 px-3"></td>
+                            </tr>
+                          )}
+                        </div>
+                      );
+                    })
                   ) : builderNested2LevelData ? (
                     Object.entries(builderNested2LevelData).map(([k1, subMap]) => {
+                      const l1Count = Object.values(subMap).reduce((acc, arr) => acc + arr.length, 0);
                       let isFirstL1Row = true;
                       return (
                         <div key={k1} className="contents">
@@ -2512,7 +2675,13 @@ export function ReportsPage() {
                                       >
                                         <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
                                         <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
-                                          {showL1 ? k1 : ''}
+                                          {showL1 ? (
+                                            <span>
+                                              {k1} {toggles.rowCounts && <span className="text-slate-500 font-normal">({l1Count})</span>}
+                                            </span>
+                                          ) : (
+                                            ''
+                                          )}
                                         </td>
                                         <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
                                           {showL2 ? (
@@ -2794,6 +2963,24 @@ export function ReportsPage() {
         (r.financialYear && r.financialYear.toLowerCase().includes(q))
       );
     });
+
+    const nested3LevelData = (() => {
+      if (groupFieldIds.length !== 3) return null;
+      const g1 = groupFieldIds[0];
+      const g2 = groupFieldIds[1];
+      const g3 = groupFieldIds[2];
+      const tree = {};
+      displayRows.forEach((row) => {
+        const k1 = String(row[g1] || '—');
+        const k2 = String(row[g2] || '—');
+        const k3 = String(row[g3] || '—');
+        if (!tree[k1]) tree[k1] = {};
+        if (!tree[k1][k2]) tree[k1][k2] = {};
+        if (!tree[k1][k2][k3]) tree[k1][k2][k3] = [];
+        tree[k1][k2][k3].push(row);
+      });
+      return tree;
+    })();
 
     const nested2LevelData = (() => {
       if (groupFieldIds.length !== 2) return null;
@@ -3233,9 +3420,110 @@ export function ReportsPage() {
                       </div>
                     </td>
                   </tr>
+                ) : nested3LevelData ? (
+                  Object.entries(nested3LevelData).map(([k1, subMap1]) => {
+                    const l1Count = Object.values(subMap1).reduce(
+                      (acc1, m2) => acc1 + Object.values(m2).reduce((acc2, arr) => acc2 + arr.length, 0),
+                      0
+                    );
+                    let isFirstL1Row = true;
+                    return (
+                      <div key={k1} className="contents">
+                        {Object.entries(subMap1).map(([k2, subMap2]) => {
+                          const l2Count = Object.values(subMap2).reduce((acc, arr) => acc + arr.length, 0);
+                          let isFirstL2Row = true;
+                          return (
+                            <div key={k2} className="contents">
+                              {Object.entries(subMap2).map(([k3, rows]) => {
+                                let isFirstL3Row = true;
+                                return (
+                                  <div key={k3} className="contents">
+                                    {toggles.detailRows &&
+                                      rows.map((row) => {
+                                        const showL1 = isFirstL1Row;
+                                        const showL2 = isFirstL2Row;
+                                        const showL3 = isFirstL3Row;
+                                        isFirstL1Row = false;
+                                        isFirstL2Row = false;
+                                        isFirstL3Row = false;
+                                        return (
+                                          <tr
+                                            key={row.id}
+                                            className="border-b border-slate-100 hover:bg-[#f8fafc] transition-colors"
+                                          >
+                                            <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
+                                            <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
+                                              {showL1 ? (
+                                                <span>
+                                                  {k1} <span className="text-slate-500 font-normal">({l1Count})</span>
+                                                </span>
+                                              ) : (
+                                                ''
+                                              )}
+                                            </td>
+                                            <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                              {showL2 ? (
+                                                <span>
+                                                  {k2} <span className="text-slate-500 font-normal">({l2Count})</span>
+                                                </span>
+                                              ) : (
+                                                ''
+                                              )}
+                                            </td>
+                                            <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
+                                              {showL3 ? (
+                                                <span>
+                                                  {k3} <span className="text-slate-500 font-normal">({rows.length})</span>
+                                                </span>
+                                              ) : (
+                                                ''
+                                              )}
+                                            </td>
+                                            {detailCols.map((col, idx) => {
+                                              const isDotCol = ['d1Sla', 'd2Sla', 'd3Sla', 'd4Sla'].includes(col.id);
+                                              return (
+                                                <td
+                                                  key={col.id}
+                                                  className={`py-2 px-3 border-r border-slate-200 ${
+                                                    isDotCol ? 'text-center' : ''
+                                                  } ${idx === detailCols.length - 1 ? 'border-r-0' : ''}`}
+                                                >
+                                                  {renderCellContent(row, col.id)}
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
+                                        );
+                                      })}
+                                    {toggles.subtotals && (
+                                      <tr className="bg-slate-50/70 border-b border-slate-200 font-medium text-slate-600 text-xs">
+                                        <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                        <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                        <td className="py-1.5 px-3 border-r border-slate-200"></td>
+                                        <td className="py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-700">Subtotal</td>
+                                        <td colSpan={detailCols.length} className="py-1.5 px-3"></td>
+                                      </tr>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })}
+                        {toggles.subtotals && (
+                          <tr className="bg-slate-100/70 border-b border-slate-200 font-bold text-slate-800 text-xs">
+                            <td className="py-2 px-3 border-r border-slate-200"></td>
+                            <td className="py-2 px-3 border-r border-slate-200 font-bold text-slate-800">Subtotal</td>
+                            <td colSpan={2 + detailCols.length} className="py-2 px-3"></td>
+                          </tr>
+                        )}
+                      </div>
+                    );
+                  })
                 ) : nested2LevelData ? (
                   // 2-Level Nested Grouping (Exact match to Report by Manufacturing screenshot)
                   Object.entries(nested2LevelData).map(([k1, subMap]) => {
+                    const l1Count = Object.values(subMap).reduce((acc, arr) => acc + arr.length, 0);
                     let isFirstL1Row = true;
                     return (
                       <div key={k1} className="contents">
@@ -3256,7 +3544,13 @@ export function ReportsPage() {
                                     >
                                       <td className="py-2 px-3 text-center border-r border-slate-200 text-slate-400"></td>
                                       <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-semibold align-top whitespace-nowrap">
-                                        {showL1 ? k1 : ''}
+                                        {showL1 ? (
+                                          <span>
+                                            {k1} <span className="text-slate-500 font-normal">({l1Count})</span>
+                                          </span>
+                                        ) : (
+                                          ''
+                                        )}
                                       </td>
                                       <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
                                         {showL2 ? (
