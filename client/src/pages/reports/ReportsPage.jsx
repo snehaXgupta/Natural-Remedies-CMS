@@ -595,7 +595,7 @@ const NARAYAN_RAO_REPORTS = [
   // 19. User Report 7
   {
     id: 'rep-19',
-    name: 'No of Previous Year Complaints Month wis',
+    name: 'No of Previous Year Complaints Month wise',
     description: '',
     folder: 'Complaint Management Reports',
     createdBy: 'Narayan Rao Vakamudi',
@@ -1011,6 +1011,12 @@ export function ReportsPage() {
                     'totalDaysTaken',
                   ],
                   groupBy: ['slaStatus'],
+                };
+              }
+              if (p.id === 'rep-19' || (p.name && p.name.toLowerCase().includes('previous year complaints month'))) {
+                return {
+                  ...p,
+                  name: 'No of Previous Year Complaints Month wise',
                 };
               }
               if (p.id === 'rep-14' || (p.name && p.name.toLowerCase().includes('closed within sla'))) {
