@@ -74,9 +74,12 @@ export const AVAILABLE_FIELDS = [
   { id: 'd2Duration', label: 'D2 Duration', type: 'duration', category: 'SLA Tracking' },
   { id: 'd2Status', label: 'D2 Completion Status', type: 'text', category: 'SLA Tracking' },
   { id: 'totalDaysTaken', label: 'Total Days taken Including all Stages', type: 'number', category: 'SLA Tracking' },
-  { id: 'd3Sla', label: 'D3 SLA (36h)', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd3Sla', label: 'D3 SLA', type: 'sla_dot', category: 'SLA Tracking' },
   { id: 'd3Duration', label: 'D3 Duration', type: 'duration', category: 'SLA Tracking' },
-  { id: 'd3Status', label: 'D3 Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd3Status', label: 'D3 Completion Status', type: 'text', category: 'SLA Tracking' },
+  { id: 'd4Sla', label: 'D4 SLA', type: 'sla_dot', category: 'SLA Tracking' },
+  { id: 'd4Duration', label: 'D4 Duration', type: 'duration', category: 'SLA Tracking' },
+  { id: 'd4Status', label: 'D4 Completion Status', type: 'text', category: 'SLA Tracking' },
   { id: 'overallSla', label: 'Overall SLA Status', type: 'sla_dot', category: 'SLA Tracking' },
 ];
 
@@ -363,6 +366,32 @@ function getDefaultColumnsForReport(repId, repName) {
   if (n.includes('manufacturing')) {
     return ['complaintNo', 'contactPerson', 'financialYear'];
   }
+  // Exact Salesforce Schema for Confirmed : Complaints SLA Reports
+  if (
+    n === 'confirmed : complaints sla reports' ||
+    n.includes('confirmed : complaints sla') ||
+    n.includes('confirmed: complaints sla') ||
+    repId === 'rep-20'
+  ) {
+    return [
+      'complaintNo',
+      'productName',
+      'distributor',
+      'd1Sla',
+      'd1Duration',
+      'd1Status',
+      'd2Sla',
+      'd2Duration',
+      'd2Status',
+      'd3Sla',
+      'd3Duration',
+      'd3Status',
+      'd4Sla',
+      'd4Duration',
+      'd4Status',
+      'overallSla',
+    ];
+  }
   if (n.includes('sla')) {
     return [
       'complaintNo',
@@ -370,10 +399,16 @@ function getDefaultColumnsForReport(repId, repName) {
       'distributor',
       'd1Sla',
       'd1Duration',
+      'd1Status',
       'd2Sla',
       'd2Duration',
+      'd2Status',
       'd3Sla',
       'd3Duration',
+      'd3Status',
+      'd4Sla',
+      'd4Duration',
+      'd4Status',
       'overallSla',
     ];
   }
@@ -414,6 +449,14 @@ function getDefaultGroupByForReport(repId, repName) {
     n.includes('non - confirmed: complaints sla') ||
     n.includes('non-confirmed: complaints sla') ||
     repId === 'rep-18'
+  ) {
+    return ['slaStatus'];
+  }
+  if (
+    n === 'confirmed : complaints sla reports' ||
+    n.includes('confirmed : complaints sla') ||
+    n.includes('confirmed: complaints sla') ||
+    repId === 'rep-20'
   ) {
     return ['slaStatus'];
   }
@@ -613,6 +656,25 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '2/2/2024, 5:20 pm',
     subscribed: false,
     type: 'confirmed-sla',
+    columns: [
+      'complaintNo',
+      'productName',
+      'distributor',
+      'd1Sla',
+      'd1Duration',
+      'd1Status',
+      'd2Sla',
+      'd2Duration',
+      'd2Status',
+      'd3Sla',
+      'd3Duration',
+      'd3Status',
+      'd4Sla',
+      'd4Duration',
+      'd4Status',
+      'overallSla',
+    ],
+    groupBy: ['slaStatus'],
   },
   // 21. Screenshot Extract 1
   {
@@ -1019,6 +1081,30 @@ export function ReportsPage() {
                   name: 'No of Previous Year Complaints Month wise',
                 };
               }
+              if (p.id === 'rep-20' || (p.name && p.name.toLowerCase().includes('confirmed : complaints sla'))) {
+                return {
+                  ...p,
+                  columns: [
+                    'complaintNo',
+                    'productName',
+                    'distributor',
+                    'd1Sla',
+                    'd1Duration',
+                    'd1Status',
+                    'd2Sla',
+                    'd2Duration',
+                    'd2Status',
+                    'd3Sla',
+                    'd3Duration',
+                    'd3Status',
+                    'd4Sla',
+                    'd4Duration',
+                    'd4Status',
+                    'overallSla',
+                  ],
+                  groupBy: ['slaStatus'],
+                };
+              }
               if (p.id === 'rep-14' || (p.name && p.name.toLowerCase().includes('closed within sla'))) {
                 return {
                   ...p,
@@ -1147,18 +1233,21 @@ export function ReportsPage() {
     const d1Target = 9; // 9 working hours
     const d2Target = 9; // 9 working hours
     const d3Target = 36; // 36 working hours (4 working days)
+    const d4Target = 18; // 18 working hours (2 working days)
 
     return dbComplaints.map((c, i) => {
       const createdTime = c.createdAt ? new Date(c.createdAt) : new Date();
       const d1CompletedTime = c.acknowledgement?.approvedAt;
       const d2CompletedTime = c.d2?.completedAt;
-      const d3CompletedTime = c.d4?.completedAt || (c.stage === 'CLOSED' ? c.closedAt : null);
+      const d3CompletedTime = c.d3?.completedAt || (c.stage === 'D4' || c.stage === 'CLOSED' ? (c.d3?.completedAt || c.closedAt) : null);
+      const d4CompletedTime = c.d4?.completedAt || (c.stage === 'CLOSED' ? c.closedAt : null);
 
       const d1SlaInfo = calculateStageSla(createdTime, d1CompletedTime, d1Target, Boolean(d1CompletedTime));
       const d2SlaInfo = calculateStageSla(d1CompletedTime || createdTime, d2CompletedTime, d2Target, Boolean(d2CompletedTime));
       const d3SlaInfo = calculateStageSla(d2CompletedTime || d1CompletedTime || createdTime, d3CompletedTime, d3Target, Boolean(d3CompletedTime));
+      const d4SlaInfo = calculateStageSla(d3CompletedTime || d2CompletedTime || createdTime, d4CompletedTime, d4Target, Boolean(d4CompletedTime));
 
-      const overallInSla = d1SlaInfo.inSla && d2SlaInfo.inSla && d3SlaInfo.inSla;
+      const overallInSla = d1SlaInfo.inSla && d2SlaInfo.inSla && d3SlaInfo.inSla && d4SlaInfo.inSla;
       const daysOpenNum = Math.max(1, Math.round((Date.now() - createdTime.getTime()) / (1000 * 60 * 60 * 24)));
 
       const locDetail =
@@ -1233,6 +1322,9 @@ export function ReportsPage() {
         d3Sla: d3SlaInfo,
         d3Duration: d3SlaInfo.duration,
         d3Status: d3SlaInfo.statusText,
+        d4Sla: d4SlaInfo,
+        d4Duration: d4SlaInfo.duration,
+        d4Status: d4SlaInfo.statusText,
         overallSla: {
           dot: overallInSla ? 'green' : 'red',
           statusText: overallInSla ? 'With in SLA' : 'Not in SLA',
@@ -1272,6 +1364,26 @@ export function ReportsPage() {
           'd2Duration',
           'd2Status',
           'totalDaysTaken',
+        ];
+        grp = ['slaStatus'];
+      } else if (activeReport.id === 'rep-20' || repName.includes('confirmed : complaints sla')) {
+        cols = [
+          'complaintNo',
+          'productName',
+          'distributor',
+          'd1Sla',
+          'd1Duration',
+          'd1Status',
+          'd2Sla',
+          'd2Duration',
+          'd2Status',
+          'd3Sla',
+          'd3Duration',
+          'd3Status',
+          'd4Sla',
+          'd4Duration',
+          'd4Status',
+          'overallSla',
         ];
         grp = ['slaStatus'];
       } else if (activeReport.id === 'rep-14' || repName.includes('closed within sla')) {
@@ -1603,7 +1715,7 @@ export function ReportsPage() {
         </span>
       );
     }
-    if (colId === 'd1Sla' || colId === 'd2Sla' || colId === 'd3Sla' || colId === 'overallSla') {
+    if (colId === 'd1Sla' || colId === 'd2Sla' || colId === 'd3Sla' || colId === 'd4Sla' || colId === 'overallSla') {
       if (!val) return '—';
       const dot = val.dot || 'slate';
       const statusText = val.statusText || '—';
@@ -1618,7 +1730,7 @@ export function ReportsPage() {
         </div>
       );
     }
-    if (colId === 'd1Duration' || colId === 'd2Duration' || colId === 'd3Duration') {
+    if (colId === 'd1Duration' || colId === 'd2Duration' || colId === 'd3Duration' || colId === 'd4Duration') {
       return <span className="font-mono text-slate-600 text-[11px]">{val || '00:00:00'}</span>;
     }
     if (colId === 'stage') {
