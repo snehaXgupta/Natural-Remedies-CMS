@@ -66,7 +66,9 @@ export const AVAILABLE_FIELDS = [
   { id: 'typeOfFailure', label: 'Type of Failure', type: 'text', category: 'Investigation' },
   { id: 'acknowledgement', label: 'Acknowledgement', type: 'text', category: 'Workflow' },
   { id: 'assignedFrp', label: 'Assigned FRP', type: 'text', category: 'Workflow' },
+  { id: 'sbu', label: 'SBU', type: 'text', category: 'Identification' },
   { id: 'daysOpen', label: 'Days Open', type: 'text', category: 'Turnaround' },
+  { id: 'complaintOpenDuration', label: 'Complaint Open Duration', type: 'number', category: 'Turnaround' },
   { id: 'd1Sla', label: 'D1 SLA', type: 'sla_dot', category: 'SLA Tracking' },
   { id: 'd1Duration', label: 'D1 Duration', type: 'duration', category: 'SLA Tracking' },
   { id: 'd1Status', label: 'D1 Completion Status', type: 'text', category: 'SLA Tracking' },
@@ -84,6 +86,7 @@ export const AVAILABLE_FIELDS = [
 ];
 
 export const AVAILABLE_GROUP_FIELDS = [
+  { id: 'sbu', label: 'SBU' },
   { id: 'slaStatus', label: 'SLA Status' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location' },
   { id: 'locationDetail', label: 'Location detail' },
@@ -366,6 +369,18 @@ function getDefaultColumnsForReport(repId, repName) {
   if (n.includes('manufacturing')) {
     return ['complaintNo', 'contactPerson', 'financialYear'];
   }
+  // Exact Salesforce Schema for Avg.Days Open Efficacy / Non-Efficacy
+  if (
+    n === 'avg.days open efficacy' ||
+    n.includes('days open efficacy') ||
+    repId === 'rep-2' ||
+    n === 'avg.days open non efficacy' ||
+    n.includes('days open non efficacy') ||
+    n.includes('days open non-efficacy') ||
+    repId === 'rep-3'
+  ) {
+    return ['complaintNo', 'stage', 'complaintOpenDuration'];
+  }
   // Exact Salesforce Schema for Confirmed : Complaints SLA Reports
   if (
     n === 'confirmed : complaints sla reports' ||
@@ -433,6 +448,17 @@ function getDefaultColumnsForReport(repId, repName) {
 
 function getDefaultGroupByForReport(repId, repName) {
   const n = (repName || '').toLowerCase().trim();
+  if (
+    n === 'avg.days open efficacy' ||
+    n.includes('days open efficacy') ||
+    repId === 'rep-2' ||
+    n === 'avg.days open non efficacy' ||
+    n.includes('days open non efficacy') ||
+    n.includes('days open non-efficacy') ||
+    repId === 'rep-3'
+  ) {
+    return ['sbu'];
+  }
   if (n === 'report by manufacturing' || repId === 'rep-29') {
     return ['manufacturingLocation', 'locationDetail'];
   }
@@ -496,6 +522,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '2/2/2024, 5:20 pm',
     subscribed: false,
     type: 'efficacy-open-days',
+    columns: ['complaintNo', 'stage', 'complaintOpenDuration'],
+    groupBy: ['sbu'],
   },
   // 3. Screenshot Report 3
   {
@@ -507,6 +535,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '2/2/2024, 5:08 pm',
     subscribed: false,
     type: 'non-efficacy-open-days',
+    columns: ['complaintNo', 'stage', 'complaintOpenDuration'],
+    groupBy: ['sbu'],
   },
   // 4. Screenshot Report 4
   {
@@ -960,6 +990,10 @@ function getCategoryFilteredComplaints(report, pool) {
     filtered = filtered.filter((c) => c.status === 'Closed');
   } else if (n.includes('days required to close complaint') || n.includes('close complaint')) {
     filtered = filtered.filter((c) => c.status === 'Closed');
+  } else if (n.includes('days open efficacy') || report.id === 'rep-2') {
+    filtered = filtered.filter((c) => c.category === 'Efficacy');
+  } else if (n.includes('days open non efficacy') || n.includes('days open non-efficacy') || report.id === 'rep-3') {
+    filtered = filtered.filter((c) => c.category === 'Non-Efficacy');
   } else if (n.includes('open efficacy')) {
     filtered = filtered.filter((c) => c.status === 'Open' && c.category === 'Efficacy');
   } else if (n.includes('open non efficacy') || n.includes('open non-efficacy')) {
@@ -1043,6 +1077,25 @@ export function ReportsPage() {
             .filter((p) => !isExcludedReport(p))
             .map((p) => {
               // Ensure rep-29 and screenshot reports are always synchronized to exact screenshot columns
+              if (p.id === 'rep-2' || (p.name && p.name.toLowerCase().includes('days open efficacy'))) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'stage', 'complaintOpenDuration'],
+                  groupBy: ['sbu'],
+                };
+              }
+              if (
+                p.id === 'rep-3' ||
+                (p.name &&
+                  (p.name.toLowerCase().includes('days open non efficacy') ||
+                    p.name.toLowerCase().includes('days open non-efficacy')))
+              ) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'stage', 'complaintOpenDuration'],
+                  groupBy: ['sbu'],
+                };
+              }
               if (p.id === 'rep-29' || (p.name && p.name.toLowerCase() === 'report by manufacturing')) {
                 return {
                   ...p,
@@ -1269,9 +1322,29 @@ export function ReportsPage() {
         c.financialYear ||
         (c.createdAt ? `FY ${new Date(c.createdAt).getFullYear()}` : 'FY 2026');
 
+      // SBU calculation for Salesforce reports (Avg.Days Open Efficacy / SBU's Wise)
+      let sbuVal = c.sbu || c.businessUnit;
+      if (!sbuVal) {
+        const cNum = (c.complaintNumber || '').toUpperCase();
+        if (cNum.startsWith('PET')) sbuVal = 'PET';
+        else if (cNum.startsWith('HHP')) sbuVal = 'HHP';
+        else if (cNum.startsWith('AHP')) {
+          sbuVal = (c.reportedProduct?.name || '').toLowerCase().includes('omni') ? 'AHP-Omnicare' : 'AHP-Avicare';
+        } else {
+          sbuVal = 'AHP-Avicare';
+        }
+      }
+
+      const closedTime = c.closedAt ? new Date(c.closedAt) : (c.d4?.completedAt ? new Date(c.d4.completedAt) : null);
+      const openDurationDays = closedTime
+        ? Math.max(1, Math.round((closedTime.getTime() - createdTime.getTime()) / (1000 * 60 * 60 * 24)))
+        : daysOpenNum;
+
       return {
         id: c._id || 'c-' + i,
         complaintNo: c.complaintNumber || `CMP-2026-${String(i + 1).padStart(4, '0')}`,
+        sbu: sbuVal,
+        complaintOpenDuration: openDurationDays,
         productName:
           c.reportedProduct?.name ||
           c.productDetails?.productName ||
@@ -1344,7 +1417,17 @@ export function ReportsPage() {
 
     if (!runtime) {
       const repName = (activeReport.name || '').toLowerCase().trim();
-      if (activeReport.id === 'rep-29' || repName === 'report by manufacturing') {
+      if (activeReport.id === 'rep-2' || repName.includes('days open efficacy')) {
+        cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
+        grp = ['sbu'];
+      } else if (
+        activeReport.id === 'rep-3' ||
+        repName.includes('days open non efficacy') ||
+        repName.includes('days open non-efficacy')
+      ) {
+        cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
+        grp = ['sbu'];
+      } else if (activeReport.id === 'rep-29' || repName === 'report by manufacturing') {
         cols = ['complaintNo', 'contactPerson', 'financialYear'];
         grp = ['manufacturingLocation', 'locationDetail'];
       } else if (activeReport.id === 'rep-13' || repName.includes('non - confirmed complaints')) {
@@ -1752,12 +1835,25 @@ export function ReportsPage() {
     if (colId === 'totalDaysTaken') {
       return <span className="text-slate-800 text-[11px] font-medium whitespace-nowrap">{val != null ? val : '—'}</span>;
     }
-    if (colId === 'stage') {
+    if (colId === 'complaintOpenDuration') {
       return (
-        <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[10px] uppercase border border-blue-200">
-          {val || 'D1'}
+        <span className="text-slate-800 text-xs font-normal tabular-nums">
+          {Number(val || 0).toLocaleString()}
         </span>
       );
+    }
+    if (colId === 'stage') {
+      const isBadgeReport =
+        activeReport?.id === 'rep-33' ||
+        (activeReport?.name || '').toLowerCase().includes('stage wise overview');
+      if (isBadgeReport) {
+        return (
+          <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold text-[10px] uppercase border border-blue-200">
+            {val || 'D1'}
+          </span>
+        );
+      }
+      return <span className="text-slate-800 text-xs font-normal">{val || '—'}</span>;
     }
     if (colId === 'status') {
       const isClosed = String(val).toLowerCase() === 'closed';
@@ -2522,6 +2618,25 @@ export function ReportsPage() {
                                     </td>
                                   );
                                 }
+                                if (col.id === 'complaintOpenDuration') {
+                                  const avg =
+                                    groupRows.length > 0
+                                      ? Math.round(
+                                          groupRows.reduce((acc, r) => acc + (Number(r.complaintOpenDuration) || 0), 0) /
+                                            groupRows.length
+                                        )
+                                      : 0;
+                                  return (
+                                    <td
+                                      key={col.id}
+                                      className={`py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-800 ${
+                                        idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                                      }`}
+                                    >
+                                      Avg: {avg.toLocaleString()}
+                                    </td>
+                                  );
+                                }
                                 return (
                                   <td
                                     key={col.id}
@@ -2566,10 +2681,51 @@ export function ReportsPage() {
                       <td className="py-2.5 px-3 border-r border-slate-300 font-bold whitespace-nowrap">
                         Total ({previewComplaints.length})
                       </td>
-                      <td
-                        colSpan={builderGroupCols.length + builderDetailCols.length - 1}
-                        className="py-2.5 px-3"
-                      ></td>
+                      {builderGroupCols.slice(1).map((_, idx) => (
+                        <td key={idx} className="py-2.5 px-3 border-r border-slate-300"></td>
+                      ))}
+                      {builderDetailCols.map((col, idx) => {
+                        if (col.id === 'totalDaysTaken') {
+                          const grandSum = previewComplaints.reduce((acc, r) => acc + (Number(r.totalDaysTaken) || 0), 0);
+                          return (
+                            <td
+                              key={col.id}
+                              className={`py-2.5 px-3 border-r border-slate-300 font-bold text-slate-900 ${
+                                idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                              }`}
+                            >
+                              {grandSum.toLocaleString()}
+                            </td>
+                          );
+                        }
+                        if (col.id === 'complaintOpenDuration') {
+                          const grandAvg =
+                            previewComplaints.length > 0
+                              ? Math.round(
+                                  previewComplaints.reduce((acc, r) => acc + (Number(r.complaintOpenDuration) || 0), 0) /
+                                    previewComplaints.length
+                                )
+                              : 0;
+                          return (
+                            <td
+                              key={col.id}
+                              className={`py-2.5 px-3 border-r border-slate-300 font-bold text-slate-900 text-right ${
+                                idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                              }`}
+                            >
+                              Avg: {grandAvg.toLocaleString()}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-2.5 px-3 border-r border-slate-300 ${
+                              idx === builderDetailCols.length - 1 ? 'border-r-0' : ''
+                            }`}
+                          ></td>
+                        );
+                      })}
                     </tr>
                   )}
                 </tbody>
@@ -3004,6 +3160,21 @@ export function ReportsPage() {
                   </span>
                 </div>
               )}
+              {detailCols.some((c) => c.id === 'complaintOpenDuration') && (
+                <div>
+                  <span className="text-[11px] font-normal text-slate-500 block">
+                    Average Complaint Open Duration
+                  </span>
+                  <span className="text-[16px] font-bold text-slate-900 leading-tight">
+                    {displayRows.length > 0
+                      ? Math.round(
+                          displayRows.reduce((acc, r) => acc + (Number(r.complaintOpenDuration) || 0), 0) /
+                            displayRows.length
+                        ).toLocaleString()
+                      : 0}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
               Columns: {detailCols.length} {groupCols.length > 0 ? `| Grouped by: ${groupCols.map((g) => g.label).join(', ')}` : ''}
@@ -3192,6 +3363,25 @@ export function ReportsPage() {
                                   </td>
                                 );
                               }
+                              if (col.id === 'complaintOpenDuration') {
+                                const avg =
+                                  groupRows.length > 0
+                                    ? Math.round(
+                                        groupRows.reduce((acc, r) => acc + (Number(r.complaintOpenDuration) || 0), 0) /
+                                          groupRows.length
+                                      )
+                                    : 0;
+                                return (
+                                  <td
+                                    key={col.id}
+                                    className={`py-1.5 px-3 border-r border-slate-200 font-semibold text-slate-800 text-right ${
+                                      idx === detailCols.length - 1 ? 'border-r-0' : ''
+                                    }`}
+                                  >
+                                    Avg: {avg.toLocaleString()}
+                                  </td>
+                                );
+                              }
                               return (
                                 <td
                                   key={col.id}
@@ -3252,6 +3442,25 @@ export function ReportsPage() {
                             }`}
                           >
                             {grandSum.toLocaleString()}
+                          </td>
+                        );
+                      }
+                      if (col.id === 'complaintOpenDuration') {
+                        const grandAvg =
+                          displayRows.length > 0
+                            ? Math.round(
+                                displayRows.reduce((acc, r) => acc + (Number(r.complaintOpenDuration) || 0), 0) /
+                                  displayRows.length
+                              )
+                            : 0;
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-2.5 px-3 border-r border-slate-300 font-bold text-slate-900 text-right ${
+                              idx === detailCols.length - 1 ? 'border-r-0' : ''
+                            }`}
+                          >
+                            Avg: {grandAvg.toLocaleString()}
                           </td>
                         );
                       }
