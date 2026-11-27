@@ -50,6 +50,7 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 // ============================================================================
 export const AVAILABLE_FIELDS = [
   { id: 'complaintNo', label: 'Complaint: Complaint No', type: 'link', category: 'Identification' },
+  { id: 'complaintId', label: 'Complaint: ID', type: 'link', category: 'Identification' },
   { id: 'manufacturingLocation', label: 'Manufacturing Location', type: 'text', category: 'Manufacturing' },
   { id: 'locationDetail', label: 'Location detail', type: 'text', category: 'Manufacturing' },
   { id: 'contactPerson', label: 'Contact Person', type: 'text', category: 'Origin' },
@@ -58,6 +59,8 @@ export const AVAILABLE_FIELDS = [
   { id: 'd7Completed', label: 'D7 completed', type: 'text', category: 'Workflow' },
   { id: 'productName', label: 'Product name', type: 'text', category: 'Product' },
   { id: 'distributor', label: 'Distributor / Retailer Name', type: 'text', category: 'Customer' },
+  { id: 'complaintDescription', label: 'Detailed Description of the Complaint', type: 'text', category: 'Quality' },
+  { id: 'complaintDate', label: 'Complaint date', type: 'text', category: 'Intake' },
   { id: 'requestedBy', label: 'Requested By', type: 'text', category: 'Origin' },
   { id: 'createdDate', label: 'Complaint: Created Date', type: 'date', category: 'Intake' },
   { id: 'createdMonthYear', label: 'Created Month & Year', type: 'text', category: 'Intake' },
@@ -436,8 +439,8 @@ function getDefaultColumnsForReport(repId, repName) {
   if (n.includes('raised by')) {
     return ['requestedBy', 'complaintNo', 'productName', 'createdDate', 'stage', 'status'];
   }
-  if (n.includes('product wise')) {
-    return ['productName', 'complaintNo', 'batchNumber', 'stage', 'status'];
+  if (n.includes('product wise') || repId === 'rep-31') {
+    return ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'];
   }
   if (n.includes('customer wise')) {
     return ['distributor', 'complaintNo', 'productName', 'requestedBy', 'createdDate', 'status'];
@@ -844,6 +847,8 @@ const NARAYAN_RAO_REPORTS = [
     createdOn: '14/3/2023, 12:15 pm',
     subscribed: false,
     type: 'product-wise-all',
+    columns: ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'],
+    groupBy: ['productName'],
   },
   // 32. Screenshot Extract 12
   {
@@ -1131,6 +1136,16 @@ export function ReportsPage() {
                 };
               }
               if (
+                p.id === 'rep-31' ||
+                (p.name && p.name.toLowerCase() === 'product wise complaints')
+              ) {
+                return {
+                  ...p,
+                  columns: ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'],
+                  groupBy: ['productName'],
+                };
+              }
+              if (
                 p.id === 'rep-27' ||
                 (p.name && p.name.toLowerCase() === 'inhouse report') ||
                 p.id === 'rep-29' ||
@@ -1386,6 +1401,27 @@ export function ReportsPage() {
       return {
         id: c._id || 'c-' + i,
         complaintNo: c.complaintNumber || `CMP-2026-${String(i + 1).padStart(4, '0')}`,
+        complaintId:
+          c.salesforceId ||
+          c.complaintId ||
+          (c.complaintNumber
+            ? `a0QOW${c.complaintNumber.replace(/[^a-zA-Z0-9]/g, '').slice(-10).padStart(10, '0')}`
+            : `a0QOW00000${String(i + 1).padStart(5, '0')}`),
+        complaintDescription:
+          c.complaintDetails?.description ||
+          c.description ||
+          c.detailedDescription ||
+          c.complainant?.description ||
+          '-',
+        complaintDate: `${createdTime.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })}, ${createdTime.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }).toLowerCase()}`,
         sbu: sbuVal,
         complaintOpenDuration: openDurationDays,
         confirmedOrNot: confOrNot,
@@ -1478,6 +1514,9 @@ export function ReportsPage() {
       ) {
         cols = ['complaintNo', 'stage', 'complaintOpenDuration'];
         grp = ['sbu'];
+      } else if (activeReport.id === 'rep-31' || repName === 'product wise complaints') {
+        cols = ['complaintNo', 'complaintId', 'distributor', 'complaintDescription', 'complaintDate', 'financialYear'];
+        grp = ['productName'];
       } else if (
         activeReport.id === 'rep-27' ||
         repName === 'inhouse report' ||
@@ -1844,6 +1883,13 @@ export function ReportsPage() {
     if (colId === 'complaintNo') {
       return (
         <span className="text-[#0176d3] font-mono hover:underline cursor-pointer font-medium">
+          {val || '—'}
+        </span>
+      );
+    }
+    if (colId === 'complaintId') {
+      return (
+        <span className="text-[#0176d3] font-mono hover:underline cursor-pointer font-normal text-xs">
           {val || '—'}
         </span>
       );
