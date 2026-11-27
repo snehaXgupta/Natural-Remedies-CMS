@@ -998,7 +998,8 @@ export function ReportsPage() {
       );
       if (match) {
         setActiveReport(match);
-        setShowChart(true);
+        const isMfg = match.id === 'rep-29' || (match.name && match.name.toLowerCase().includes('manufacturing'));
+        setShowChart(!isMfg);
       }
     }
   }, [reportParamId, reports]);
@@ -1011,7 +1012,8 @@ export function ReportsPage() {
 
   const handleSelectReport = (rep) => {
     setActiveReport(rep);
-    setShowChart(true);
+    const isMfg = rep?.id === 'rep-29' || (rep?.name && rep?.name.toLowerCase().includes('manufacturing'));
+    setShowChart(!isMfg);
     if (rep?.id) {
       setSearchParams({ reportId: rep.id });
     }
@@ -2600,18 +2602,26 @@ export function ReportsPage() {
                 <Search className="h-4 w-4" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setShowChart(!showChart)}
-                className={`p-1.5 rounded border shadow-2xs transition ${
-                  showChart
-                    ? 'border-[#0176d3] bg-[#0176d3] text-white hover:bg-[#0165b8]'
-                    : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-600'
-                }`}
-                title={showChart ? 'Hide Chart' : 'Show Chart'}
-              >
-                <BarChart3 className="h-4 w-4" />
-              </button>
+              {showChart ? (
+                <button
+                  type="button"
+                  onClick={() => setShowChart(false)}
+                  className="p-1.5 rounded border border-[#0176d3] bg-[#0176d3] text-white hover:bg-[#0165b8] shadow-2xs transition"
+                  title="Hide Chart"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowChart(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition"
+                  title="Add Chart"
+                >
+                  <BarChart3 className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Add Chart</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -2833,7 +2843,7 @@ export function ReportsPage() {
                                       <td className="py-2 px-3 border-r border-slate-200 text-slate-700 font-medium align-top whitespace-nowrap">
                                         {showL2 ? (
                                           <span>
-                                            {k2} {toggles.rowCounts && <span className="text-slate-500 font-normal">({rows.length})</span>}
+                                            {k2} <span className="text-slate-500 font-normal">({rows.length})</span>
                                           </span>
                                         ) : (
                                           ''
@@ -2892,7 +2902,7 @@ export function ReportsPage() {
                                 <td className="py-2 px-3 border-r border-slate-200 text-slate-800 font-medium align-top whitespace-nowrap">
                                   {showGroup ? (
                                     <span>
-                                      {groupKey} {toggles.rowCounts && <span className="text-slate-500 font-normal">({groupRows.length})</span>}
+                                      {groupKey} <span className="text-slate-500 font-normal">({groupRows.length})</span>
                                     </span>
                                   ) : (
                                     ''
